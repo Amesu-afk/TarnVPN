@@ -40,6 +40,15 @@ object Vendor : VendorInterface {
                     showTrackNotSupportedDialog(activity)
                 }
             }
+        } catch (e: UpdateCheckException.NotConfigured) {
+            // Not "no updates": this build has no releases repository at all. Saying so keeps
+            // the user from reading silence as "you are up to date".
+            Log.d(TAG, "checkUpdate: no releases repository configured")
+            if (byUser) {
+                activity.runOnUiThread {
+                    showNotConfiguredDialog(activity)
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "checkUpdate: ", e)
             if (byUser) {
@@ -85,6 +94,14 @@ object Vendor : VendorInterface {
         MaterialAlertDialogBuilder(activity)
             .setTitle(R.string.check_update)
             .setMessage(R.string.update_track_not_supported)
+            .setPositiveButton(R.string.ok, null)
+            .show()
+    }
+
+    private fun showNotConfiguredDialog(activity: Activity) {
+        MaterialAlertDialogBuilder(activity)
+            .setTitle(R.string.check_update)
+            .setMessage(R.string.tarn_update_not_configured)
             .setPositiveButton(R.string.ok, null)
             .show()
     }

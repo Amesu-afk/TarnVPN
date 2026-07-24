@@ -218,18 +218,36 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         }
     }
 
+    @OptIn(DelicateCoroutinesApi::class)
     override fun serviceStop() {
         shuttingDown = true
         runBlocking {
-            serviceReloadMutex.withLock {
-                notification.close()
-                status.postValue(Status.Starting)
-                val pfd = fileDescriptor
-                if (pfd != null) {
-                    pfd.close()
-                    fileDescriptor = null
+            // Bounded for the same reason stopService() is, and in the same way. This is the
+            // other door into shutdown — libbox calls it when a command client asks the
+            // service to stop — and taking serviceReloadMutex unbounded here would hang the
+            // caller's thread for as long as a wedged reload holds the lock. Waiting on a
+            // separate job is what makes the bound real: the cleanup ends in a blocking
+            // native call, and coroutine cancellation cannot interrupt one, so wrapping the
+            // work itself in withTimeoutOrNull would only fire after it had already returned.
+            val graceful = GlobalScope.launch(Dispatchers.IO) {
+                serviceReloadMutex.withLock {
+                    notification.close()
+                    status.postValue(Status.Starting)
+                    val pfd = fileDescriptor
+                    if (pfd != null) {
+                        pfd.close()
+                        fileDescriptor = null
+                    }
+                    closeService()
                 }
-                closeService()
+            }
+            if (withTimeoutOrNull(STOP_GRACE_PERIOD_MS) { graceful.join() } == null) {
+                // Abandon the queued cleanup and take down the tunnel by hand, so a stuck
+                // reload cannot leave the tun device up with no way to ask again.
+                Log.w(TAG, "graceful serviceStop still running after ${STOP_GRACE_PERIOD_MS}ms, forcing shutdown")
+                notification.close()
+                runCatching { fileDescriptor?.close() }
+                fileDescriptor = null
             }
         }
     }

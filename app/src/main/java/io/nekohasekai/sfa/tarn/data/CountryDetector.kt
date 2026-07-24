@@ -67,28 +67,67 @@ object CountryDetector {
     )
 
     /**
-     * Tries the human name first, then a `xx-` prefix on the outbound tag, then a
-     * bare 2-letter token anywhere in either string.
+     * Tries the human name first, then the outbound tag, then a `xx-` prefix.
+     *
+     * Known limitation: "Georgia" is both a country and a US state, and Atlanta is a
+     * common hosting location — a server named for the state gets the country's flag.
+     * There is no signal in the name to tell them apart, so the country wins.
      */
     fun detect(displayName: String, tag: String?): String? {
-        val name = displayName.lowercase()
-        NAMES.entries.firstOrNull { name.contains(it.key) }?.let { return it.value }
+        fromNames(displayName)?.let { return it }
+        tag?.let(::fromNames)?.let { return it }
 
-        tag?.let { fromTag(it) }?.let { return it }
-        fromTag(displayName)?.let { return it }
-        return null
+        tag?.let { fromTag(it, freeText = false) }?.let { return it }
+        // The display name is prose, so only the leading token is trusted here — see [fromTag].
+        return fromTag(displayName, freeText = true)
     }
 
-    private fun fromTag(raw: String): String? {
-        val tokens = raw.lowercase().split('-', '_', '.', ' ', ',', '/')
+    /**
+     * Matches [NAMES] on whole words rather than raw substrings, so a country name has to
+     * stand on its own instead of turning up inside a longer word.
+     */
+    private fun fromNames(raw: String): String? {
+        val normalized = normalize(raw)
+        return NAMES.entries.firstOrNull { normalized.contains(" ${it.key} ") }?.value
+    }
+
+    /**
+     * Lowercased, punctuation flattened to spaces, runs of spaces collapsed, and the whole
+     * thing space-padded — so `" key "` tests for a whole word, and a two-word key still
+     * matches across whatever separated it ("Hong, Kong" and "Hong-Kong" alike).
+     */
+    private fun normalize(raw: String): String =
+        raw.lowercase()
+            .map { if (it.isLetterOrDigit()) it else ' ' }
+            .joinToString("")
+            .split(' ')
+            .filter { it.isNotEmpty() }
+            .joinToString(separator = " ", prefix = " ", postfix = " ")
+
+    /**
+     * Reads a country code out of a structured tag like `de-ber-01` or `vpn-us-nyc`.
+     *
+     * [freeText] is the important knob. A machine-made tag is a safe place to look for a
+     * standalone two-letter code in any position. A human display name is not: it used to
+     * be scanned the same way, and every short English word that happens to be an ISO code
+     * became a country — "Server in Berlin" flew India's flag off `in`, "My Server" flew
+     * Malaysia's off `my`.
+     *
+     * So in prose only the *leading* token is read, and only when it is written in capitals.
+     * That is how a code is actually written when someone means one ("DE Berlin", "NL 01"),
+     * while the words that caused the false flags are not ("My", "In", "It"). Case cannot be
+     * used this way on a tag, which is conventionally all-lowercase, hence the split.
+     */
+    private fun fromTag(raw: String, freeText: Boolean): String? {
+        val tokens = raw.split('-', '_', '.', ' ', ',', '/').filter { it.isNotBlank() }
         // A leading two-letter token is the common convention: de-ber-01, us-nyc-01.
         tokens.firstOrNull()?.let { head ->
-            if (head.length == 2) {
+            if (head.length == 2 && (!freeText || head.all(Char::isUpperCase))) {
                 val code = head.uppercase()
                 if (code in ISO_CODES) return code
             }
         }
-        // Otherwise accept any standalone two-letter token that is a known code.
+        if (freeText) return null
         return tokens.asSequence()
             .filter { it.length == 2 }
             .map { it.uppercase() }

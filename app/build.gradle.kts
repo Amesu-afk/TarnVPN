@@ -163,6 +163,18 @@ android {
         generateLocaleConfig = true
     }
 
+    testOptions {
+        unitTests {
+            // Robolectric supplies real implementations of the android.* classes the parsing
+            // code leans on (Uri, Base64, org.json), so the import logic can be tested on the
+            // JVM instead of only on a device.
+            isIncludeAndroidResources = true
+            // Anything NOT covered by Robolectric would otherwise throw "not mocked"; returning
+            // defaults keeps an unrelated stray call from failing a test about parsing.
+            isReturnDefaultValues = true
+        }
+    }
+
     buildFeatures {
         viewBinding = true
         aidl = true
@@ -329,6 +341,12 @@ dependencies {
     "otherLegacyImplementation"("androidx.navigation:navigation-compose:2.9.7")
     "otherLegacyImplementation"("androidx.lifecycle:lifecycle-viewmodel-compose:$lifecycleComposeVersion21")
     "otherLegacyImplementation"("androidx.compose.runtime:runtime-livedata")
+
+    // JVM unit tests. Robolectric is what makes the import path testable without a device:
+    // ProxyUriParser is built on android.net.Uri / android.util.Base64 / org.json, none of
+    // which exist in a plain JVM test.
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.16")
 
     // Debug/Test dependencies
     debugImplementation("androidx.compose.ui:ui-tooling")

@@ -198,4 +198,6 @@
         <item quantity="many">обновлено %1$d дней назад</item>
         <item quantity="other">обновлено %1$d дня назад</item>
     </plurals>
+    <string name="tarn_update_not_configured">В этой сборке проверка обновлений ещё не настроена.</string>
+    <string name="tarn_apply_failed">Не удалось применить изменение к запущенному VPN.</string>
 </resources>

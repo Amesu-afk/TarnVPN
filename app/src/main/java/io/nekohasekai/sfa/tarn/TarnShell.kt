@@ -7,8 +7,11 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -19,6 +22,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -107,6 +111,8 @@ fun TarnShell(
     val dashboardState by dashboardViewModel.uiState.collectAsState()
 
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val applyFailedMessage = stringResource(R.string.tarn_apply_failed)
 
     var killSwitch by remember { mutableStateOf(Settings.tarnKillSwitch) }
     var dnsProtection by remember { mutableStateOf(Settings.tarnDnsProtection) }
@@ -139,14 +145,15 @@ fun TarnShell(
     // via a snackbar in SFAApp(), which this shell never composes — so apply it directly.
     suspend fun reloadRunningService() {
         if (serviceStatus != Status.Started) return
-        withContext(Dispatchers.IO) {
-            try {
-                Libbox.newStandaloneCommandClient().serviceReload()
-            } catch (e: Exception) {
-                // Nothing in this shell can surface an error, and a silent no-op here
-                // looks exactly like "the change didn't apply" — leave a trace.
-                Log.w("TarnShell", "service reload failed", e)
-            }
+        val failure = withContext(Dispatchers.IO) {
+            runCatching { Libbox.newStandaloneCommandClient().serviceReload() }.exceptionOrNull()
+        }
+        if (failure != null) {
+            Log.w("TarnShell", "service reload failed", failure)
+            // A failed reload leaves the toggle showing its new position while the running
+            // service keeps the old behaviour. Staying silent about that is indistinguishable
+            // from the setting not doing anything, which is how it reads to the user.
+            snackbarHostState.showSnackbar(applyFailedMessage)
         }
     }
 
@@ -160,7 +167,19 @@ fun TarnShell(
     // off would do nothing for servers imported before the flip.
     fun repatchSettingsAndReload() {
         scope.launch {
-            withContext(Dispatchers.IO) { TarnServerRepository.repatchSettings() }
+            // repatchSettings runs Libbox.checkConfig on every profile it rewrites and throws
+            // when the core rejects one. Unguarded, that exception escaped this launch and
+            // took the whole app down on what is a recoverable per-profile problem. Report it
+            // and still reload: checkConfig is exactly what stops a rejected config from ever
+            // reaching disk, so whatever is on disk remains loadable.
+            val failure = withContext(Dispatchers.IO) {
+                runCatching { TarnServerRepository.repatchSettings() }.exceptionOrNull()
+            }
+            if (failure != null) {
+                Log.w("TarnShell", "repatch settings failed", failure)
+                snackbarHostState.showSnackbar(applyFailedMessage)
+                return@launch
+            }
             reloadRunningService()
         }
     }
@@ -254,319 +273,330 @@ fun TarnShell(
         }
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = TarnRoute.HOME,
-        modifier = modifier.fillMaxSize(),
-    ) {
-        composable(TarnRoute.HOME) {
-            TarnHomeScreen(
-                serviceStatus = serviceStatus,
-                serverName = selectedServer?.displayName ?: dashboardState.selectedProfileName,
-                serverTag = selectedServer?.tag,
-                latency = serversState.latencies[selectedProfileId] ?: Latency.Unknown,
-                startTime = dashboardState.serviceStartTime,
-                onToggleConnection = { dashboardViewModel.toggleService() },
-                onOpenServers = { navController.navigate(TarnRoute.SERVERS) },
-                onOpenShield = { navController.navigate(TarnRoute.SHIELD) },
-            )
-        }
-
-        composable(
-            route = TarnRoute.SERVERS,
-            enterTransition = slideIn,
-            exitTransition = slideOut,
-            popEnterTransition = popIn,
-            popExitTransition = popOut,
+    // A Box, not a Scaffold: every Tarn screen already draws its own chrome, and the only
+    // thing missing at shell level is somewhere for a failure to be seen. Overlaying the host
+    // leaves the screens untouched.
+    Box(modifier = modifier.fillMaxSize()) {
+        NavHost(
+            navController = navController,
+            startDestination = TarnRoute.HOME,
+            modifier = Modifier.fillMaxSize(),
         ) {
-            TarnServersScreen(
-                state = serversState,
-                selectedProfileId = selectedProfileId,
-                onBack = { navController.navigateUp() },
-                onSelect = { profileId ->
-                    dashboardViewModel.selectProfile(profileId)
-                    navController.navigateUp()
-                },
-                onToggleFavourite = serversViewModel::toggleFavourite,
-                onQueryChange = serversViewModel::setQuery,
-                onRecommendedOnlyChange = serversViewModel::setRecommendedOnly,
-                onCountryFilterChange = serversViewModel::setCountryFilter,
-                onImport = serversViewModel::importServers,
-                onDismissImportError = serversViewModel::dismissImportError,
-                onDelete = serversViewModel::deleteServer,
-                onOpenSubscriptions = { navController.navigate(TarnRoute.SUBSCRIPTIONS) },
-                serviceStarted = serviceStatus == Status.Started,
-                onRunFullTest = serversViewModel::runFullTest,
-                onCancelFullTest = serversViewModel::cancelFullTest,
-                onClearFullTest = serversViewModel::clearFullTest,
-                onSuggestedFailover = { profileId ->
-                    serversViewModel.clearFullTest()
-                    dashboardViewModel.selectProfile(profileId)
-                },
-            )
-        }
+            composable(TarnRoute.HOME) {
+                TarnHomeScreen(
+                    serviceStatus = serviceStatus,
+                    serverName = selectedServer?.displayName ?: dashboardState.selectedProfileName,
+                    serverTag = selectedServer?.tag,
+                    latency = serversState.latencies[selectedProfileId] ?: Latency.Unknown,
+                    startTime = dashboardState.serviceStartTime,
+                    onToggleConnection = { dashboardViewModel.toggleService() },
+                    onOpenServers = { navController.navigate(TarnRoute.SERVERS) },
+                    onOpenShield = { navController.navigate(TarnRoute.SHIELD) },
+                )
+            }
 
-        composable(
-            route = TarnRoute.SUBSCRIPTIONS,
-            enterTransition = slideIn,
-            exitTransition = slideOut,
-            popEnterTransition = popIn,
-            popExitTransition = popOut,
-        ) {
-            TarnSubscriptionsScreen(
-                state = subscriptionsState,
-                onBack = { navController.navigateUp() },
-                onRefresh = subscriptionsViewModel::refresh,
-                onDelete = subscriptionsViewModel::delete,
-                onToggleAutoUpdate = subscriptionsViewModel::setAutoUpdate,
-                onDismissError = subscriptionsViewModel::dismissError,
-            )
-        }
+            composable(
+                route = TarnRoute.SERVERS,
+                enterTransition = slideIn,
+                exitTransition = slideOut,
+                popEnterTransition = popIn,
+                popExitTransition = popOut,
+            ) {
+                TarnServersScreen(
+                    state = serversState,
+                    selectedProfileId = selectedProfileId,
+                    onBack = { navController.navigateUp() },
+                    onSelect = { profileId ->
+                        dashboardViewModel.selectProfile(profileId)
+                        navController.navigateUp()
+                    },
+                    onToggleFavourite = serversViewModel::toggleFavourite,
+                    onQueryChange = serversViewModel::setQuery,
+                    onRecommendedOnlyChange = serversViewModel::setRecommendedOnly,
+                    onCountryFilterChange = serversViewModel::setCountryFilter,
+                    onImport = serversViewModel::importServers,
+                    onDismissImportError = serversViewModel::dismissImportError,
+                    onDelete = serversViewModel::deleteServer,
+                    onOpenSubscriptions = { navController.navigate(TarnRoute.SUBSCRIPTIONS) },
+                    serviceStarted = serviceStatus == Status.Started,
+                    onRunFullTest = serversViewModel::runFullTest,
+                    onCancelFullTest = serversViewModel::cancelFullTest,
+                    onClearFullTest = serversViewModel::clearFullTest,
+                    onSuggestedFailover = { profileId ->
+                        serversViewModel.clearFullTest()
+                        dashboardViewModel.selectProfile(profileId)
+                    },
+                )
+            }
 
-        composable(
-            route = TarnRoute.SHIELD,
-            enterTransition = slideIn,
-            exitTransition = slideOut,
-            popEnterTransition = popIn,
-            popExitTransition = popOut,
-        ) {
-            TarnShieldScreen(
-                state = TarnShieldState(
-                    killSwitch = killSwitch,
-                    dnsProtection = dnsProtection,
-                    autoConnect = autoConnect,
-                    splitEnabled = splitEnabled,
-                    splitMode = splitMode,
-                    splitAppCount = splitAppCount,
-                    dnsProviderName = TarnDns.byId(dnsProvider).title,
-                    dnsThroughVpn = dnsRoute == Settings.DNS_ROUTE_TUNNEL,
-                    ipv6Enabled = ipv6Enabled,
-                    fragmentEnabled = fragmentEnabled,
-                    themeMode = themeMode,
-                    protocol = selectedServer?.protocol?.uppercase() ?: "—",
-                    versionName = BuildConfig.VERSION_NAME,
-                    versionCode = BuildConfig.VERSION_CODE,
-                ),
-                onBack = { navController.navigateUp() },
-                onKillSwitchChange = {
-                    killSwitch = it
-                    // allowBypass is read when the tun device is (re)established, same as
-                    // upstream's own equivalent toggle in ServiceSettingsScreen — a plain
-                    // reload picks it up, no restart needed.
-                    Settings.tarnKillSwitch = it
-                    applyToRunningService()
-                },
-                onDnsProtectionChange = {
-                    dnsProtection = it
-                    Settings.tarnDnsProtection = it
-                    repatchSettingsAndReload()
-                },
-                onAutoConnectChange = {
-                    autoConnect = it
-                    Settings.tarnAutoConnect = it
-                },
-                onOpenDnsPicker = { navController.navigate(TarnRoute.DNS) },
-                onDnsThroughVpnChange = ::onDnsThroughVpnChange,
-                onIpv6Change = ::onIpv6Change,
-                onFragmentChange = ::onFragmentChange,
-                onOpenConnectionLab = { navController.navigate(TarnRoute.CONNECTION_LAB) },
-                onThemeModeChange = onThemeModeChange,
-                onSplitEnabledChange = {
-                    splitEnabled = it
-                    Settings.perAppProxyEnabled = it
-                    applyToRunningService()
-                },
-                onSplitModeChange = {
-                    splitMode = it
-                    Settings.perAppProxyMode = it
-                    applyToRunningService()
-                },
-                onOpenSplitTunneling = { navController.navigate(TarnRoute.SPLIT_TUNNELING) },
-                onOpenVpnSettings = {
-                    // ACTION_VPN_SETTINGS is where lockdown lives. It is not guaranteed to
-                    // exist on every OEM build, so fall back to the app's own settings page
-                    // rather than crash on ActivityNotFoundException.
-                    val context = navController.context
-                    val opened = runCatching {
-                        context.startActivity(
-                            Intent(android.provider.Settings.ACTION_VPN_SETTINGS)
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                        )
-                    }.isSuccess
-                    if (!opened) {
-                        runCatching {
+            composable(
+                route = TarnRoute.SUBSCRIPTIONS,
+                enterTransition = slideIn,
+                exitTransition = slideOut,
+                popEnterTransition = popIn,
+                popExitTransition = popOut,
+            ) {
+                TarnSubscriptionsScreen(
+                    state = subscriptionsState,
+                    onBack = { navController.navigateUp() },
+                    onRefresh = subscriptionsViewModel::refresh,
+                    onDelete = subscriptionsViewModel::delete,
+                    onToggleAutoUpdate = subscriptionsViewModel::setAutoUpdate,
+                    onDismissError = subscriptionsViewModel::dismissError,
+                )
+            }
+
+            composable(
+                route = TarnRoute.SHIELD,
+                enterTransition = slideIn,
+                exitTransition = slideOut,
+                popEnterTransition = popIn,
+                popExitTransition = popOut,
+            ) {
+                TarnShieldScreen(
+                    state = TarnShieldState(
+                        killSwitch = killSwitch,
+                        dnsProtection = dnsProtection,
+                        autoConnect = autoConnect,
+                        splitEnabled = splitEnabled,
+                        splitMode = splitMode,
+                        splitAppCount = splitAppCount,
+                        dnsProviderName = TarnDns.byId(dnsProvider).title,
+                        dnsThroughVpn = dnsRoute == Settings.DNS_ROUTE_TUNNEL,
+                        ipv6Enabled = ipv6Enabled,
+                        fragmentEnabled = fragmentEnabled,
+                        themeMode = themeMode,
+                        protocol = selectedServer?.protocol?.uppercase() ?: "—",
+                        versionName = BuildConfig.VERSION_NAME,
+                        versionCode = BuildConfig.VERSION_CODE,
+                    ),
+                    onBack = { navController.navigateUp() },
+                    onKillSwitchChange = {
+                        killSwitch = it
+                        // allowBypass is read when the tun device is (re)established, same as
+                        // upstream's own equivalent toggle in ServiceSettingsScreen — a plain
+                        // reload picks it up, no restart needed.
+                        Settings.tarnKillSwitch = it
+                        applyToRunningService()
+                    },
+                    onDnsProtectionChange = {
+                        dnsProtection = it
+                        Settings.tarnDnsProtection = it
+                        repatchSettingsAndReload()
+                    },
+                    onAutoConnectChange = {
+                        autoConnect = it
+                        Settings.tarnAutoConnect = it
+                    },
+                    onOpenDnsPicker = { navController.navigate(TarnRoute.DNS) },
+                    onDnsThroughVpnChange = ::onDnsThroughVpnChange,
+                    onIpv6Change = ::onIpv6Change,
+                    onFragmentChange = ::onFragmentChange,
+                    onOpenConnectionLab = { navController.navigate(TarnRoute.CONNECTION_LAB) },
+                    onThemeModeChange = onThemeModeChange,
+                    onSplitEnabledChange = {
+                        splitEnabled = it
+                        Settings.perAppProxyEnabled = it
+                        applyToRunningService()
+                    },
+                    onSplitModeChange = {
+                        splitMode = it
+                        Settings.perAppProxyMode = it
+                        applyToRunningService()
+                    },
+                    onOpenSplitTunneling = { navController.navigate(TarnRoute.SPLIT_TUNNELING) },
+                    onOpenVpnSettings = {
+                        // ACTION_VPN_SETTINGS is where lockdown lives. It is not guaranteed to
+                        // exist on every OEM build, so fall back to the app's own settings page
+                        // rather than crash on ActivityNotFoundException.
+                        val context = navController.context
+                        val opened = runCatching {
                             context.startActivity(
-                                Intent(
-                                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                    Uri.fromParts("package", context.packageName, null),
-                                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                Intent(android.provider.Settings.ACTION_VPN_SETTINGS)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        }.isSuccess
+                        if (!opened) {
+                            runCatching {
+                                context.startActivity(
+                                    Intent(
+                                        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                        Uri.fromParts("package", context.packageName, null),
+                                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                )
+                            }
+                        }
+                    },
+                    onOpenAdvanced = onOpenAdvanced,
+                )
+            }
+
+            composable(
+                route = TarnRoute.SPLIT_TUNNELING,
+                enterTransition = slideIn,
+                exitTransition = slideOut,
+                popEnterTransition = popIn,
+                popExitTransition = popOut,
+            ) {
+                // Upstream screen, reused as-is — it already does per-app proxy properly. It
+                // publishes its toolbar (back, search, mode menu, select-all) through
+                // LocalTopBarController instead of drawing it, and that provider normally comes
+                // from SFAApp(), which this shell never composes. So host it here: without this
+                // the screen crashes on the missing composition local, and without rendering the
+                // entry the picker would come up with no toolbar at all.
+                val topBarState = remember { mutableStateOf(emptyList<TopBarEntry>()) }
+                val topBarController = remember { TopBarController(topBarState) }
+                CompositionLocalProvider(LocalTopBarController provides topBarController) {
+                    Scaffold(
+                        topBar = { topBarState.value.lastOrNull()?.content?.invoke() },
+                        containerColor = TarnColors.Background,
+                    ) { innerPadding ->
+                        Box(modifier = Modifier.padding(innerPadding)) {
+                            PerAppProxyScreen(
+                                onBack = { navController.navigateUp() },
+                                serviceStatus = serviceStatus,
                             )
                         }
                     }
-                },
-                onOpenAdvanced = onOpenAdvanced,
-            )
-        }
+                }
+            }
 
-        composable(
-            route = TarnRoute.SPLIT_TUNNELING,
-            enterTransition = slideIn,
-            exitTransition = slideOut,
-            popEnterTransition = popIn,
-            popExitTransition = popOut,
-        ) {
-            // Upstream screen, reused as-is — it already does per-app proxy properly. It
-            // publishes its toolbar (back, search, mode menu, select-all) through
-            // LocalTopBarController instead of drawing it, and that provider normally comes
-            // from SFAApp(), which this shell never composes. So host it here: without this
-            // the screen crashes on the missing composition local, and without rendering the
-            // entry the picker would come up with no toolbar at all.
-            val topBarState = remember { mutableStateOf(emptyList<TopBarEntry>()) }
-            val topBarController = remember { TopBarController(topBarState) }
-            CompositionLocalProvider(LocalTopBarController provides topBarController) {
-                Scaffold(
-                    topBar = { topBarState.value.lastOrNull()?.content?.invoke() },
-                    containerColor = TarnColors.Background,
-                ) { innerPadding ->
-                    Box(modifier = Modifier.padding(innerPadding)) {
-                        PerAppProxyScreen(
-                            onBack = { navController.navigateUp() },
-                            serviceStatus = serviceStatus,
-                        )
+            composable(
+                route = TarnRoute.DNS,
+                enterTransition = slideIn,
+                exitTransition = slideOut,
+                popEnterTransition = popIn,
+                popExitTransition = popOut,
+            ) {
+                val dnsViewModel: TarnDnsViewModel = viewModel()
+                val dnsState by dnsViewModel.uiState.collectAsState()
+                TarnDnsScreen(
+                    options = dnsState.options,
+                    selectedId = dnsProvider,
+                    customServer = dnsCustomServer,
+                    pings = dnsState.pings,
+                    onSelect = {
+                        onSelectDns(it)
+                        navController.navigateUp()
+                    },
+                    onSaveCustomServer = {
+                        onSaveCustomDns(it)
+                        navController.navigateUp()
+                    },
+                    onBack = { navController.navigateUp() },
+                )
+            }
+
+            composable(
+                route = TarnRoute.CONNECTION_LAB,
+                enterTransition = slideIn,
+                exitTransition = slideOut,
+                popEnterTransition = popIn,
+                popExitTransition = popOut,
+            ) {
+                TarnConnectionLabScreen(
+                    state = TarnConnectionLabState(
+                        quicPolicy = quicPolicy,
+                        mtu = tunMtu,
+                        ipStrategy = ipStrategy,
+                        dnsRoute = dnsRoute,
+                        dnsProtection = dnsProtection,
+                        logLevel = logLevel,
+                        sendHostname = sendHostname,
+                        testUrl = testUrl,
+                        testTimeoutSeconds = testTimeoutSeconds,
+                        testRetries = testRetries,
+                        networkRecovery = networkRecovery,
+                        failover = autoFailover,
+                    ),
+                    onBack = { navController.navigateUp() },
+                    onQuicPolicyChange = {
+                        quicPolicy = it
+                        Settings.tarnQuicPolicy = it
+                        repatchSettingsAndReload()
+                    },
+                    onMtuChange = {
+                        tunMtu = it
+                        Settings.tarnTunMtu = it
+                        repatchSettingsAndReload()
+                    },
+                    onIpStrategyChange = ::onIpStrategyChange,
+                    onDnsRouteChange = {
+                        dnsRoute = it
+                        Settings.tarnDnsRoute = it
+                        repatchSettingsAndReload()
+                    },
+                    onLogLevelChange = {
+                        logLevel = it
+                        Settings.tarnLogLevel = it
+                        repatchSettingsAndReload()
+                    },
+                    onOpenLogs = { navController.navigate(TarnRoute.LOGS) },
+                    onSendHostnameChange = {
+                        sendHostname = it
+                        Settings.tarnSendHostname = it
+                        repatchSettingsAndReload()
+                    },
+                    onTestUrlChange = {
+                        testUrl = it
+                        Settings.tarnTestUrl = it
+                        repatchSettingsAndReload()
+                    },
+                    onTestTimeoutChange = {
+                        testTimeoutSeconds = it
+                        Settings.tarnTestTimeoutSeconds = it
+                    },
+                    onTestRetriesChange = {
+                        testRetries = it
+                        Settings.tarnTestRetries = it
+                    },
+                    onNetworkRecoveryChange = {
+                        networkRecovery = it
+                        Settings.tarnNetworkRecovery = it
+                        applyToRunningService()
+                    },
+                    onFailoverChange = {
+                        autoFailover = it
+                        Settings.tarnAutoFailover = it
+                    },
+                )
+            }
+
+            composable(
+                route = TarnRoute.LOGS,
+                enterTransition = slideIn,
+                exitTransition = slideOut,
+                popEnterTransition = popIn,
+                popExitTransition = popOut,
+            ) {
+                // Upstream screen, same three caveats as PerAppProxyScreen above: it publishes its
+                // toolbar through LocalTopBarController rather than drawing one, and that provider
+                // lives in SFAApp(), which this shell never composes. Host the controller here and
+                // render the entry, or the screen crashes on the missing composition local and
+                // loses its back button, pause, search and save menu with it.
+                val topBarState = remember { mutableStateOf(emptyList<TopBarEntry>()) }
+                val topBarController = remember { TopBarController(topBarState) }
+                CompositionLocalProvider(LocalTopBarController provides topBarController) {
+                    Scaffold(
+                        topBar = { topBarState.value.lastOrNull()?.content?.invoke() },
+                        containerColor = TarnColors.Background,
+                    ) { innerPadding ->
+                        Box(modifier = Modifier.padding(innerPadding)) {
+                            LogScreen(
+                                serviceStatus = serviceStatus,
+                                title = stringResource(R.string.tarn_logs_title),
+                                onBack = { navController.navigateUp() },
+                            )
+                        }
                     }
                 }
             }
         }
-
-        composable(
-            route = TarnRoute.DNS,
-            enterTransition = slideIn,
-            exitTransition = slideOut,
-            popEnterTransition = popIn,
-            popExitTransition = popOut,
-        ) {
-            val dnsViewModel: TarnDnsViewModel = viewModel()
-            val dnsState by dnsViewModel.uiState.collectAsState()
-            TarnDnsScreen(
-                options = dnsState.options,
-                selectedId = dnsProvider,
-                customServer = dnsCustomServer,
-                pings = dnsState.pings,
-                onSelect = {
-                    onSelectDns(it)
-                    navController.navigateUp()
-                },
-                onSaveCustomServer = {
-                    onSaveCustomDns(it)
-                    navController.navigateUp()
-                },
-                onBack = { navController.navigateUp() },
-            )
-        }
-
-        composable(
-            route = TarnRoute.CONNECTION_LAB,
-            enterTransition = slideIn,
-            exitTransition = slideOut,
-            popEnterTransition = popIn,
-            popExitTransition = popOut,
-        ) {
-            TarnConnectionLabScreen(
-                state = TarnConnectionLabState(
-                    quicPolicy = quicPolicy,
-                    mtu = tunMtu,
-                    ipStrategy = ipStrategy,
-                    dnsRoute = dnsRoute,
-                    dnsProtection = dnsProtection,
-                    logLevel = logLevel,
-                    sendHostname = sendHostname,
-                    testUrl = testUrl,
-                    testTimeoutSeconds = testTimeoutSeconds,
-                    testRetries = testRetries,
-                    networkRecovery = networkRecovery,
-                    failover = autoFailover,
-                ),
-                onBack = { navController.navigateUp() },
-                onQuicPolicyChange = {
-                    quicPolicy = it
-                    Settings.tarnQuicPolicy = it
-                    repatchSettingsAndReload()
-                },
-                onMtuChange = {
-                    tunMtu = it
-                    Settings.tarnTunMtu = it
-                    repatchSettingsAndReload()
-                },
-                onIpStrategyChange = ::onIpStrategyChange,
-                onDnsRouteChange = {
-                    dnsRoute = it
-                    Settings.tarnDnsRoute = it
-                    repatchSettingsAndReload()
-                },
-                onLogLevelChange = {
-                    logLevel = it
-                    Settings.tarnLogLevel = it
-                    repatchSettingsAndReload()
-                },
-                onOpenLogs = { navController.navigate(TarnRoute.LOGS) },
-                onSendHostnameChange = {
-                    sendHostname = it
-                    Settings.tarnSendHostname = it
-                    repatchSettingsAndReload()
-                },
-                onTestUrlChange = {
-                    testUrl = it
-                    Settings.tarnTestUrl = it
-                    repatchSettingsAndReload()
-                },
-                onTestTimeoutChange = {
-                    testTimeoutSeconds = it
-                    Settings.tarnTestTimeoutSeconds = it
-                },
-                onTestRetriesChange = {
-                    testRetries = it
-                    Settings.tarnTestRetries = it
-                },
-                onNetworkRecoveryChange = {
-                    networkRecovery = it
-                    Settings.tarnNetworkRecovery = it
-                    applyToRunningService()
-                },
-                onFailoverChange = {
-                    autoFailover = it
-                    Settings.tarnAutoFailover = it
-                },
-            )
-        }
-
-        composable(
-            route = TarnRoute.LOGS,
-            enterTransition = slideIn,
-            exitTransition = slideOut,
-            popEnterTransition = popIn,
-            popExitTransition = popOut,
-        ) {
-            // Upstream screen, same three caveats as PerAppProxyScreen above: it publishes its
-            // toolbar through LocalTopBarController rather than drawing one, and that provider
-            // lives in SFAApp(), which this shell never composes. Host the controller here and
-            // render the entry, or the screen crashes on the missing composition local and
-            // loses its back button, pause, search and save menu with it.
-            val topBarState = remember { mutableStateOf(emptyList<TopBarEntry>()) }
-            val topBarController = remember { TopBarController(topBarState) }
-            CompositionLocalProvider(LocalTopBarController provides topBarController) {
-                Scaffold(
-                    topBar = { topBarState.value.lastOrNull()?.content?.invoke() },
-                    containerColor = TarnColors.Background,
-                ) { innerPadding ->
-                    Box(modifier = Modifier.padding(innerPadding)) {
-                        LogScreen(
-                            serviceStatus = serviceStatus,
-                            title = stringResource(R.string.tarn_logs_title),
-                            onBack = { navController.navigateUp() },
-                        )
-                    }
-                }
-            }
-        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding(),
+        )
     }
 }

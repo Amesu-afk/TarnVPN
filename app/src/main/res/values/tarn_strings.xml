@@ -193,4 +193,8 @@
         <item quantity="one">updated %1$d day ago</item>
         <item quantity="other">updated %1$d days ago</item>
     </plurals>
+    <!-- Shown when the build has no releases repository configured (GitHubUpdateChecker.TARN_RELEASES_REPO). -->
+    <string name="tarn_update_not_configured">Update checking is not set up in this build yet.</string>
+    <!-- Shown when a settings change could not be pushed into the running service. -->
+    <string name="tarn_apply_failed">Could not apply the change to the running VPN.</string>
 </resources>

@@ -11,6 +11,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import io.nekohasekai.sfa.database.Settings
+import io.nekohasekai.sfa.update.UpdateCheckException
 import io.nekohasekai.sfa.update.UpdateSource
 import io.nekohasekai.sfa.update.UpdateState
 import io.nekohasekai.sfa.update.UpdateTrack
@@ -88,6 +89,11 @@ class UpdateWorker(private val appContext: Context, params: WorkerParameters) : 
                 Log.d(TAG, "Silent install not available, update will be shown on next app launch")
             }
 
+            Result.success()
+        } catch (e: UpdateCheckException.NotConfigured) {
+            // A missing releases repository is a build fact, not a transient failure — retrying
+            // (with exponential backoff, forever) would never make one appear.
+            Log.d(TAG, "No releases repository configured, skipping")
             Result.success()
         } catch (e: Exception) {
             Log.e(TAG, "Auto update failed", e)
