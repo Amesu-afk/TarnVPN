@@ -29,6 +29,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Save
@@ -68,6 +69,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.compose.base.SelectableMessageDialog
 import io.nekohasekai.sfa.compose.topbar.OverrideTopBar
+import io.nekohasekai.sfa.ktx.clipboardText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -450,6 +452,26 @@ fun NewProfileScreen(
                                         }
                                     }
                                 }
+                                OutlinedTextField(
+                                    value = uiState.pastedUri,
+                                    onValueChange = viewModel::updatePastedUri,
+                                    label = { Text(stringResource(R.string.profile_import_url_hint)) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    isError = uiState.importError != null,
+                                    trailingIcon = {
+                                        IconButton(onClick = {
+                                            clipboardText?.let {
+                                                viewModel.updatePastedUri(it.trim())
+                                            }
+                                        }) {
+                                            Icon(
+                                                Icons.Default.ContentPaste,
+                                                contentDescription = "Paste from clipboard",
+                                            )
+                                        }
+                                    },
+                                )
                                 uiState.importError?.let { error ->
                                     Text(
                                         text = error,
@@ -501,7 +523,7 @@ fun NewProfileScreen(
                         OutlinedTextField(
                             value = uiState.remoteUrl,
                             onValueChange = viewModel::updateRemoteUrl,
-                            label = { Text(stringResource(R.string.profile_url)) },
+                            label = { Text(stringResource(R.string.profile_https_url)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             isError = uiState.remoteUrlError != null,

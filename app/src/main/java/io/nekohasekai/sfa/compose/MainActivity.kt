@@ -16,6 +16,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -120,6 +121,8 @@ import io.nekohasekai.sfa.compose.screen.tools.TailscaleSSHSharedViewModel
 import io.nekohasekai.sfa.compose.screen.tools.TailscaleStatusViewModel
 import io.nekohasekai.sfa.compose.screen.usbip.USBIPStatusViewModel
 import io.nekohasekai.sfa.compose.theme.SFATheme
+import io.nekohasekai.sfa.tarn.TarnShell
+import io.nekohasekai.sfa.tarn.theme.TarnTheme
 import io.nekohasekai.sfa.compose.topbar.LocalTopBarController
 import io.nekohasekai.sfa.compose.topbar.TopBarController
 import io.nekohasekai.sfa.compose.topbar.TopBarEntry
@@ -156,6 +159,9 @@ class MainActivity :
     private var newProfileArgs by mutableStateOf(NewProfileArgs())
     private var parseImportLocalProfileJob: Job? = null
     private var pendingIntentErrorMessage by mutableStateOf<String?>(null)
+
+    /** True while the original sing-box interface is showing instead of the Tarn shell. */
+    private var advancedMode by mutableStateOf(false)
 
     private val notificationPermissionLauncher =
         registerForActivityResult(
@@ -220,9 +226,100 @@ class MainActivity :
         handleIntent(intent)
 
         setContent {
+            // Held above TarnTheme rather than inside it: the picker on the protection
+            // screen is several composables further down (inside TarnShell), and this is
+            // the only point both it and TarnTheme's darkTheme argument can share.
+            var themeMode by remember { mutableStateOf(Settings.tarnThemeMode) }
+            val systemDark = isSystemInDarkTheme()
+            val darkTheme = when (themeMode) {
+                Settings.THEME_MODE_LIGHT -> false
+                Settings.THEME_MODE_DARK -> true
+                else -> systemDark
+            }
+            TarnTheme(darkTheme = darkTheme) {
+                TarnRoot(
+                    themeMode = themeMode,
+                    onThemeModeChange = {
+                        themeMode = it
+                        Settings.tarnThemeMode = it
+                    },
+                )
+            }
+        }
+    }
+
+    /**
+     * Chooses between the TarnVPN interface and the original sing-box one. The latter is
+     * reached from the version line on the protection screen and stays fully functional —
+     * profiles, logs and tools all still live there.
+     */
+    @Composable
+    fun TarnRoot(themeMode: String, onThemeModeChange: (String) -> Unit) {
+        // viewModel() already returns the same instance across recompositions at this call
+        // site (scoped to the Activity's ViewModelStore) — no need to guard the assignment.
+        val dashboardViewModel: DashboardViewModel = viewModel()
+        this.dashboardViewModel = dashboardViewModel
+
+        var showErrorDialog by remember { mutableStateOf(false) }
+        var errorMessage by remember { mutableStateOf("") }
+
+        // Service alerts (missing VPN permission, empty config, …) matter in both shells.
+        currentAlert?.let { (alertType, message) ->
+            ServiceAlertDialog(
+                alertType = alertType,
+                message = message,
+                onDismiss = { currentAlert = null },
+            )
+        }
+        if (showErrorDialog) {
+            SelectableMessageDialog(
+                title = stringResource(R.string.error_title),
+                message = errorMessage,
+                onDismiss = { showErrorDialog = false },
+            )
+        }
+
+        // The connect button routes through DashboardViewModel, which asks for the service
+        // over the event bus rather than starting it directly.
+        LaunchedEffect(Unit) {
+            GlobalEventBus.events.collect { event ->
+                when (event) {
+                    is UiEvent.RequestStartService -> startService()
+                    is UiEvent.RequestReconnectService -> connection.reconnect()
+                    is UiEvent.ErrorMessage -> {
+                        errorMessage = event.message
+                        showErrorDialog = true
+                    }
+
+                    is UiEvent.OpenUrl -> launchCustomTab(event.url)
+                    else -> {}
+                }
+            }
+        }
+
+        LaunchedEffect(Unit) {
+            if (Settings.tarnAutoConnect &&
+                Settings.selectedProfile != -1L &&
+                currentServiceStatus == Status.Stopped
+            ) {
+                startService()
+            }
+        }
+
+        if (advancedMode) {
+            BackHandler { advancedMode = false }
+            // The upstream interface keeps its own Material You theme.
             SFATheme {
                 SFAApp()
             }
+        } else {
+            TarnShell(
+                serviceStatus = currentServiceStatus,
+                dashboardViewModel = dashboardViewModel,
+                onOpenAdvanced = { advancedMode = true },
+                themeMode = themeMode,
+                onThemeModeChange = onThemeModeChange,
+            )
         }
     }
 

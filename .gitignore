@@ -11,5 +11,9 @@ build/
 local.properties
 /app/libs/
 /service-account-credentials.json
+# Release signing material. Losing it means never being able to update an installed app,
+# leaking it means anyone can publish a build users' phones accept as an update.
+*.keystore
+*.jks
 /CLAUDE.md
 /.claude/

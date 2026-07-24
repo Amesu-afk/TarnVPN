@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="AppTheme" parent="AppTheme.Base.V31.Night" />
+
+    <!--
+        Night qualifiers outrank version qualifiers, so values-night-v26 would otherwise win
+        over values-v31 on API 31 in dark mode and the splash background would go unset.
+        Parented on the night V26 base rather than on AppTheme.Base.V31 so the existing
+        navigation-bar behaviour in dark mode stays exactly as it was.
+    -->
+    <style name="AppTheme.Base.V31.Night" parent="AppTheme.Base.V26.Night">
+        <item name="android:windowSplashScreenBackground">@color/ic_launcher_background</item>
+    </style>
+
+</resources>

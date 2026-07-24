@@ -25,22 +25,16 @@ class RemoteServer(
         get() = name.ifEmpty { hostPort(url) }
 
     companion object {
-        private val schemePrefix = Regex("^https?://", RegexOption.IGNORE_CASE)
-        private val httpPrefix = Regex("^http://", RegexOption.IGNORE_CASE)
+        fun normalizeURL(urlString: String): String = urlString.trim().trimEnd('/')
 
-        // The stored form: scheme-less for http (default), keeping an explicit https.
-        fun normalizeURL(urlString: String): String = urlString.trim().trimEnd('/').replaceFirst(httpPrefix, "")
-
-        // The form passed to libbox: a scheme is required, defaulting to http.
+        // Remote control carries a bearer secret and must never fall back to plaintext HTTP.
         fun connectURL(urlString: String): String {
             val value = urlString.trim().trimEnd('/')
             if (value.isEmpty()) {
                 return ""
             }
-            if (value.contains(schemePrefix)) {
-                return value
-            }
-            return "http://$value"
+            val uri = runCatching { URI(value) }.getOrNull() ?: return ""
+            return if (uri.scheme?.equals("https", ignoreCase = true) == true && !uri.host.isNullOrEmpty()) value else ""
         }
 
         fun validateURL(urlString: String): String? {
@@ -55,7 +49,7 @@ class RemoteServer(
                     return null
                 }
             val scheme = uri.scheme?.lowercase()
-            if (scheme != "http" && scheme != "https") {
+            if (scheme != "https") {
                 return null
             }
             if (uri.host.isNullOrEmpty()) {

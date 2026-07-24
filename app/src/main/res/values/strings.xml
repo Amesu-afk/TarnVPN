@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <!-- App -->
-    <string name="app_name" translatable="false">sing-box</string>
+    <string name="app_name" translatable="false">TarnVPN</string>
     <string name="app_version_title">App version</string>
     <string name="language">Language</string>
     <string name="system_default">System default</string>
@@ -143,6 +143,9 @@
     <string name="profile_create">Create</string>
     <string name="profile_share_url">Share URL as QR Code</string>
     <string name="profile_input_required">Required</string>
+    <string name="profile_import_url_hint">Paste vless:// link or HTTPS subscription URL</string>
+    <string name="profile_https_url">HTTPS URL</string>
+    <string name="profile_url_https_required">Profile URL must use HTTPS.</string>
     <string name="profile_update">Update</string>
     <string name="profile_auto_update">Auto Update</string>
     <string name="profile_auto_update_interval">Auto Update Interval (Minutes)</string>

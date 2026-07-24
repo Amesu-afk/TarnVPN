@@ -52,6 +52,22 @@ object ProfileManager {
         return profile
     }
 
+    /**
+     * Same as calling [create] once per profile, except listeners are notified once at the
+     * end instead of once per row. A subscription import can add dozens of profiles in one
+     * go; notifying per row fired a full reload-and-reprobe-everything cycle per server,
+     * which for N servers cost O(N²) TCP probes instead of O(N).
+     */
+    suspend fun createAll(profiles: List<Profile>): List<Profile> {
+        if (profiles.isEmpty()) return profiles
+        val ids = instance.profileDao().insert(profiles)
+        profiles.forEachIndexed { index, profile -> profile.id = ids[index] }
+        for (callback in callbacks.toList()) {
+            callback()
+        }
+        return profiles
+    }
+
     suspend fun update(profile: Profile): Int {
         try {
             return instance.profileDao().update(profile)

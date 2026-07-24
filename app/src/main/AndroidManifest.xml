@@ -20,10 +20,23 @@
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.CAMERA" />
+
+    <!--
+        Location is deliberately NOT requested. Android only ties it to Wi-Fi SSID/BSSID, which
+        the core needs for `wifi_ssid` / `wifi_bssid` route rules — rules this app's generator
+        never emits. Upstream declares all three (incl. ACCESS_BACKGROUND_LOCATION) because its
+        advanced editor can load such a config; here the cost is a privacy VPN asking for
+        background location at install, which is not a trade worth making for a feature nobody
+        reaches. A raw config that does use Wi-Fi rules now fails cleanly with
+        Alert.RequestLocationPermission instead of running.
+
+        Removed with tools:node because the permissions arrive through library manifest merging
+        as well as from upstream's own declaration.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" tools:node="remove" />
 
     <!-- For saving images to gallery on older Android versions -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"

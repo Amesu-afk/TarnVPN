@@ -107,7 +107,7 @@ class QRScanViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun handleScanSuccess(rawValue: String) {
-        Log.d(TAG, "Scanned: ${rawValue.take(100)}...")
+        Log.d(TAG, "QR code scanned")
         val qrsPayload = extractQRSPayload(rawValue)
         Log.d(TAG, "extractQRSPayload result: ${qrsPayload?.size ?: "null"}")
         if (qrsPayload != null) {

@@ -53,6 +53,27 @@ object SettingsKey {
     const val TAILSCALE_SSH_FONT_SIZE = "tailscale_ssh_font_size"
     const val TAILSCALE_SSH_CUSTOM_FONT_PATH = "tailscale_ssh_custom_font_path"
 
+    // TarnVPN shell
+    const val TARN_AUTO_CONNECT = "tarn_auto_connect"
+    const val TARN_DNS_PROTECTION = "tarn_dns_protection"
+    const val TARN_DNS_PROVIDER = "tarn_dns_provider"
+    const val TARN_DNS_CUSTOM_SERVER = "tarn_dns_custom_server"
+    const val TARN_IPV6_ENABLED = "tarn_ipv6_enabled"
+    const val TARN_FRAGMENT_ENABLED = "tarn_fragment_enabled"
+    const val TARN_FAVOURITE_PROFILES = "tarn_favourite_profiles"
+    const val TARN_THEME_MODE = "tarn_theme_mode"
+    const val TARN_QUIC_POLICY = "tarn_quic_policy"
+    const val TARN_TUN_MTU = "tarn_tun_mtu"
+    const val TARN_IP_STRATEGY = "tarn_ip_strategy"
+    const val TARN_DNS_ROUTE = "tarn_dns_route"
+    const val TARN_SEND_HOSTNAME = "tarn_send_hostname"
+    const val TARN_LOG_LEVEL = "tarn_log_level"
+    const val TARN_TEST_URL = "tarn_test_url"
+    const val TARN_TEST_TIMEOUT_SECONDS = "tarn_test_timeout_seconds"
+    const val TARN_TEST_RETRIES = "tarn_test_retries"
+    const val TARN_NETWORK_RECOVERY = "tarn_network_recovery"
+    const val TARN_AUTO_FAILOVER = "tarn_auto_failover"
+
     // cache
     const val STARTED_BY_USER = "started_by_user"
     const val CACHED_UPDATE_INFO = "cached_update_info"

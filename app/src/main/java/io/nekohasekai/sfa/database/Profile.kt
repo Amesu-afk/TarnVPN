@@ -28,6 +28,9 @@ class Profile(
         @Insert
         fun insert(profile: Profile): Long
 
+        @Insert
+        fun insert(profiles: List<Profile>): List<Long>
+
         @Update
         fun update(profile: Profile): Int
 

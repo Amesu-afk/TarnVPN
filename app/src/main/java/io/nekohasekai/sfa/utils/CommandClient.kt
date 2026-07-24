@@ -4,6 +4,7 @@ import android.util.Log
 import io.nekohasekai.libbox.CommandClientHandler
 import io.nekohasekai.libbox.CommandClientOptions
 import io.nekohasekai.libbox.ConnectionEvents
+import io.nekohasekai.libbox.DnsQuery
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.LogEntry
 import io.nekohasekai.libbox.LogIterator
@@ -220,6 +221,10 @@ open class CommandClient(
                 handler.onConnectionError(ConnectionErrorKind.ConnectionLost, message)
             }
             Log.d("CommandClient", "disconnected: $message")
+        }
+
+        override fun writeDNSQuery(query: DnsQuery?) {
+            // SPEC 018: lx-only DNS query stream — SFA does not surface it.
         }
 
         override fun writeGroups(message: OutboundGroupIterator?) {

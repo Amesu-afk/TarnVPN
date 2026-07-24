@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings for the TarnVPN shell (io.nekohasekai.sfa.tarn). Kept apart from the
+     upstream sing-box strings so pulling upstream never conflicts here. -->
+<resources>
+    <!-- Connection state, shown as a chip beside the wordmark -->
+    <string name="tarn_state_offline">Offline</string>
+    <string name="tarn_state_connected">Connected</string>
+    <string name="tarn_state_connecting">Connecting</string>
+    <string name="tarn_state_disconnecting">Stopping</string>
+
+    <!-- Connection state, shown as the large headline -->
+    <string name="tarn_status_disconnected">Disconnected</string>
+    <string name="tarn_status_connected">Connected</string>
+    <string name="tarn_status_connecting">Connecting</string>
+    <string name="tarn_status_disconnecting">Disconnecting</string>
+
+    <string name="tarn_label_status">Status</string>
+    <string name="tarn_label_uptime">Connected for</string>
+    <string name="tarn_label_server">Server</string>
+    <string name="tarn_server_none">No server selected</string>
+
+    <string name="tarn_latency_ms">%1$d ms</string>
+    <string name="tarn_latency_unreachable">n/a</string>
+
+    <string name="tarn_action_connect">Connect</string>
+    <string name="tarn_action_disconnect">Disconnect</string>
+    <string name="tarn_action_back">Back</string>
+    <string name="tarn_action_cancel">Cancel</string>
+    <string name="tarn_action_save">Save</string>
+    <string name="tarn_action_delete">Delete</string>
+    <string name="tarn_action_dismiss">Dismiss</string>
+
+    <string name="tarn_title_servers">Servers</string>
+    <string name="tarn_title_shield">Protection</string>
+
+    <string name="tarn_servers_tab_recommended">Recommended</string>
+    <string name="tarn_servers_tab_all">All countries</string>
+    <string name="tarn_servers_country_all">All</string>
+    <string name="tarn_servers_search_hint">Search servers</string>
+    <string name="tarn_servers_empty">No servers yet.</string>
+    <string name="tarn_servers_favourite">Favourite</string>
+    <string name="tarn_servers_fastest">Connect to the fastest server</string>
+    <string name="tarn_servers_delete">Delete server</string>
+    <string name="tarn_servers_delete_confirm_title">Delete server?</string>
+    <string name="tarn_servers_delete_confirm_message">%1$s will be removed from this device.</string>
+    <string name="tarn_servers_delete_confirm_action">Delete</string>
+
+    <string name="tarn_servers_add_title">Add server</string>
+    <string name="tarn_servers_add_hint">Paste a server link or a subscription URL. vless, trojan, ss, vmess, hysteria2, tuic and anytls are understood. Each server in a subscription becomes its own entry.</string>
+    <string name="tarn_servers_add_placeholder">vless://… trojan://… ss://… or https://…</string>
+    <string name="tarn_servers_add_action">Add</string>
+
+    <string name="tarn_shield_section_general">General</string>
+    <string name="tarn_shield_kill_switch">Prevent VPN bypass</string>
+    <string name="tarn_shield_kill_switch_desc">Prevent apps from bypassing an active VPN. Enable Android Always-on VPN with “Block connections without VPN” to block traffic after disconnects.</string>
+    <string name="tarn_shield_dns">DNS protection</string>
+    <string name="tarn_shield_dns_desc">Resolve queries through TarnVPN DNS</string>
+    <string name="tarn_shield_autoconnect">Auto-connect</string>
+    <string name="tarn_shield_autoconnect_desc">Connect to the VPN when the app starts</string>
+
+    <string name="tarn_dns_provider">DNS resolver</string>
+    <string name="tarn_dns_title">DNS resolver</string>
+    <string name="tarn_dns_hint">Domain names are sent over HTTPS to the selected resolver through its literal IP, without a plaintext DNS bootstrap lookup.</string>
+    <string name="tarn_dns_section">Choose a resolver</string>
+
+    <string name="tarn_dns_custom_title">Custom</string>
+    <string name="tarn_dns_custom_unset">Not set</string>
+    <string name="tarn_dns_custom_dialog_title">Custom resolver</string>
+    <string name="tarn_dns_custom_dialog_hint">IPv4 address of a DNS-over-HTTPS resolver on port 443. Its certificate must be valid for that IP address.</string>
+    <string name="tarn_dns_custom_input_placeholder">203.0.113.5</string>
+    <string name="tarn_dns_custom_error">Enter a valid IPv4 address</string>
+
+    <string name="tarn_shield_section_network">Network</string>
+    <string name="tarn_shield_dns_tunnel">DNS through VPN</string>
+    <string name="tarn_shield_dns_tunnel_desc">On: DNS goes through the tunnel, so a DNS-leak test shows the exit region — but lookups are slower under load. Off: fast direct DNS (still encrypted), but the test shows your real region</string>
+    <string name="tarn_shield_ipv6">IPv6</string>
+    <string name="tarn_shield_ipv6_desc">Route IPv6 traffic through the tunnel too — otherwise apps with native IPv6 can bypass the VPN entirely</string>
+    <string name="tarn_shield_fragment">TLS fragmentation</string>
+    <string name="tarn_shield_fragment_desc">Split the TLS handshake for supported TLS connections. It does not apply to Reality.</string>
+
+    <string name="tarn_connection_lab_entry">Connection lab</string>
+    <string name="tarn_connection_lab_entry_desc">Tune routing and full-test parameters</string>
+    <string name="tarn_connection_lab_title">Connection lab</string>
+    <string name="tarn_connection_lab_intro">Change one parameter at a time and compare results on the same network. Automatic values are the safest defaults.</string>
+    <string name="tarn_connection_lab_section_network">Connection parameters</string>
+    <string name="tarn_connection_lab_quic">QUIC policy</string>
+    <string name="tarn_connection_lab_mtu">TUN MTU</string>
+    <string name="tarn_connection_lab_ip_strategy">IP strategy</string>
+    <string name="tarn_connection_lab_dns_route">Encrypted DNS route</string>
+    <string name="tarn_connection_lab_log_level">Log level</string>
+    <string name="tarn_connection_lab_auto">Automatic</string>
+    <string name="tarn_connection_lab_quic_allow">Allow</string>
+    <string name="tarn_connection_lab_quic_block">Block</string>
+    <string name="tarn_connection_lab_ip_ipv4_only">IPv4 only</string>
+    <string name="tarn_connection_lab_ip_prefer_ipv4">Prefer IPv4</string>
+    <string name="tarn_connection_lab_ip_prefer_ipv6">Prefer IPv6</string>
+    <string name="tarn_connection_lab_dns_direct">Direct</string>
+    <string name="tarn_connection_lab_dns_tunnel">Through VPN</string>
+    <string name="tarn_connection_lab_dns_route_disabled">DNS protection is off, so this route is inactive until protection is enabled.</string>
+    <string name="tarn_connection_lab_log_warn">Warnings</string>
+    <string name="tarn_connection_lab_log_info">Information</string>
+    <string name="tarn_connection_lab_log_debug">Debug</string>
+    <string name="tarn_connection_lab_log_trace">Trace</string>
+    <string name="tarn_connection_lab_open_logs">Open log</string>
+    <string name="tarn_connection_lab_open_logs_hint">Live core output at the level chosen above</string>
+    <string name="tarn_logs_title">Log</string>
+    <string name="tarn_servers_unmanaged">Settings do not apply — delete and add again</string>
+    <string name="tarn_servers_insecure_tls">Server certificate is not verified — this traffic can be intercepted</string>
+    <string name="tarn_shield_always_on">System always-on VPN</string>
+    <string name="tarn_shield_always_on_desc">The toggle above only holds while the service is alive. If it crashes or the phone reboots, traffic goes out directly. Only the system setting closes that: turn on "Always-on VPN" and "Block connections without VPN". Open Android settings</string>
+    <string name="tarn_connection_lab_ipv4_only_warning">All traffic goes over IPv4, and apps are told the name has no IPv6 at all. Keep "Send the hostname to the server" on alongside it, or some Google services answer "not available in your region".</string>
+    <string name="tarn_connection_lab_send_hostname">Send the hostname to the server</string>
+    <string name="tarn_connection_lab_send_hostname_desc">What Xray and v2rayNG do: the server resolves the name and picks the region, which is what Gemini needs to avoid "not available in your region". YouTube is the exception — resolved on the phone, or Music region-blocks. Turn off only if a server rejects domain destinations</string>
+    <string name="tarn_connection_lab_no_v6_warning">Diagnostic mode. AAAA records are served as usual, but IPv6 destinations are refused by the route table, so traffic rides IPv4 — fast.com will show IPv4. The point is to separate "traffic over IPv4" from "the client was told there is no IPv6". If Gemini works here, the second half is the culprit.</string>
+    <string name="tarn_connection_lab_debug_warning">Debug logging may expose visited domains in local logs and increases battery use. Disable it after testing.</string>
+
+    <string name="tarn_connection_lab_section_test">Full test of the active server</string>
+    <string name="tarn_connection_lab_test_url">HTTPS test address</string>
+    <string name="tarn_connection_lab_test_url_hint">The app requests this address through the selected server currently loaded into VPN.</string>
+    <string name="tarn_connection_lab_test_url_error">Enter a complete https:// address without embedded credentials.</string>
+    <string name="tarn_connection_lab_test_url_security_hint">Do not use subscription URLs, access tokens, or private links here.</string>
+    <string name="tarn_connection_lab_timeout">Timeout</string>
+    <string name="tarn_connection_lab_timeout_value">%1$d s</string>
+    <string name="tarn_connection_lab_retries">Attempts</string>
+    <string name="tarn_connection_lab_retries_value">%1$d×</string>
+
+    <string name="tarn_connection_lab_section_recovery">Recovery</string>
+    <string name="tarn_connection_lab_network_recovery">Recover after network change</string>
+    <string name="tarn_connection_lab_network_recovery_desc">Reload a running VPN after switching between Wi-Fi and mobile data</string>
+    <string name="tarn_connection_lab_failover">Suggest a fallback server</string>
+    <string name="tarn_connection_lab_failover_desc">If the active HTTP test fails, show the fastest server reachable by the preliminary TCP test</string>
+    <string name="tarn_connection_lab_failover_warning">A fallback candidate has not passed the HTTP test. Switching requires your confirmation; run the full test again afterwards.</string>
+    <string name="tarn_connection_lab_apply_hint">Connection parameters apply to existing TarnVPN profiles. The active VPN may reload when a value changes.</string>
+
+    <string name="tarn_full_test_title">FULL TEST</string>
+    <string name="tarn_full_test_requires_vpn">Start VPN first. Only preliminary TCP latency is available while disconnected.</string>
+    <string name="tarn_full_test_select_running">Select the running profile before the full test.</string>
+    <string name="tarn_full_test_active_only">The full test checks the selected profile currently loaded into VPN.</string>
+    <string name="tarn_full_test_running">Sending an HTTP request through VPN…</string>
+    <string name="tarn_full_test_success">HTTP through VPN: %1$d ms, attempts: %2$d.</string>
+    <string name="tarn_full_test_failed">HTTP through VPN is unavailable: %1$s</string>
+    <string name="tarn_full_test_cancelled">Full test cancelled.</string>
+    <string name="tarn_full_test_run">TEST</string>
+    <string name="tarn_full_test_cancel">CANCEL</string>
+    <string name="tarn_full_test_clear">CLEAR RESULT</string>
+    <string name="tarn_full_test_tcp_fallback">Possible TCP fallback: %1$s. It has not passed the HTTP test yet.</string>
+    <string name="tarn_full_test_select_tcp_fallback">SELECT TCP FALLBACK</string>
+
+    <string name="tarn_shield_section_appearance">Appearance</string>
+    <string name="tarn_shield_theme_system">System</string>
+    <string name="tarn_shield_theme_light">Light</string>
+    <string name="tarn_shield_theme_dark">Dark</string>
+
+    <string name="tarn_shield_section_split">Split tunneling</string>
+    <string name="tarn_shield_split">Split tunneling</string>
+    <string name="tarn_shield_split_desc">Route only some applications through the VPN</string>
+    <string name="tarn_shield_split_mode_exclude">Everything except selected</string>
+    <string name="tarn_shield_split_mode_include">Selected only</string>
+    <string name="tarn_shield_split_apps">Choose applications</string>
+    <string name="tarn_shield_split_apps_none">Nothing selected</string>
+    <plurals name="tarn_shield_split_apps_count">
+        <item quantity="one">%1$d application</item>
+        <item quantity="other">%1$d applications</item>
+    </plurals>
+
+    <string name="tarn_shield_section_protocol">Protocol</string>
+    <string name="tarn_shield_protocol">Protocol</string>
+
+    <string name="tarn_shield_version">App version</string>
+
+    <string name="tarn_subscriptions_title">Subscriptions</string>
+    <string name="tarn_subscriptions_empty">No subscriptions yet. Paste a subscription URL with "+" on the Servers screen and it will be tracked here.</string>
+    <string name="tarn_subscriptions_refresh">Update</string>
+    <string name="tarn_subscriptions_auto_update">Auto-update</string>
+    <string name="tarn_subscriptions_never">not updated yet</string>
+    <string name="tarn_subscriptions_just_now">updated just now</string>
+    <string name="tarn_subscriptions_delete_title">Delete subscription</string>
+    <string name="tarn_subscriptions_delete_message">Remove "%1$s" and the %2$d servers it added?</string>
+    <string name="tarn_subscriptions_delete_action">Delete</string>
+    <plurals name="tarn_subscriptions_server_count">
+        <item quantity="one">%1$d server</item>
+        <item quantity="other">%1$d servers</item>
+    </plurals>
+    <plurals name="tarn_subscriptions_minutes_ago">
+        <item quantity="one">updated %1$d min ago</item>
+        <item quantity="other">updated %1$d min ago</item>
+    </plurals>
+    <plurals name="tarn_subscriptions_hours_ago">
+        <item quantity="one">updated %1$d hour ago</item>
+        <item quantity="other">updated %1$d hours ago</item>
+    </plurals>
+    <plurals name="tarn_subscriptions_days_ago">
+        <item quantity="one">updated %1$d day ago</item>
+        <item quantity="other">updated %1$d days ago</item>
+    </plurals>
+</resources>

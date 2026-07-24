@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Строки оболочки TarnVPN (io.nekohasekai.sfa.tarn). Тексты взяты из макета. -->
+<resources>
+    <string name="tarn_state_offline">Offline</string>
+    <string name="tarn_state_connected">Connected</string>
+    <string name="tarn_state_connecting">Connecting</string>
+    <string name="tarn_state_disconnecting">Stopping</string>
+
+    <string name="tarn_status_disconnected">Отключено</string>
+    <string name="tarn_status_connected">Подключено</string>
+    <string name="tarn_status_connecting">Подключение</string>
+    <string name="tarn_status_disconnecting">Отключение</string>
+
+    <string name="tarn_label_status">Статус</string>
+    <string name="tarn_label_uptime">Время подключения</string>
+    <string name="tarn_label_server">Сервер</string>
+    <string name="tarn_server_none">Сервер не выбран</string>
+
+    <string name="tarn_latency_ms">%1$d мс</string>
+    <string name="tarn_latency_unreachable">н/д</string>
+
+    <string name="tarn_action_connect">Подключиться</string>
+    <string name="tarn_action_disconnect">Отключиться</string>
+    <string name="tarn_action_back">Назад</string>
+    <string name="tarn_action_cancel">Отмена</string>
+    <string name="tarn_action_save">Сохранить</string>
+    <string name="tarn_action_delete">Удалить</string>
+    <string name="tarn_action_dismiss">Скрыть</string>
+
+    <string name="tarn_title_servers">Серверы</string>
+    <string name="tarn_title_shield">Защита</string>
+
+    <string name="tarn_servers_tab_recommended">Рекомендованные</string>
+    <string name="tarn_servers_tab_all">Все страны</string>
+    <string name="tarn_servers_country_all">Все</string>
+    <string name="tarn_servers_search_hint">Поиск сервера</string>
+    <string name="tarn_servers_empty">Серверов пока нет.</string>
+    <string name="tarn_servers_favourite">В избранное</string>
+    <string name="tarn_servers_fastest">Подключиться к самому быстрому серверу</string>
+    <string name="tarn_servers_delete">Удалить сервер</string>
+    <string name="tarn_servers_delete_confirm_title">Удалить сервер?</string>
+    <string name="tarn_servers_delete_confirm_message">%1$s будет удалён с этого устройства.</string>
+    <string name="tarn_servers_delete_confirm_action">Удалить</string>
+
+    <string name="tarn_servers_add_title">Добавить сервер</string>
+    <string name="tarn_servers_add_hint">Вставьте ссылку сервера или адрес подписки. Понимаем vless, trojan, ss, vmess, hysteria2, tuic и anytls. Каждый сервер из подписки станет отдельной записью.</string>
+    <string name="tarn_servers_add_placeholder">vless://… trojan://… ss://… или https://…</string>
+    <string name="tarn_servers_add_action">Добавить</string>
+
+    <string name="tarn_shield_section_general">Основные настройки</string>
+    <string name="tarn_shield_kill_switch">Запретить обход VPN</string>
+    <string name="tarn_shield_kill_switch_desc">Не давать приложениям обходить активный VPN. Для блокировки трафика при разрыве включите системный режим «Всегда включённый VPN».</string>
+    <string name="tarn_shield_dns">Защита DNS</string>
+    <string name="tarn_shield_dns_desc">Использовать DNS TarnVPN для защиты запросов</string>
+    <string name="tarn_shield_autoconnect">Автоподключение</string>
+    <string name="tarn_shield_autoconnect_desc">Подключаться к VPN при запуске приложения</string>
+
+    <string name="tarn_dns_provider">DNS-резолвер</string>
+    <string name="tarn_dns_title">DNS-резолвер</string>
+    <string name="tarn_dns_hint">Имена доменов отправляются по HTTPS выбранному резолверу; соединение с ним идёт по указанному IP без незашифрованного DNS-запроса для запуска.</string>
+    <string name="tarn_dns_section">Выбрать резолвер</string>
+
+    <string name="tarn_dns_custom_title">Свой</string>
+    <string name="tarn_dns_custom_unset">Не задан</string>
+    <string name="tarn_dns_custom_dialog_title">Свой резолвер</string>
+    <string name="tarn_dns_custom_dialog_hint">IPv4-адрес DNS-over-HTTPS на 443. Сертификат резолвера должен быть действителен для этого IP.</string>
+    <string name="tarn_dns_custom_input_placeholder">203.0.113.5</string>
+    <string name="tarn_dns_custom_error">Введите корректный IPv4-адрес</string>
+
+    <string name="tarn_shield_section_network">Сеть</string>
+    <string name="tarn_shield_dns_tunnel">DNS через VPN</string>
+    <string name="tarn_shield_dns_tunnel_desc">Вкл: DNS идёт через туннель, и тест DNS-leak показывает регион сервера — но под нагрузкой запросы медленнее. Выкл: быстрый прямой DNS (всё равно шифрованный), но тест покажет твой реальный регион</string>
+    <string name="tarn_shield_ipv6">IPv6</string>
+    <string name="tarn_shield_ipv6_desc">Пускать IPv6-трафик через туннель — без этого приложения с нативным IPv6 могут обойти VPN целиком</string>
+    <string name="tarn_shield_fragment">Фрагментация TLS</string>
+    <string name="tarn_shield_fragment_desc">Дробить TLS-хендшейк для поддерживаемых TLS-подключений. Не применяется к Reality.</string>
+
+    <string name="tarn_shield_section_appearance">Внешний вид</string>
+    <string name="tarn_shield_theme_system">Системная</string>
+    <string name="tarn_shield_theme_light">Светлая</string>
+    <string name="tarn_shield_theme_dark">Тёмная</string>
+
+    <string name="tarn_shield_section_split">Split tunneling</string>
+    <string name="tarn_shield_split">Раздельное туннелирование</string>
+    <string name="tarn_shield_split_desc">Пускать через VPN только часть приложений</string>
+    <string name="tarn_shield_split_mode_exclude">Кроме выбранных</string>
+    <string name="tarn_shield_split_mode_include">Только выбранные</string>
+    <string name="tarn_shield_split_apps">Выбрать приложения</string>
+    <string name="tarn_shield_split_apps_none">Ничего не выбрано</string>
+    <plurals name="tarn_shield_split_apps_count">
+        <item quantity="one">%1$d приложение</item>
+        <item quantity="few">%1$d приложения</item>
+        <item quantity="many">%1$d приложений</item>
+        <item quantity="other">%1$d приложения</item>
+    </plurals>
+
+    <string name="tarn_shield_section_protocol">Протокол</string>
+    <string name="tarn_shield_protocol">Протокол</string>
+
+    <string name="tarn_shield_version">Версия приложения</string>
+    <string name="tarn_connection_lab_entry">Лаборатория соединения</string>
+    <string name="tarn_connection_lab_entry_desc">Настройка маршрутизации и полного теста</string>
+    <string name="tarn_connection_lab_title">Лаборатория соединения</string>
+    <string name="tarn_connection_lab_intro">Меняйте по одному параметру и сравнивайте результаты в одной сети. Автоматические значения — самые безопасные.</string>
+    <string name="tarn_connection_lab_section_network">Параметры соединения</string>
+    <string name="tarn_connection_lab_quic">Политика QUIC</string>
+    <string name="tarn_connection_lab_mtu">MTU туннеля</string>
+    <string name="tarn_connection_lab_ip_strategy">Стратегия IP</string>
+    <string name="tarn_connection_lab_dns_route">Маршрут защищённого DNS</string>
+    <string name="tarn_connection_lab_log_level">Уровень журналирования</string>
+    <string name="tarn_connection_lab_auto">Автоматически</string>
+    <string name="tarn_connection_lab_quic_allow">Разрешать</string>
+    <string name="tarn_connection_lab_quic_block">Блокировать</string>
+    <string name="tarn_connection_lab_ip_ipv4_only">Только IPv4</string>
+    <string name="tarn_connection_lab_ip_prefer_ipv4">Предпочитать IPv4</string>
+    <string name="tarn_connection_lab_ip_prefer_ipv6">Предпочитать IPv6</string>
+    <string name="tarn_connection_lab_dns_direct">Напрямую</string>
+    <string name="tarn_connection_lab_dns_tunnel">Через VPN</string>
+    <string name="tarn_connection_lab_dns_route_disabled">Защита DNS выключена, поэтому маршрут не действует до её включения.</string>
+    <string name="tarn_connection_lab_log_warn">Предупреждения</string>
+    <string name="tarn_connection_lab_log_info">Информация</string>
+    <string name="tarn_connection_lab_log_debug">Отладка</string>
+    <string name="tarn_connection_lab_log_trace">Трассировка</string>
+    <string name="tarn_connection_lab_open_logs">Открыть журнал</string>
+    <string name="tarn_connection_lab_open_logs_hint">Живой вывод ядра на выбранном выше уровне</string>
+    <string name="tarn_logs_title">Журнал</string>
+    <string name="tarn_servers_unmanaged">Настройки не применяются — удалите и добавьте заново</string>
+    <string name="tarn_servers_insecure_tls">Сертификат сервера не проверяется — трафик можно перехватить</string>
+    <string name="tarn_shield_always_on">Постоянный VPN в системе</string>
+    <string name="tarn_shield_always_on_desc">Тумблер выше действует, только пока сервис жив. Если он упадёт или телефон перезагрузится, трафик пойдёт напрямую. Полностью это закрывает только системная настройка: включите «Постоянный VPN» и «Блокировать соединения без VPN». Открыть настройки Android</string>
+    <string name="tarn_connection_lab_ipv4_only_warning">Весь трафик пойдёт по IPv4, а приложениям сообщается, что у имени вообще нет IPv6. Держите при этом включённым «Отдавать серверу имя хоста» — иначе часть сервисов Google отвечает «недоступно в вашем регионе».</string>
+    <string name="tarn_connection_lab_send_hostname">Отдавать серверу имя хоста</string>
+    <string name="tarn_connection_lab_send_hostname_desc">Как в Xray и v2rayNG: имя резолвит сервер и выбирает регион — это и нужно Gemini, чтобы не писал «недоступно в вашем регионе». YouTube — исключение, его резолвит телефон, иначе Music блокируется по региону. Выключать только если сервер не принимает имена</string>
+    <string name="tarn_connection_lab_no_v6_warning">Диагностический режим. AAAA-записи отдаются как обычно, но IPv6-назначения отбиваются маршрутом, поэтому трафик уходит по IPv4 — fast.com покажет IPv4. Смысл: отделить «трафик по IPv4» от «клиенту сказали, что IPv6 нет». Заработает Gemini — значит виновата вторая половина.</string>
+    <string name="tarn_connection_lab_debug_warning">Отладочный журнал может содержать посещённые домены и повышает расход батареи. Отключите его после тестирования.</string>
+
+    <string name="tarn_connection_lab_section_test">Полный тест активного сервера</string>
+    <string name="tarn_connection_lab_test_url">HTTPS-адрес проверки</string>
+    <string name="tarn_connection_lab_test_url_hint">Приложение запрашивает этот адрес через выбранный сервер, уже загруженный в VPN.</string>
+    <string name="tarn_connection_lab_test_url_error">Введите полный адрес https:// без встроенных учётных данных.</string>
+    <string name="tarn_connection_lab_test_url_security_hint">Не используйте здесь адрес подписки, токен доступа или приватную ссылку.</string>
+    <string name="tarn_connection_lab_timeout">Тайм-аут</string>
+    <string name="tarn_connection_lab_timeout_value">%1$d с</string>
+    <string name="tarn_connection_lab_retries">Попытки</string>
+    <string name="tarn_connection_lab_retries_value">%1$d×</string>
+
+    <string name="tarn_connection_lab_section_recovery">Восстановление</string>
+    <string name="tarn_connection_lab_network_recovery">Восстанавливать при смене сети</string>
+    <string name="tarn_connection_lab_network_recovery_desc">Перезагружать работающий VPN при переходе между Wi-Fi и мобильной сетью</string>
+    <string name="tarn_connection_lab_failover">Предлагать резервный сервер</string>
+    <string name="tarn_connection_lab_failover_desc">Если активный HTTP-тест не прошёл, показать самый быстрый сервер по предварительной TCP-проверке</string>
+    <string name="tarn_connection_lab_failover_warning">Резерв ещё не прошёл HTTP-тест. Переключение выполняется только после вашего подтверждения; затем запустите полный тест снова.</string>
+    <string name="tarn_connection_lab_apply_hint">Параметры соединения применяются к существующим профилям TarnVPN. При изменении активный VPN может перезагрузиться.</string>
+    <string name="tarn_full_test_title">ПОЛНЫЙ ТЕСТ</string>
+    <string name="tarn_full_test_requires_vpn">Сначала запустите VPN. Без подключения доступна только предварительная TCP-задержка.</string>
+    <string name="tarn_full_test_select_running">Выберите запущенный профиль для полного теста.</string>
+    <string name="tarn_full_test_active_only">Полный тест проверяет выбранный профиль, уже загруженный в VPN.</string>
+    <string name="tarn_full_test_running">HTTP-запрос через VPN выполняется…</string>
+    <string name="tarn_full_test_success">HTTP через VPN: %1$d мс, попыток: %2$d.</string>
+    <string name="tarn_full_test_failed">HTTP через VPN недоступен: %1$s</string>
+    <string name="tarn_full_test_cancelled">Полный тест отменён.</string>
+    <string name="tarn_full_test_run">ПРОВЕРИТЬ</string>
+    <string name="tarn_full_test_cancel">ОТМЕНИТЬ</string>
+    <string name="tarn_full_test_clear">ОЧИСТИТЬ РЕЗУЛЬТАТ</string>
+    <string name="tarn_full_test_tcp_fallback">Возможный резерв по TCP: %1$s. Он ещё не проверен HTTP-тестом.</string>
+    <string name="tarn_full_test_select_tcp_fallback">ВЫБРАТЬ РЕЗЕРВ ПО TCP</string>
+
+    <string name="tarn_subscriptions_title">Подписки</string>
+    <string name="tarn_subscriptions_empty">Пока нет подписок. Вставьте URL подписки через «+» на экране «Серверы» — она появится здесь и будет обновляться.</string>
+    <string name="tarn_subscriptions_refresh">Обновить</string>
+    <string name="tarn_subscriptions_auto_update">Автообновление</string>
+    <string name="tarn_subscriptions_never">ещё не обновлялась</string>
+    <string name="tarn_subscriptions_just_now">обновлено только что</string>
+    <string name="tarn_subscriptions_delete_title">Удалить подписку</string>
+    <string name="tarn_subscriptions_delete_message">Удалить «%1$s» и %2$d добавленных ею серверов?</string>
+    <string name="tarn_subscriptions_delete_action">Удалить</string>
+    <plurals name="tarn_subscriptions_server_count">
+        <item quantity="one">%1$d сервер</item>
+        <item quantity="few">%1$d сервера</item>
+        <item quantity="many">%1$d серверов</item>
+        <item quantity="other">%1$d сервера</item>
+    </plurals>
+    <plurals name="tarn_subscriptions_minutes_ago">
+        <item quantity="one">обновлено %1$d мин назад</item>
+        <item quantity="few">обновлено %1$d мин назад</item>
+        <item quantity="many">обновлено %1$d мин назад</item>
+        <item quantity="other">обновлено %1$d мин назад</item>
+    </plurals>
+    <plurals name="tarn_subscriptions_hours_ago">
+        <item quantity="one">обновлено %1$d час назад</item>
+        <item quantity="few">обновлено %1$d часа назад</item>
+        <item quantity="many">обновлено %1$d часов назад</item>
+        <item quantity="other">обновлено %1$d часа назад</item>
+    </plurals>
+    <plurals name="tarn_subscriptions_days_ago">
+        <item quantity="one">обновлено %1$d день назад</item>
+        <item quantity="few">обновлено %1$d дня назад</item>
+        <item quantity="many">обновлено %1$d дней назад</item>
+        <item quantity="other">обновлено %1$d дня назад</item>
+    </plurals>
+</resources>

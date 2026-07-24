@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="AppTheme" parent="AppTheme.Base.V31" />
+
+    <!--
+        The Android 12+ splash screen falls back to the theme's windowBackground, which on a
+        DayNight parent is white in light mode — a white flash before a black app, with the
+        ghost's glow reading as a ragged edge against it. Pin it to the same field the icon
+        was drawn for.
+    -->
+    <style name="AppTheme.Base.V31" parent="AppTheme.Base.V27">
+        <item name="android:windowSplashScreenBackground">@color/ic_launcher_background</item>
+    </style>
+
+</resources>

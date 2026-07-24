@@ -8,6 +8,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Network
 import android.net.Uri
 import android.os.Build
 import android.os.IBinder
@@ -36,18 +37,36 @@ import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.ktx.hasPermission
 import io.nekohasekai.sfa.vendor.Vendor
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
 class BoxService(private val service: Service, private val platformInterface: PlatformInterface) : CommandServerHandler {
     companion object {
         private const val PROFILE_UPDATE_INTERVAL = 15L * 60 * 1000 // 15 minutes in milliseconds
         private const val TAG = "BoxService"
+
+        /**
+         * How long a stop waits for the orderly shutdown before forcing the service into
+         * [Status.Stopped] anyway. Long enough for a healthy close (which is well under a
+         * second) plus a slow one, short enough that a user who pressed disconnect is not left
+         * staring at a dead button.
+         */
+        private const val STOP_GRACE_PERIOD_MS = 5_000L
 
         fun start() {
             val intent =
@@ -74,6 +93,25 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     private val binder = ServiceBinder(status)
     private val notification = ServiceNotification(status, service)
     private lateinit var commandServer: CommandServer
+    private val serviceReloadMutex = Mutex()
+
+    // A network handover is normally handled in-place by sing-box's interface monitor.
+    // Some heavily filtered mobile networks keep the old transport half-open, though, so
+    // TarnVPN can optionally perform one debounced reload after the default network really
+    // changes. Capability updates for the same Network object are deliberately ignored.
+    private val recoveryListenerKey = Any()
+    private val recoveryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    @Volatile
+    private var destroyed = false
+
+    @Volatile
+    private var shuttingDown = false
+    private var recoveryListenerRegistered = false
+    private var recoveryListenerInitialized = false
+    private var recoveryNetwork: Network? = null
+    private var recoveryJob: Job? = null
+    private var idleWakeJob: Job? = null
 
     private var receiverRegistered = false
     private val receiver =
@@ -102,6 +140,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     private var lastProfileName = ""
 
     private suspend fun startService() {
+        shuttingDown = false
         try {
             withContext(Dispatchers.Main) {
                 notification.show(lastProfileName, R.string.status_starting)
@@ -168,6 +207,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             }
 
             status.postValue(Status.Started)
+            syncNetworkRecovery()
             withContext(Dispatchers.Main) {
                 notification.show(lastProfileName, R.string.status_started)
             }
@@ -179,14 +219,19 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     }
 
     override fun serviceStop() {
-        notification.close()
-        status.postValue(Status.Starting)
-        val pfd = fileDescriptor
-        if (pfd != null) {
-            pfd.close()
-            fileDescriptor = null
+        shuttingDown = true
+        runBlocking {
+            serviceReloadMutex.withLock {
+                notification.close()
+                status.postValue(Status.Starting)
+                val pfd = fileDescriptor
+                if (pfd != null) {
+                    pfd.close()
+                    fileDescriptor = null
+                }
+                closeService()
+            }
         }
-        closeService()
     }
 
     override fun serviceReload() {
@@ -196,6 +241,11 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     }
 
     suspend fun serviceReload0() {
+        serviceReloadMutex.withLock { serviceReloadLocked() }
+    }
+
+    private suspend fun serviceReloadLocked() {
+        if (destroyed || shuttingDown || status.value != Status.Started) return
         val selectedProfileId = Settings.selectedProfile
         if (selectedProfileId == -1L) {
             stopAndAlert(Alert.EmptyConfiguration)
@@ -246,6 +296,62 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 return
             }
         }
+        syncNetworkRecovery()
+    }
+
+    @OptIn(DelicateCoroutinesApi::class)
+    private suspend fun syncNetworkRecovery() {
+        if (destroyed || shuttingDown || !Settings.tarnNetworkRecovery) {
+            stopNetworkRecovery()
+            return
+        }
+        if (recoveryListenerRegistered) return
+
+        recoveryListenerInitialized = false
+        recoveryNetwork = null
+        recoveryListenerRegistered = true
+        try {
+            DefaultNetworkListener.start(recoveryListenerKey) listener@{ network ->
+                val previous = recoveryNetwork
+                recoveryNetwork = network
+                if (!recoveryListenerInitialized) {
+                    recoveryListenerInitialized = true
+                    return@listener
+                }
+                if (network == null || network == previous) return@listener
+
+                recoveryJob?.cancel()
+                recoveryJob = recoveryScope.launch {
+                    // Collapse fast Wi-Fi -> no-network -> mobile transitions into one reload.
+                    delay(1200L)
+                    if (
+                        destroyed || shuttingDown || !Settings.tarnNetworkRecovery ||
+                        status.value != Status.Started
+                    ) {
+                        return@launch
+                    }
+                    runCatching { serviceReload0() }
+                        .onFailure { Log.w(TAG, "network recovery reload failed", it) }
+                }
+            }
+        } catch (e: Exception) {
+            recoveryListenerRegistered = false
+            Log.w(TAG, "network recovery listener failed", e)
+        }
+    }
+
+    private suspend fun stopNetworkRecovery() {
+        val activeRecovery = recoveryJob
+        recoveryJob = null
+        if (activeRecovery != currentCoroutineContext()[Job]) activeRecovery?.cancel()
+        recoveryListenerInitialized = false
+        recoveryNetwork = null
+        if (!recoveryListenerRegistered) return
+        recoveryListenerRegistered = false
+        withContext(NonCancellable) {
+            runCatching { DefaultNetworkListener.stop(recoveryListenerKey) }
+                .onFailure { Log.w(TAG, "network recovery listener stop failed", it) }
+        }
     }
 
     override fun getSystemProxyStatus(): SystemProxyStatus? {
@@ -264,15 +370,47 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     @RequiresApi(Build.VERSION_CODES.M)
     private fun serviceUpdateIdleMode() {
         if (Application.powerManager.isDeviceIdleMode) {
+            idleWakeJob?.cancel()
+            idleWakeJob = null
             commandServer.pause()
         } else {
             commandServer.wake()
+            scheduleIdleWakeReload()
+        }
+    }
+
+    // While the device sits in Doze the radio sleeps and NAT drops the tunnel's
+    // idle TCP connections; wake() only lifts the pause gate, it does not close
+    // anything, and syncNetworkRecovery stays silent because the default Network
+    // object is unchanged (same Wi-Fi/cell). The pooled XHTTP http2 conns are then
+    // zombies — locally ESTABLISHED, actually dead — so the first request after
+    // wake reuses one and hangs until the kernel gives up on the dead socket
+    // (tens of seconds). Reload here rebuilds the outbound, i.e. a fresh transport
+    // pool, the same recovery a network handover performs. Debounced so a quick
+    // idle -> wake -> idle flap collapses into at most one reload, and gated on the
+    // same "network recovery" switch so the user can turn it off.
+    private fun scheduleIdleWakeReload() {
+        if (destroyed || shuttingDown || !Settings.tarnNetworkRecovery) return
+        if (status.value != Status.Started) return
+        idleWakeJob?.cancel()
+        idleWakeJob = recoveryScope.launch {
+            // Give the radio a moment to reassociate before we redial the tunnel.
+            delay(1200L)
+            if (
+                destroyed || shuttingDown || !Settings.tarnNetworkRecovery ||
+                status.value != Status.Started
+            ) {
+                return@launch
+            }
+            runCatching { serviceReload0() }
+                .onFailure { Log.w(TAG, "idle wake reload failed", it) }
         }
     }
 
     @OptIn(DelicateCoroutinesApi::class)
     private fun stopService() {
         if (status.value != Status.Started) return
+        shuttingDown = true
         status.value = Status.Stopping
         if (receiverRegistered) {
             service.unregisterReceiver(receiver)
@@ -280,18 +418,40 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         }
         notification.close()
         GlobalScope.launch(Dispatchers.IO) {
-            val pfd = fileDescriptor
-            if (pfd != null) {
-                pfd.close()
+            // The graceful shutdown runs as its own job so the wait below can give up on it.
+            // It used to be inline, and then a reload holding serviceReloadMutex could keep the
+            // shutdown queued forever: status stayed Stopping, the receiver was already
+            // unregistered above so a second BoxService.stop() broadcast went nowhere, and the
+            // button is disabled while transitioning — leaving no way to turn the VPN off at
+            // all. This app reloads on every settings change and on network handover, so that
+            // window is not rare.
+            val graceful = GlobalScope.launch(Dispatchers.IO) {
+                serviceReloadMutex.withLock {
+                    val pfd = fileDescriptor
+                    if (pfd != null) {
+                        pfd.close()
+                        fileDescriptor = null
+                    }
+                    stopNetworkRecovery()
+                    DefaultNetworkMonitor.stop()
+                    closeService()
+                    if (::commandServer.isInitialized) {
+                        commandServer.close()
+                    }
+                }
+            }
+            // join() is what makes the bound real. Wrapping the cleanup itself in
+            // withTimeoutOrNull would not: closeService() ends up in a blocking native call,
+            // and coroutine cancellation cannot interrupt one — the timeout would only fire
+            // after it returned anyway. Waiting on a separate job can be abandoned.
+            if (withTimeoutOrNull(STOP_GRACE_PERIOD_MS) { graceful.join() } == null) {
+                Log.w(TAG, "graceful stop still running after ${STOP_GRACE_PERIOD_MS}ms, forcing shutdown")
+                runCatching { fileDescriptor?.close() }
                 fileDescriptor = null
             }
-            DefaultNetworkMonitor.stop()
-            closeService()
-            commandServer.apply {
-                close()
-//                Seq.destroyRef(refnum)
-            }
             Settings.startedByUser = false
+            // Reached on both paths on purpose: whatever happened to the cleanup, the service
+            // must end up in a terminal state the UI can act on.
             withContext(Dispatchers.Main) {
                 status.value = Status.Stopped
                 service.stopSelf()
@@ -308,12 +468,14 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     }
 
     private suspend fun stopAndAlert(type: Alert, message: String? = null) {
+        shuttingDown = true
         Settings.startedByUser = false
         val pfd = fileDescriptor
         if (pfd != null) {
             pfd.close()
             fileDescriptor = null
         }
+        stopNetworkRecovery()
         DefaultNetworkMonitor.stop()
         if (::commandServer.isInitialized) {
             closeService()
@@ -370,6 +532,14 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     internal fun onBind(): IBinder = binder
 
     internal fun onDestroy() {
+        destroyed = true
+        shuttingDown = true
+        runBlocking(Dispatchers.IO) {
+            stopNetworkRecovery()
+            runCatching { DefaultNetworkMonitor.stop() }
+                .onFailure { Log.w(TAG, "default network monitor stop failed", it) }
+        }
+        recoveryScope.cancel()
         binder.close()
     }
 

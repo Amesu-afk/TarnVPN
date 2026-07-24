@@ -67,20 +67,35 @@ android {
     }
 
     defaultConfig {
-        applicationId = "io.nekohasekai.sfa"
+        // Deliberately NOT upstream's io.nekohasekai.sfa: that id belongs to the official
+        // sing-box-for-android on Google Play. Shipping our own signature under the same id
+        // makes scanners flag every build as a repackaged/tampered copy of that app
+        // (Android.Riskware.Repack). A distinct id removes that signal. `namespace` stays
+        // io.nekohasekai.sfa — it is only the code package (R class, AIDL, BuildConfig) and
+        // has no bearing on app identity or detection.
+        applicationId = "app.tarnvpn"
         minSdk = 21
         targetSdk = 35
         versionCode = getVersionProps("VERSION_CODE").toInt()
         versionName = getVersionProps("VERSION_NAME")
-        base.archivesName.set("SFA-${versionName}")
+        base.archivesName.set("TarnVPN-${versionName}")
     }
 
     signingConfigs {
         create("release") {
-            storeFile = file("release.keystore")
+            // NOT upstream's release.keystore: that file ships in the public
+            // SagerNet/sing-box-for-android repository, so anyone can sign with it and any
+            // build they produce would be accepted by Android as an update to this app.
+            // tarn-release.keystore is generated locally and gitignored; if it is ever lost,
+            // installed copies can no longer be updated — back it up together with the
+            // KEYSTORE_PASS/ALIAS_* entries in local.properties.
+            storeFile = file("tarn-release.keystore")
             storePassword = getProps("KEYSTORE_PASS")
             keyAlias = getProps("ALIAS_NAME")
             keyPassword = getProps("ALIAS_PASS")
+            // v1+v2 alone verified, but only v3 carries a rotation proof — without it the key
+            // above can never be replaced without every user reinstalling by hand.
+            enableV3Signing = true
         }
     }
 

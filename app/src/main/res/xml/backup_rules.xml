@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
 
-    <include
+    <!-- Profiles, settings and generated configs can contain VPN credentials. -->
+    <exclude
         domain="database"
-        path="profiles.db" />
-    <include
-        domain="database"
-        path="settings.db" />
-    <include
+        path="." />
+    <exclude
         domain="file"
         path="configs" />
+    <exclude
+        domain="file"
+        path="configuration.json" />
 
 </full-backup-content>

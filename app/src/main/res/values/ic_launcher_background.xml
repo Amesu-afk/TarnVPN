@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#ECEFF1</color>
+    <!-- TarnColors.Background: the ghost is drawn for a black field, not the old light one. -->
+    <color name="ic_launcher_background">#070707</color>
 </resources>
