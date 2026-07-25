@@ -5,10 +5,21 @@
 Android VPN client for censored networks: **VLESS + REALITY**, **XHTTP**, and the rest of the
 sing-box protocol set, wrapped in a purpose-built interface instead of a config editor.
 
-> A fork of [SagerNet/sing-box-for-android](https://github.com/SagerNet/sing-box-for-android) with
-> its own UI layer, running on [Amesu-afk/sing-box-lx](https://github.com/Amesu-afk/sing-box-lx) —
-> a sing-box fork carrying the client-side patches this app depends on.
-> **Not affiliated with the sing-box project or SagerNet.**
+> **Whose work is what.** The interface, the share-link importer and a set of client-side fixes are
+> this project's. Everything they stand on is other people's:
+>
+> - the app is a fork of [SagerNet/sing-box-for-android](https://github.com/SagerNet/sing-box-for-android) (SFA);
+> - the core is [sing-box](https://github.com/SagerNet/sing-box), both by **nekohasekai / SagerNet**;
+> - **the `lx` layer — XHTTP, AmneziaWG 2.0, MASQUE, the observability extensions — is
+>   [Leadaxe](https://github.com/Leadaxe/sing-box-lx)'s work, not ours.** XHTTP is the transport
+>   this app leans on hardest, and it exists here because of that project.
+>
+> Our own core patches (XHTTP transport pool carried onto lx.15, TLS fragmentation over REALITY,
+> `override_destination` on the sniff action, the stream-one path fix) sit in a downstream copy at
+> [Amesu-afk/sing-box-lx](https://github.com/Amesu-afk/sing-box-lx), which is what the shipped
+> `libbox.aar` is built from.
+>
+> **None of the projects above endorse this one or are affiliated with it.**
 
 ## What it does
 
@@ -80,11 +91,18 @@ Losing either means installed copies can never be updated again.
 After replacing a `libbox.aar`, build with `--rerun-tasks`: Gradle's incremental build has been
 seen to emit a 40% larger, wrong APK from a stale cache.
 
+## Credits
+
+- **[nekohasekai / SagerNet](https://github.com/SagerNet)** — sing-box and SFA, which this is a fork of.
+- **[Leadaxe](https://github.com/Leadaxe/sing-box-lx)** — the `lx` core layer: XHTTP, AmneziaWG 2.0,
+  MASQUE, the CommandClient observability extensions. Without it this app would have no XHTTP at all.
+- This project — the TarnVPN interface, the importer, and the patches listed at the top.
+
 ## License
 
 GPLv3, inherited from upstream and unchanged. The interface layer (`io.nekohasekai.sfa.tarn`),
 the share-link importer and the client-side fixes are additions to that work, under the same
-terms; everything else is upstream's.
+terms; everything else belongs to the authors above.
 
 ```
 Copyright (C) 2022 by nekohasekai <contact-sagernet@sekai.icu>

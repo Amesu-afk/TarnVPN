@@ -5,10 +5,21 @@
 VPN-клиент для Android под заблокированные сети: **VLESS + REALITY**, **XHTTP** и остальной набор
 протоколов sing-box — но с интерфейсом, сделанным под задачу, а не с редактором конфигов.
 
-> Форк [SagerNet/sing-box-for-android](https://github.com/SagerNet/sing-box-for-android) со своей
-> оболочкой, работающий на [Amesu-afk/sing-box-lx](https://github.com/Amesu-afk/sing-box-lx) —
-> форке sing-box с клиентскими патчами, от которых зависит поведение приложения.
-> **Проект не аффилирован с sing-box и SagerNet.**
+> **Чья тут чья работа.** Оболочка, импортёр share-ссылок и набор клиентских правок — этого
+> проекта. Всё, на чём они стоят, — чужое:
+>
+> - приложение — форк [SagerNet/sing-box-for-android](https://github.com/SagerNet/sing-box-for-android) (SFA);
+> - ядро — [sing-box](https://github.com/SagerNet/sing-box), и то и другое **nekohasekai / SagerNet**;
+> - **слой `lx` — XHTTP, AmneziaWG 2.0, MASQUE, расширения наблюдаемости — работа
+>   [Leadaxe](https://github.com/Leadaxe/sing-box-lx), а не наша.** XHTTP — транспорт, на котором
+>   это приложение держится сильнее всего, и он здесь есть благодаря тому проекту.
+>
+> Наши собственные правки ядра (пул транспортов XHTTP, перенесённый на lx.15, фрагментация TLS
+> поверх REALITY, `override_destination` у действия sniff, путь для stream-one) лежат в downstream-копии
+> [Amesu-afk/sing-box-lx](https://github.com/Amesu-afk/sing-box-lx) — из неё и собран вшитый
+> `libbox.aar`.
+>
+> **Ни один из перечисленных проектов этот не поддерживает и к нему отношения не имеет.**
 
 ## Что умеет
 
@@ -81,11 +92,18 @@ ALIAS_PASS=…
 После замены `libbox.aar` собирай с `--rerun-tasks`: инкрементальная сборка Gradle уже отдавала из
 устаревшего кэша APK на 40% больше нужного.
 
+## Благодарности
+
+- **[nekohasekai / SagerNet](https://github.com/SagerNet)** — sing-box и SFA, форком которого это является.
+- **[Leadaxe](https://github.com/Leadaxe/sing-box-lx)** — слой `lx` в ядре: XHTTP, AmneziaWG 2.0,
+  MASQUE, расширения наблюдаемости CommandClient. Без него у этого приложения не было бы XHTTP вообще.
+- Этот проект — оболочка TarnVPN, импортёр и правки, перечисленные в начале.
+
 ## Лицензия
 
 GPLv3, унаследованная от апстрима и не изменённая. Слой интерфейса (`io.nekohasekai.sfa.tarn`),
 импортёр share-ссылок и клиентские правки — дополнения к той же работе и на тех же условиях;
-всё остальное принадлежит апстриму.
+всё остальное принадлежит перечисленным выше авторам.
 
 ```
 Copyright (C) 2022 by nekohasekai <contact-sagernet@sekai.icu>
