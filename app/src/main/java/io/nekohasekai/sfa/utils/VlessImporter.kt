@@ -21,8 +21,10 @@ object VlessImporter {
      *
      * 1 — the DNS rules that keep cold lookups off the video path (AAAA answered locally for the
      *     phone-resolved hosts, media-CDN names resolved off the tunnel).
+     * 2 — the same two rules widened past YouTube to every short-video CDN in
+     *     [MEDIA_CDN_SUFFIXES].
      */
-    const val CONFIG_GENERATION = 1
+    const val CONFIG_GENERATION = 2
 
     private data class ConnectionConfigSettings(
         val dnsOption: DnsOption,
@@ -431,9 +433,22 @@ object VlessImporter {
      */
     private fun suppressAaaaRule(): JSONObject = JSONObject()
         .put("query_type", JSONArray().put("AAAA"))
-        .put("domain_suffix", JSONArray().apply { PHONE_RESOLVE_SUFFIXES.forEach(::put) })
+        .put("domain_suffix", JSONArray().apply { AAAA_SUPPRESS_SUFFIXES.forEach(::put) })
         .put("action", "predefined")
         .put("rcode", "NOERROR")
+
+    /**
+     * The phone-resolved hosts plus the media CDNs. Two different arguments land on the same
+     * answer:
+     *
+     * - [PHONE_RESOLVE_SUFFIXES]: the destination becomes a v4-first phone-resolved address, so
+     *   the AAAA answer cannot reach the wire at all.
+     * - [MEDIA_CDN_SUFFIXES]: the destination leaves as a *name* and the server resolves it, so
+     *   the address family is the server's choice either way — the phone's AAAA answer only
+     *   decides which local socket the app opens, and costs a second upstream lookup to do it.
+     */
+    private val AAAA_SUPPRESS_SUFFIXES: List<String>
+        get() = (PHONE_RESOLVE_SUFFIXES + MEDIA_CDN_SUFFIXES).distinct()
 
     /**
      * Sends media-CDN lookups to the off-tunnel `bootstrap` resolver (same provider, same DoH,
@@ -453,16 +468,40 @@ object VlessImporter {
      * all, and `direct` already has the `doh` server off it — there is no `bootstrap` then.
      */
     private fun mediaDnsBootstrapRule(): JSONObject = JSONObject()
-        .put("domain_suffix", JSONArray().apply { MEDIA_DNS_DIRECT_SUFFIXES.forEach(::put) })
+        .put("domain_suffix", JSONArray().apply { MEDIA_CDN_SUFFIXES.forEach(::put) })
         .put("server", "bootstrap")
 
     /**
-     * Hostnames that only ever name a CDN edge node, never a region-gated service. Kept
-     * deliberately short: everything here is resolved off the tunnel by
-     * [mediaDnsBootstrapRule], so a name whose answer *does* depend on the asking region does
-     * not belong on this list.
+     * Domains that only ever name a CDN edge node, never a region-gated service — the ones whose
+     * lookups [mediaDnsBootstrapRule] takes off the tunnel.
+     *
+     * The membership test is not "is it video", it is: **does the answer depend on where the
+     * question is asked from?** These CDNs put the node (and usually its region) in the hostname
+     * itself, and the playback URL that carries the hostname is issued by an API call that still
+     * goes through the tunnel — so the region decision is already made by the time DNS runs, and
+     * asking from the phone returns the same node. A geo-steered *and* gated name resolved off
+     * the tunnel would land the session in the wrong region, which is the failure this list
+     * exists to stay away from (see [PHONE_RESOLVE_SUFFIXES] for that story).
+     *
+     * Every short-video feed is covered, not just the one that was reported: they all share the
+     * shape that makes the tunnel round-trip hurt — a new, never-seen host per clip, so the
+     * optimistic cache never has anything to serve and each clip starts on a cold lookup.
      */
-    private val MEDIA_DNS_DIRECT_SUFFIXES = listOf("googlevideo.com")
+    private val MEDIA_CDN_SUFFIXES = listOf(
+        // YouTube / Shorts. `rr*---sn-*.googlevideo.com` — one name per edge node.
+        "googlevideo.com",
+        // Instagram Reels, Facebook video. `scontent-fra3-1.*` — region is in the name.
+        "cdninstagram.com",
+        "fbcdn.net",
+        // TikTok. Least certain of the set: ByteDance rotates CDN domains more than the others,
+        // so treat a missing one as "not covered yet" rather than assuming this is exhaustive.
+        "tiktokcdn.com",
+        "tiktokcdn-us.com",
+        // Twitch. `video-weaver.fra02.hls.ttvnw.net` — the HLS playlist pins the edge.
+        "ttvnw.net",
+        // Netflix Open Connect appliances.
+        "nflxvideo.net",
+    )
 
     /**
      * `store_dns` persists the DNS cache to the cache file, so the optimistic cache above

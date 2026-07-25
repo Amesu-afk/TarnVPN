@@ -80,18 +80,25 @@ class VlessImporterDnsRulesTest {
         dnsRules(config).firstOrNull { it.optString("server") == "bootstrap" }
 
     @Test
-    fun `suppresses AAAA for the phone-resolved hosts`() {
+    fun `suppresses AAAA for the phone-resolved hosts and the media CDNs`() {
         val rule = aaaaRule(patch())
         assertNotNull("no AAAA suppression rule", rule)
         assertEquals("predefined", rule!!.optString("action"))
         assertEquals("NOERROR", rule.optString("rcode"))
-        // The list has to match the route table's resolve rule: those are the hosts whose
-        // destination is replaced with a v4-first phone-resolved address, which is what makes
-        // the AAAA answer dead weight rather than a lost address family.
-        val resolveRule = patch().getJSONObject("route").getJSONArray("rules").objects()
+        val suppressed = rule.strings("domain_suffix")
+        // Superset of the route table's resolve rule: for those hosts the destination becomes a
+        // v4-first phone-resolved address, so an AAAA answer cannot reach the wire at all.
+        val phoneResolved = patch().getJSONObject("route").getJSONArray("rules").objects()
             .first { it.optString("action") == "resolve" }
-        assertEquals(resolveRule.strings("domain_suffix"), rule.strings("domain_suffix"))
-        assertTrue("googlevideo.com missing", "googlevideo.com" in rule.strings("domain_suffix"))
+            .strings("domain_suffix")
+        assertTrue("phone-resolved hosts must be covered", suppressed.containsAll(phoneResolved))
+        // Plus every media CDN, whose destination leaves as a name instead — there the phone's
+        // AAAA answer only picks a local socket family and costs an upstream lookup to do it.
+        assertTrue(
+            "media CDNs must be covered",
+            suppressed.containsAll(mediaRule(patch())!!.strings("domain_suffix")),
+        )
+        assertEquals("no duplicate suffixes", suppressed.distinct(), suppressed)
     }
 
     /**
@@ -110,7 +117,14 @@ class VlessImporterDnsRulesTest {
     fun `sends media lookups off the tunnel on auto`() {
         val rule = mediaRule(patch())
         assertNotNull("no off-tunnel media rule", rule)
-        assertEquals(listOf("googlevideo.com"), rule!!.strings("domain_suffix"))
+        // Every short-video feed, not only the one the symptom was reported on: they all mint a
+        // new host per clip, so they all pay the cold through-tunnel lookup.
+        assertTrue(
+            "expected the media CDN set, got ${rule!!.strings("domain_suffix")}",
+            rule.strings("domain_suffix").containsAll(
+                listOf("googlevideo.com", "cdninstagram.com", "fbcdn.net", "ttvnw.net"),
+            ),
+        )
         // Answering AAAA locally has to win over routing it to bootstrap, or the AAAA for a
         // googlevideo host would still leave the device.
         val rules = dnsRules(patch())
