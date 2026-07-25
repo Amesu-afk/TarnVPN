@@ -17,20 +17,22 @@ class GitHubUpdateChecker : Closeable {
     companion object {
         /**
          * The `owner/repo` whose GitHub releases hold TarnVPN's own APKs. THE ONLY LINE that
-         * has to change to switch the updater on.
+         * has to change to point the updater somewhere else.
          *
-         * Empty on purpose while no releases page exists. It used to be hardcoded to
-         * `SagerNet/sing-box` — the upstream CORE repo, inherited from SFA — which meant this
-         * app offered users an entirely different application: since `applicationId` is now
-         * `app.tarnvpn` and the signing key is our own, an upstream APK does not update
-         * TarnVPN, it installs a second app beside it. With auto-update plus silent install
-         * both on, that would have happened without anyone pressing a button.
+         * It used to be hardcoded to `SagerNet/sing-box` — the upstream CORE repo, inherited
+         * from SFA — which meant this app offered users an entirely different application:
+         * since `applicationId` is now `app.tarnvpn` and the signing key is our own, an
+         * upstream APK does not update TarnVPN, it installs a second app beside it. With
+         * auto-update plus silent install both on, that would have happened without anyone
+         * pressing a button. Never point this at a repository whose releases are not built
+         * from this source and signed with this key.
          *
-         * Requirements on the repository once it exists (an unmet one makes a release be
-         * skipped in silence, so they are worth keeping together):
-         *  - public — the public GitHub API needs no token, and requiring every user to paste
-         *    their own [io.nekohasekai.sfa.database.Settings.githubToken] is not realistic;
-         *  - each release carries a `SFA-version-metadata.json` asset, exactly
+         * Requirements on every release (an unmet one makes the release be skipped in silence,
+         * so they are worth keeping together):
+         *  - the repository is public — the public GitHub API needs no token, and requiring
+         *    every user to paste their own
+         *    [io.nekohasekai.sfa.database.Settings.githubToken] is not realistic;
+         *  - it carries a [METADATA_FILENAME] asset, exactly
          *    `{"version_code": <int>, "version_name": "<semver>"}` — without it the release is
          *    skipped (see [downloadMetadata]);
          *  - the APK asset is picked by FIRST match on "ends with .apk, no `play` in the name,
@@ -38,9 +40,16 @@ class GitHubUpdateChecker : Closeable {
          *    APK (plus a separate `legacy-android-5` universal for Android 5); uploading the
          *    per-ABI splits alongside can hand an arm64 phone the x86 build.
          */
-        private const val TARN_RELEASES_REPO = ""
+        private const val TARN_RELEASES_REPO = "Amesu-afk/TarnVPN"
 
-        private const val METADATA_FILENAME = "SFA-version-metadata.json"
+        /**
+         * Named after this app, not after SFA. The inherited name was `SFA-version-metadata.json`,
+         * which would have put another project's name in every TarnVPN release; renaming it cost
+         * nothing because no build that reads the old name was ever distributed — until this
+         * commit [TARN_RELEASES_REPO] was empty, so no shipped build ever looked for a metadata
+         * file at all.
+         */
+        private const val METADATA_FILENAME = "tarn-version-metadata.json"
 
         /** Whether this build knows where to look for its own releases. */
         val isConfigured: Boolean get() = TARN_RELEASES_REPO.isNotBlank()

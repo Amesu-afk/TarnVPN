@@ -321,12 +321,13 @@ fun SettingsScreen(navController: NavController) {
                     Modifier
                         .clickable {
                             val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
-                            // The fork this app is actually built from, not upstream SFA: the
-                            // core carries the lx patches (REALITY fragmentation, XHTTP pool,
-                            // QUIC no_drop) that TarnVPN's behaviour depends on, and the
-                            // libbox.aar embedded here is built by its release workflow.
+                            // This app's own source, not upstream SFA. GPLv3 asks that whoever
+                            // runs the binary can get the source that built it, so the link
+                            // leads to the app; its README points on to the core fork, whose
+                            // lx patches (REALITY fragmentation, XHTTP pool, QUIC no_drop) the
+                            // embedded libbox.aar is built from.
                             intent.data =
-                                android.net.Uri.parse("https://github.com/Leadaxe/sing-box-lx")
+                                android.net.Uri.parse("https://github.com/Amesu-afk/TarnVPN")
                             context.startActivity(intent)
                         },
                     colors =

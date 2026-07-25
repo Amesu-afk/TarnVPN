@@ -1,12 +1,90 @@
-# SFA
+**English** · [Русский](README.ru.md)
 
-Experimental Android client for sing-box, the universal proxy platform.
+# TarnVPN
 
-## Documentation
+Android VPN client for censored networks: **VLESS + REALITY**, **XHTTP**, and the rest of the
+sing-box protocol set, wrapped in a purpose-built interface instead of a config editor.
 
-https://sing-box.sagernet.org/installation/clients/sfa/
+> A fork of [SagerNet/sing-box-for-android](https://github.com/SagerNet/sing-box-for-android) with
+> its own UI layer, running on [Amesu-afk/sing-box-lx](https://github.com/Amesu-afk/sing-box-lx) —
+> a sing-box fork carrying the client-side patches this app depends on.
+> **Not affiliated with the sing-box project or SagerNet.**
+
+## What it does
+
+- **A server is a row, not a config file.** Paste a `vless://` (or `trojan`, `ss`, `vmess`,
+  `hysteria2`, `tuic`, `anytls`) link or a subscription URL, and every server becomes its own
+  entry with its own latency reading, measured by TCP handshake outside the tunnel — so the
+  numbers exist before you connect to anything.
+- **Subscriptions** are first-class: refresh diffs by link, keeps your selection, de-duplicates.
+- **Split tunnelling** per application, with include/exclude modes.
+- **Kill switch** — applications cannot route around a live tunnel.
+- **DNS you can reason about**: DoH presets or your own resolver, and a switch for whether lookups
+  travel through the tunnel (the exit's region answers) or straight out (faster, reveals your
+  region). Cold lookups for media CDNs are kept off the tunnel so short-video feeds do not stall
+  on every clip.
+- **Anti-DPI knobs** that the core actually honours: TLS fragmentation over REALITY, QUIC policy,
+  MTU, IPv6 strategy, hostname-vs-address destinations.
+- Light and dark themes, in-app log viewer, and the full upstream sing-box interface still
+  reachable underneath for anything the shell does not cover.
+
+## Install
+
+Grab the **universal** APK from [Releases](https://github.com/Amesu-afk/TarnVPN/releases).
+
+| Build | Android |
+|---|---|
+| `TarnVPN-<version>-universal.apk` | 6.0+ (API 23) |
+| the universal APK whose name contains `legacy-android-5` | 5.0–5.1 (API 21) |
+
+Releases are signed with this project's own key, which is **not** the key in upstream's
+`app/release.keystore` (that file ships publicly in the SFA repository, so anything signed with it
+could be produced by anyone). A build signed with a different key will not install as an update —
+uninstall first, and expect to lose stored profiles.
+
+The app checks its own releases here and can install updates in place; nothing is sent anywhere
+else, and update checking can be turned off.
+
+## Build from source
+
+Requirements — the versions matter, and two of them are not negotiable:
+
+- **JDK 17** exactly (gomobile fails on newer JDKs).
+- Android SDK with **NDK 28.0.13004108**.
+- **Go 1.25+** with `gomobile`, only if you rebuild the core (`make lib_install` in the core repo).
+
+```bash
+# 1. the core, if you want your own libbox instead of the committed one
+git clone https://github.com/Amesu-afk/sing-box-lx
+cd sing-box-lx
+go run ./cmd/internal/build_libbox -target android   # emits libbox.aar + libbox-legacy.aar
+
+# 2. the app
+cp libbox*.aar clients/android/app/libs/
+cd clients/android
+./gradlew assembleOtherRelease        # signed release, needs a keystore (below)
+./gradlew assembleOtherDebug          # unsigned-ish debug build, no keystore needed
+```
+
+Signing is read from `local.properties` (git-ignored):
+
+```properties
+KEYSTORE_PASS=…
+ALIAS_NAME=…
+ALIAS_PASS=…
+```
+
+Generate your own `app/tarn-release.keystore` — and back it up together with those three lines.
+Losing either means installed copies can never be updated again.
+
+After replacing a `libbox.aar`, build with `--rerun-tasks`: Gradle's incremental build has been
+seen to emit a 40% larger, wrong APK from a stale cache.
 
 ## License
+
+GPLv3, inherited from upstream and unchanged. The interface layer (`io.nekohasekai.sfa.tarn`),
+the share-link importer and the client-side fixes are additions to that work, under the same
+terms; everything else is upstream's.
 
 ```
 Copyright (C) 2022 by nekohasekai <contact-sagernet@sekai.icu>
@@ -28,5 +106,7 @@ In addition, no derivative work may use the name or imply association
 with this application without prior consent.
 ```
 
-Under the license, that forks of the app are not allowed to be listed on F-Droid or other app stores
-under the original name.
+That last clause is upstream's, and it is why this app carries its own name, its own
+`applicationId` (`app.tarnvpn`), its own icon and its own signing key, and why it is not listed
+anywhere as SFA. The corresponding source for the core embedded in every release is the
+`sing-box-lx` repository linked above — that link is the GPL offer, not a courtesy.
