@@ -315,6 +315,13 @@ object Settings {
     var tarnAutoFailover by dataStore.boolean(SettingsKey.TARN_AUTO_FAILOVER) { false }
 
     /**
+     * Which [io.nekohasekai.sfa.utils.VlessImporter.CONFIG_GENERATION] the stored profile files
+     * were written by. Zero on a fresh install, which is below every real generation, so the
+     * one-off repatch in the shell also covers a profile restored from a backup.
+     */
+    var tarnConfigGeneration by dataStore.int(SettingsKey.TARN_CONFIG_GENERATION) { 0 }
+
+    /**
      * Prevents applications from routing around an active tunnel. This is not Android's
      * system Lockdown VPN; that protection is configured in Android Settings.
      */

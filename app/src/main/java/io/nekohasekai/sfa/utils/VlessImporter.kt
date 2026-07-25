@@ -10,6 +10,20 @@ import org.json.JSONObject
 
 object VlessImporter {
 
+    /**
+     * Bumped whenever [buildConfig] starts emitting something a previously stored profile does
+     * not have. Profiles are files written once at import time, so a new generator alone changes
+     * nothing for servers the user already added — until this number moves past the one stamped
+     * in [io.nekohasekai.sfa.database.Settings.tarnConfigGeneration] and the shell repatches.
+     *
+     * Without it, a shipped fix reaches existing profiles only if the user happens to flip some
+     * unrelated toggle, and looks like it does not work at all if they don't.
+     *
+     * 1 — the DNS rules that keep cold lookups off the video path (AAAA answered locally for the
+     *     phone-resolved hosts, media-CDN names resolved off the tunnel).
+     */
+    const val CONFIG_GENERATION = 1
+
     private data class ConnectionConfigSettings(
         val dnsOption: DnsOption,
         val dnsProtection: Boolean,

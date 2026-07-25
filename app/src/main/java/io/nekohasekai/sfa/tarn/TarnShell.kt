@@ -58,6 +58,7 @@ import io.nekohasekai.sfa.tarn.screen.TarnShieldState
 import io.nekohasekai.sfa.tarn.screen.TarnSubscriptionsScreen
 import io.nekohasekai.sfa.tarn.screen.TarnSubscriptionsViewModel
 import io.nekohasekai.sfa.tarn.theme.TarnColors
+import io.nekohasekai.sfa.utils.VlessImporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -270,6 +271,41 @@ fun TarnShell(
     LaunchedEffect(serviceStatus) {
         if (serviceStatus == Status.Started || serviceStatus == Status.Stopped) {
             serversViewModel.probeAll()
+        }
+    }
+
+    // A profile's config file is generated once, at import. So a build whose generator emits
+    // something new leaves every already-added server on the old shape, and the change looks
+    // like it does nothing — until the user happens to flip an unrelated toggle, which is the
+    // only thing that ever called repatchSettings(). Stamp the generation profiles were
+    // written by and repatch once when the build moves past it.
+    //
+    // Keyed on serviceStatus rather than Unit because of autoconnect: it starts the service
+    // from the old file at the same moment this runs, so the reload has to happen when the
+    // service is actually up, which may be after the rewrite finishes.
+    var repatchedGeneration by remember { mutableStateOf(false) }
+    LaunchedEffect(serviceStatus) {
+        if (!repatchedGeneration &&
+            Settings.tarnConfigGeneration != VlessImporter.CONFIG_GENERATION
+        ) {
+            val failure = withContext(Dispatchers.IO) {
+                runCatching { TarnServerRepository.repatchSettings() }.exceptionOrNull()
+            }
+            if (failure != null) {
+                // Leave the stamp alone so the next launch retries, and stay silent: nobody
+                // asked for this, and a snackbar about a setting the user never touched reads
+                // as the app being broken rather than one profile being unrewritable.
+                Log.w("TarnShell", "config generation repatch failed", failure)
+                return@LaunchedEffect
+            }
+            Settings.tarnConfigGeneration = VlessImporter.CONFIG_GENERATION
+            repatchedGeneration = true
+        }
+        if (repatchedGeneration && serviceStatus == Status.Started) {
+            // Once: a running service is now on the new config, and later start/stop cycles
+            // read the rewritten file themselves.
+            repatchedGeneration = false
+            reloadRunningService()
         }
     }
 

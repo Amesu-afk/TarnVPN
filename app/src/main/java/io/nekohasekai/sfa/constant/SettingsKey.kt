@@ -73,6 +73,7 @@ object SettingsKey {
     const val TARN_TEST_RETRIES = "tarn_test_retries"
     const val TARN_NETWORK_RECOVERY = "tarn_network_recovery"
     const val TARN_AUTO_FAILOVER = "tarn_auto_failover"
+    const val TARN_CONFIG_GENERATION = "tarn_config_generation"
 
     // cache
     const val STARTED_BY_USER = "started_by_user"
