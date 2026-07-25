@@ -1,83 +1,140 @@
-**English** · [Русский](README.ru.md)
+**Русский** · [English](README.en.md)
 
 # TarnVPN
 
-Android VPN client for censored networks: **VLESS + REALITY**, **XHTTP**, and the rest of the
-sing-box protocol set, wrapped in a purpose-built interface instead of a config editor.
+VPN-клиент для Android под заблокированные сети: **VLESS + REALITY**, **XHTTP** и остальной набор
+протоколов sing-box — но с интерфейсом, сделанным под задачу, а не с редактором конфигов.
 
-> **Whose work is what.** The interface, the share-link importer and a set of client-side fixes are
-> this project's. Everything they stand on is other people's:
+> **Чья тут чья работа.** Оболочка, импортёр share-ссылок и набор клиентских правок — этого
+> проекта. Всё, на чём они стоят, — чужое:
 >
-> - the app is a fork of [SagerNet/sing-box-for-android](https://github.com/SagerNet/sing-box-for-android) (SFA);
-> - the core is [sing-box](https://github.com/SagerNet/sing-box), both by **nekohasekai / SagerNet**;
-> - **the `lx` layer — XHTTP, AmneziaWG 2.0, MASQUE, the observability extensions — is
->   [Leadaxe](https://github.com/Leadaxe/sing-box-lx)'s work, not ours.** XHTTP is the transport
->   this app leans on hardest, and it exists here because of that project.
+> - приложение — форк [SagerNet/sing-box-for-android](https://github.com/SagerNet/sing-box-for-android) (SFA);
+> - ядро — [sing-box](https://github.com/SagerNet/sing-box), и то и другое **nekohasekai / SagerNet**;
+> - **слой `lx` — XHTTP, AmneziaWG 2.0, MASQUE, расширения наблюдаемости — работа
+>   [Leadaxe](https://github.com/Leadaxe/sing-box-lx), а не наша.** XHTTP — транспорт, на котором
+>   это приложение держится сильнее всего, и он здесь есть благодаря тому проекту.
 >
-> Our own core patches (XHTTP transport pool carried onto lx.15, TLS fragmentation over REALITY,
-> `override_destination` on the sniff action, the stream-one path fix) sit in a downstream copy at
-> [Amesu-afk/sing-box-lx](https://github.com/Amesu-afk/sing-box-lx), which is what the shipped
-> `libbox.aar` is built from.
+> Наши собственные правки ядра (пул транспортов XHTTP, перенесённый на lx.15, фрагментация TLS
+> поверх REALITY, `override_destination` у действия sniff, путь для stream-one) лежат в downstream-копии
+> [Amesu-afk/sing-box-lx](https://github.com/Amesu-afk/sing-box-lx) — из неё и собран вшитый
+> `libbox.aar`.
 >
-> **None of the projects above endorse this one or are affiliated with it.**
+> **Ни один из перечисленных проектов этот не поддерживает и к нему отношения не имеет.**
 
-## What it does
+## Сразу о главном: серверов внутри нет
 
-- **A server is a row, not a config file.** Paste a `vless://` (or `trojan`, `ss`, `vmess`,
-  `hysteria2`, `tuic`, `anytls`) link or a subscription URL, and every server becomes its own
-  entry with its own latency reading, measured by TCP handshake outside the tunnel — so the
-  numbers exist before you connect to anything.
-- **Subscriptions** are first-class: refresh diffs by link, keeps your selection, de-duplicates.
-- **Split tunnelling** per application, with include/exclude modes.
-- **Kill switch** — applications cannot route around a live tunnel.
-- **DNS you can reason about**: DoH presets or your own resolver, and a switch for whether lookups
-  travel through the tunnel (the exit's region answers) or straight out (faster, reveals your
-  region). Cold lookups for media CDNs are kept off the tunnel so short-video feeds do not stall
-  on every clip.
-- **Anti-DPI knobs** that the core actually honours: TLS fragmentation over REALITY, QUIC policy,
-  MTU, IPv6 strategy, hostname-vs-address destinations.
-- Light and dark themes, in-app log viewer, and the full upstream sing-box interface still
-  reachable underneath for anything the shell does not cover.
+Это клиент, а не сервис. Нужен свой сервер или подписка — приложение только подключается к тому,
+что вы ему дадите. Внутри нет ни встроенных серверов, ни аккаунтов, ни оплаты, и оно ничего не
+отправляет никуда, кроме вашего сервера (единственное исключение — проверка обновлений на GitHub,
+её можно выключить).
 
-## Install
+Интерфейс на русском и английском, следует языку системы.
 
-Grab the **universal** APK from [Releases](https://github.com/Amesu-afk/TarnVPN/releases).
+## Возможности
 
-| Build | Android |
+### Серверы
+
+- **Сервер — это строка списка, а не файл конфигурации.** Кнопка «+» принимает как одну ссылку,
+  так и URL подписки. Понимает `vless`, `trojan`, `ss`, `vmess`, `hysteria2`, `tuic`, `anytls`.
+  Каждый сервер из подписки становится **отдельной записью**, а не сворачивается в одну строку.
+- **Пинг виден до подключения.** Меряется TCP-хендшейком до эндпоинта **мимо туннеля**, поэтому
+  цифры есть даже при выключенном VPN. Именно поэтому они не совпадают с тем, что показал бы
+  urltest внутри ядра, — это разные измерения.
+- Поиск, разбиение по странам («Рекомендованные» / «Все страны»), избранное, удаление вместе с
+  файлом конфигурации, и кнопка **«Подключиться к самому быстрому серверу»** по уже измеренным
+  пингам.
+- Две честные метки в списке, вместо тихой поломки: **«Настройки не применяются — удалите и
+  добавьте заново»** (профиль сделан слишком старой сборкой, тумблеры на него не действуют) и
+  **«Сертификат сервера не проверяется»** (в ссылке был `allowInsecure`).
+
+### Подписки
+
+Отдельный экран: обновление считает разницу по ссылке (без `#fragment`, поэтому переименование
+сервера не создаёт дубль), сохраняет ваш выбор активного сервера и убирает повторы.
+
+### Защита
+
+**Основные настройки**
+
+| Настройка | Что делает |
 |---|---|
-| `TarnVPN-<version>-universal.apk` | 6.0+ (API 23) |
-| the universal APK whose name contains `legacy-android-5` | 5.0–5.1 (API 21) |
+| Запретить обход VPN | Не даёт приложениям ходить мимо активного туннеля. **Это не полный kill switch:** работает, пока жив сервис. Чтобы трафик не утекал при падении сервиса или после перезагрузки, нужен системный «Постоянный VPN» + «Блокировать соединения без VPN» — ссылка на эти настройки Android есть прямо в «Лаборатории». |
+| Защита DNS | Все DNS-запросы идут вашему DoH-резолверу вместо системного. |
+| Автоподключение | Поднимает VPN при запуске приложения. |
+| DNS-резолвер | Cloudflare, Google, Quad9, AdGuard или свой IPv4-адрес DoH. Резолвер задаётся адресом, а не именем, поэтому перед подключением не нужен незашифрованный запрос «а где резолвер». Смена резолвера перешивает **все** уже сохранённые профили, а не только новые. |
 
-Releases are signed with this project's own key, which is **not** the key in upstream's
-`app/release.keystore` (that file ships publicly in the SFA repository, so anything signed with it
-could be produced by anyone). A build signed with a different key will not install as an update —
-uninstall first, and expect to lose stored profiles.
+**Сеть**
 
-The app checks its own releases here and can install updates in place; nothing is sent anywhere
-else, and update checking can be turned off.
+| Настройка | Что делает |
+|---|---|
+| DNS через VPN | Вкл — DNS идёт через туннель, тест DNS-leak показывает регион сервера, но холодные запросы платят полный round-trip. Выкл — быстрый прямой DNS (всё равно шифрованный), но виден ваш реальный регион. Запросы к медиа-CDN (`googlevideo`, `cdninstagram`, `fbcdn`, `tiktokcdn`, `ttvnw`, `nflxvideo`) уведены мимо туннеля намеренно: лента коротких видео выдаёт новый хост на каждый клип, и через туннель каждый клип начинался бы с ожидания DNS. |
+| IPv6 | Пускать IPv6-трафик в туннель. Сам туннель захватывает IPv6 всегда — иначе телефон с нативным IPv6 обошёл бы VPN целиком; тумблер решает, *используется* ли IPv6 для назначений. |
+| Фрагментация TLS | Дробит TLS-хендшейк — против DPI, который смотрит на форму пакета, а не на SNI. Нишевая настройка, по умолчанию выключена. |
 
-## Build from source
+**Split tunneling** — выбор приложений в режимах «Только выбранные» / «Кроме выбранных».
+**Внешний вид** — системная, светлая или тёмная тема.
 
-Requirements — the versions matter, and two of them are not negotiable:
+### Лаборатория соединения
 
-- **JDK 17** exactly (gomobile fails on newer JDKs).
-- Android SDK with **NDK 28.0.13004108**.
-- **Go 1.25+** with `gomobile`, only if you rebuild the core (`make lib_install` in the core repo).
+Экран для случая «не работает, надо понять, что именно». Правило простое: менять по одному
+параметру в одной и той же сети.
+
+- **Политика QUIC** — автоматически (блокировать, чтобы приложения падали на TCP, который через
+  туннель идёт чисто), разрешать или блокировать явно.
+- **MTU туннеля**, **Стратегия IP** (только IPv4 / предпочитать IPv4 / предпочитать IPv6),
+  **Маршрут защищённого DNS** (автоматически / напрямую / через VPN), **Уровень журналирования**.
+- **Отдавать серверу имя хоста** — как в Xray и v2rayNG: имя резолвит сервер и сам выбирает
+  регион. Это то, что нужно Gemini, чтобы не отвечать «недоступно в вашем регионе». YouTube —
+  исключение, его резолвит телефон, иначе Music блокируется по региону.
+- **Полный тест активного сервера** — реальный HTTPS-запрос через уже поднятый туннель, со своим
+  адресом, тайм-аутом и числом попыток.
+- **Восстановление** — перезагружать VPN при переходе Wi-Fi ↔ мобильная сеть, и предлагать
+  резервный сервер, если активный не прошёл тест (переключение — только по вашему подтверждению).
+- **Открыть журнал** — живой вывод ядра на выбранном уровне.
+
+> Отладочный уровень журнала пишет посещённые домены и заметно ест батарею. Включать на время
+> разбирательства, потом возвращать «Предупреждения».
+
+## Установка
+
+Берите **universal** APK из [релизов](https://github.com/Amesu-afk/TarnVPN/releases).
+
+| Сборка | Android |
+|---|---|
+| `TarnVPN-<версия>-universal.apk` | 6.0+ (API 23) |
+| universal-сборка, в имени которой есть `legacy-android-5` | 5.0–5.1 (API 21) |
+
+Релизы подписаны собственным ключом проекта, а **не** тем, что лежит в апстримовом
+`app/release.keystore`: тот файл публично доступен в репозитории SFA, то есть подписанное им может
+изготовить кто угодно. Сборка с другим ключом не встанет как обновление — придётся удалить
+приложение, а вместе с ним уедут сохранённые профили.
+
+Приложение проверяет свои релизы здесь же и умеет ставить обновление на месте; проверку можно
+выключить в настройках.
+
+## Сборка из исходников
+
+Версии важны, и две из них не обсуждаются:
+
+- **строго JDK 17** (на более новых gomobile падает);
+- Android SDK с **NDK 28.0.13004108**;
+- **Go 1.25+** с `gomobile` — только если пересобираете ядро (`make lib_install` в репозитории ядра).
 
 ```bash
-# 1. the core, if you want your own libbox instead of the committed one
+# 1. ядро — если нужен свой libbox вместо закоммиченного
 git clone https://github.com/Amesu-afk/sing-box-lx
 cd sing-box-lx
-go run ./cmd/internal/build_libbox -target android   # emits libbox.aar + libbox-legacy.aar
+go run ./cmd/internal/build_libbox -target android   # даёт libbox.aar + libbox-legacy.aar
 
-# 2. the app
+# 2. приложение
 cp libbox*.aar clients/android/app/libs/
 cd clients/android
-./gradlew assembleOtherRelease        # signed release, needs a keystore (below)
-./gradlew assembleOtherDebug          # unsigned-ish debug build, no keystore needed
+./gradlew assembleOtherRelease        # подписанный релиз, нужен keystore (ниже)
+./gradlew assembleOtherDebug          # отладочная сборка, keystore не нужен
+./gradlew :app:testOtherDebugUnitTest # юнит-тесты
 ```
 
-Signing is read from `local.properties` (git-ignored):
+Подпись читается из `local.properties` (под gitignore):
 
 ```properties
 KEYSTORE_PASS=…
@@ -85,24 +142,44 @@ ALIAS_NAME=…
 ALIAS_PASS=…
 ```
 
-Generate your own `app/tarn-release.keystore` — and back it up together with those three lines.
-Losing either means installed copies can never be updated again.
+Свой `app/tarn-release.keystore` генерируется локально — и бэкапится вместе с этими тремя строками.
+Потеря любого из двух означает, что установленные копии больше никогда не обновить.
 
-After replacing a `libbox.aar`, build with `--rerun-tasks`: Gradle's incremental build has been
-seen to emit a 40% larger, wrong APK from a stale cache.
+После замены `libbox.aar` собирайте с `--rerun-tasks`: инкрементальная сборка Gradle уже отдавала
+из устаревшего кэша APK на 40% больше нужного.
 
-## Credits
+Порядок выпуска релиза — в [RELEASING.md](RELEASING.md). Формат ассетов там строгий: при
+нарушении апдейтер молча пропускает релиз.
 
-- **[nekohasekai / SagerNet](https://github.com/SagerNet)** — sing-box and SFA, which this is a fork of.
-- **[Leadaxe](https://github.com/Leadaxe/sing-box-lx)** — the `lx` core layer: XHTTP, AmneziaWG 2.0,
-  MASQUE, the CommandClient observability extensions. Without it this app would have no XHTTP at all.
-- This project — the TarnVPN interface, the importer, and the patches listed at the top.
+## Как это устроено внутри
 
-## License
+Полезно знать, если собираетесь править код:
 
-GPLv3, inherited from upstream and unchanged. The interface layer (`io.nekohasekai.sfa.tarn`),
-the share-link importer and the client-side fixes are additions to that work, under the same
-terms; everything else belongs to the authors above.
+- **Профиль = сервер.** Строка списка — это запись в таблице `profiles` апстрима, а выбор идёт
+  через апстримовый `DashboardViewModel`, чтобы логика reload/restart осталась родной.
+- **Конфигурация ядра генерируется при импорте**, а не на каждом подключении (`VlessImporter`).
+  Рядом с `<id>.json` пишется сайдкар `<id>.vless` с исходной ссылкой, поэтому смена настроек
+  пересобирает конфиг текущим генератором, а не пытается пропатчить старую форму.
+- Поэтому у генератора есть **штамп версии** (`VlessImporter.CONFIG_GENERATION`): когда сборка
+  начинает выдавать конфиг новой формы, оболочка один раз перешивает уже добавленные серверы.
+  Меняете генератор — поднимайте штамп, иначе правка не дойдёт до существующих профилей.
+- **Оболочка живёт в `io.nekohasekai.sfa.tarn`**, апстримовый интерфейс SFA не тронут и доступен
+  целиком (тап по строке версии на экране «Защита») — так проще подтягивать обновления SFA.
+- Юнит-тесты — в `app/src/test` (Robolectric нужен потому, что парсер ссылок стоит на
+  `android.net.Uri`/`Base64`/`org.json`).
+
+## Благодарности
+
+- **[nekohasekai / SagerNet](https://github.com/SagerNet)** — sing-box и SFA, форком которого это является.
+- **[Leadaxe](https://github.com/Leadaxe/sing-box-lx)** — слой `lx` в ядре: XHTTP, AmneziaWG 2.0,
+  MASQUE, расширения наблюдаемости CommandClient. Без него у этого приложения не было бы XHTTP вообще.
+- Этот проект — оболочка TarnVPN, импортёр и правки, перечисленные в начале.
+
+## Лицензия
+
+GPLv3, унаследованная от апстрима и не изменённая. Слой интерфейса (`io.nekohasekai.sfa.tarn`),
+импортёр share-ссылок и клиентские правки — дополнения к той же работе и на тех же условиях;
+всё остальное принадлежит перечисленным выше авторам.
 
 ```
 Copyright (C) 2022 by nekohasekai <contact-sagernet@sekai.icu>
@@ -124,7 +201,7 @@ In addition, no derivative work may use the name or imply association
 with this application without prior consent.
 ```
 
-That last clause is upstream's, and it is why this app carries its own name, its own
-`applicationId` (`app.tarnvpn`), its own icon and its own signing key, and why it is not listed
-anywhere as SFA. The corresponding source for the core embedded in every release is the
-`sing-box-lx` repository linked above — that link is the GPL offer, not a courtesy.
+Последний пункт — апстримовый, и именно поэтому у приложения своё имя, свой `applicationId`
+(`app.tarnvpn`), своя иконка и свой ключ подписи, и поэтому оно нигде не числится как SFA.
+Соответствующие исходники ядра, вшитого в каждый релиз, — репозиторий `sing-box-lx` по ссылке
+выше; эта ссылка и есть исполнение GPL, а не любезность.
