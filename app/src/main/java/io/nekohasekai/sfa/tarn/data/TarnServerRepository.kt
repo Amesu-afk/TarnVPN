@@ -323,6 +323,7 @@ object TarnServerRepository {
             val dnsRoute = Settings.tarnDnsRoute
             val logLevel = Settings.tarnLogLevel
             val testUrl = Settings.tarnTestUrl
+            val sendHostname = Settings.tarnSendHostname
             val validationSlots = Semaphore(4)
             // One profile's validation doesn't depend on another's. The outer mutex keeps
             // rapid setting changes from writing two generations to the same files at once.
@@ -353,6 +354,7 @@ object TarnServerRepository {
                                 dnsRoute = dnsRoute,
                                 logLevel = logLevel,
                                 testUrl = testUrl,
+                                sendHostname = sendHostname,
                             ) ?: return@withPermit
                             // Never replace a working phone profile with JSON rejected by the
                             // bundled core. AtomicFile also restores the old bytes after a crash.

@@ -162,6 +162,7 @@ object VlessImporter {
         dnsRoute: String = Settings.tarnDnsRoute,
         logLevel: String = Settings.tarnLogLevel,
         testUrl: String = Settings.tarnTestUrl,
+        sendHostname: Boolean = Settings.tarnSendHostname,
     ): String? {
         val config = runCatching { JSONObject(configJson) }.getOrNull() ?: return null
         if (!isTarnManagedConfig(config)) return null
@@ -197,7 +198,7 @@ object VlessImporter {
                     dnsOption = option,
                     blockQuic = blockQuic,
                     routeDnsDirect = shouldRouteDnsDirect(dnsRoute, dnsProtection, routeFinal),
-                    sendHostname = Settings.tarnSendHostname,
+                    sendHostname = sendHostname,
                 ),
             )
             route.put(
@@ -356,6 +357,7 @@ object VlessImporter {
                     })
                 }
             })
+            val rules = JSONArray()
             // Suppressing HTTPS/SVCB answers is what actually stops HTTP/3: rejecting QUIC in
             // the route table only kills the connection *after* the browser has committed to
             // it, and Chrome learns h3 from this record (alpn="h3") before any packet is sent.
@@ -364,12 +366,17 @@ object VlessImporter {
             // properties, which advertise h3 everywhere. Cost is losing ECH (also carried in
             // this record); acceptable, since we already refuse the transport it advertises.
             if (blockQuic) {
-                put("rules", JSONArray().put(JSONObject().apply {
+                rules.put(JSONObject().apply {
                     put("query_type", JSONArray().put("HTTPS"))
                     put("action", "predefined")
                     put("rcode", "NOERROR")
-                }))
+                })
             }
+            // Must precede the media rule below: an AAAA for a host on both lists is answered
+            // here instead of being routed anywhere.
+            rules.put(suppressAaaaRule())
+            if (tunnelDns && dnsRoute == Settings.DNS_ROUTE_AUTO) rules.put(mediaDnsBootstrapRule())
+            put("rules", rules)
             // DNS protection off means ordinary site lookups use the system resolver, but
             // outbound hostnames continue to use the literal-IP DoH resolver below.
             put("final", if (protectionEnabled) "doh" else "local")
@@ -384,6 +391,64 @@ object VlessImporter {
             // moved is re-resolved for real rather than pinned to a dead address forever.
             put("optimistic", JSONObject().put("enabled", true).put("timeout", "24h"))
         }
+
+    /**
+     * Answers AAAA for [PHONE_RESOLVE_SUFFIXES] locally, with an empty NOERROR, instead of
+     * forwarding it upstream.
+     *
+     * These are exactly the hosts whose destination the route table replaces with a
+     * phone-resolved address list ([phoneResolveRule]), and that list is v4-first under every
+     * strategy this generator emits (`prefer_ipv4` with the IPv6 switch on, `ipv4_only` with it
+     * off — `dns/client.go:sortAddresses`). So the AAAA answer never changes what goes on the
+     * wire; what it does change is timing, and badly: the `resolve` action fires the A and the
+     * AAAA lookup as a task.Group and **joins both** before the connection can be dialed
+     * (`dns/router.go:631-650`). With DNS on the tunnel — the default — that second lookup is a
+     * full round-trip through the proxy, paid before the first byte of a clip.
+     *
+     * That cost is what the IPv6 switch was really being used to avoid: it changes nothing
+     * except `dns.strategy`, and `ipv4_only` makes the core answer AAAA locally
+     * (`dns/client.go:190`) instead of asking. Suppressing AAAA for these hosts alone gets the
+     * same saving on the video path without giving up IPv6 for everything else.
+     *
+     * Scoped by suffix on purpose: a global AAAA block *is* `ipv4_only`, which is the switch,
+     * not this. Emitted regardless of the hostname-override setting: with the override off every
+     * destination is phone-resolved through `default_domain_resolver` instead, which is the same
+     * v4-first list from the same double lookup, so the argument only gets stronger.
+     */
+    private fun suppressAaaaRule(): JSONObject = JSONObject()
+        .put("query_type", JSONArray().put("AAAA"))
+        .put("domain_suffix", JSONArray().apply { PHONE_RESOLVE_SUFFIXES.forEach(::put) })
+        .put("action", "predefined")
+        .put("rcode", "NOERROR")
+
+    /**
+     * Sends media-CDN lookups to the off-tunnel `bootstrap` resolver (same provider, same DoH,
+     * no detour) while the rest of DNS keeps going through the proxy.
+     *
+     * A through-tunnel lookup costs a full proxy round-trip (~700ms on XHTTP, and it competes
+     * with the video stream for the same transports). The optimistic cache cannot absorb it
+     * here the way it does for ordinary browsing: a short-video feed mints a *new*
+     * `rr*---sn-*.googlevideo.com` per clip, so every clip starts on a cold, synchronous
+     * lookup. Those hostnames name one specific edge node — the playback URL already pins it —
+     * so the answer does not depend on where it is asked from, which is what makes moving them
+     * off the tunnel safe. Region-gated names stay on the tunnel: which resolver Google's
+     * authoritative servers see is what picks the front-end (see [PHONE_RESOLVE_SUFFIXES] and
+     * [usesTunnelDns]), and `googlevideo.com` is not a gate.
+     *
+     * Only for `auto`. An explicit `tunnel` means the user asked for no DNS off the tunnel at
+     * all, and `direct` already has the `doh` server off it — there is no `bootstrap` then.
+     */
+    private fun mediaDnsBootstrapRule(): JSONObject = JSONObject()
+        .put("domain_suffix", JSONArray().apply { MEDIA_DNS_DIRECT_SUFFIXES.forEach(::put) })
+        .put("server", "bootstrap")
+
+    /**
+     * Hostnames that only ever name a CDN edge node, never a region-gated service. Kept
+     * deliberately short: everything here is resolved off the tunnel by
+     * [mediaDnsBootstrapRule], so a name whose answer *does* depend on the asking region does
+     * not belong on this list.
+     */
+    private val MEDIA_DNS_DIRECT_SUFFIXES = listOf("googlevideo.com")
 
     /**
      * `store_dns` persists the DNS cache to the cache file, so the optimistic cache above
