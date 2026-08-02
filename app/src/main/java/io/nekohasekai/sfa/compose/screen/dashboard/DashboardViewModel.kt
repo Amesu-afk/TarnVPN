@@ -249,9 +249,11 @@ class DashboardViewModel :
 
     fun toggleService() {
         when (currentState.serviceStatus) {
-            Status.Starting, Status.Started -> stopService()
+            // Stopping included: the service treats a repeat request as "the orderly path is
+            // not getting there, take the tunnel down now", and a user staring at a stuck
+            // Disconnecting has no other way to say that.
+            Status.Starting, Status.Started, Status.Stopping -> stopService()
             Status.Stopped -> sendGlobalEvent(UiEvent.RequestStartService)
-            else -> { /* Ignore while transitioning */ }
         }
     }
 
@@ -451,6 +453,12 @@ class DashboardViewModel :
 
     fun updateServiceStatus(status: Status) {
         viewModelScope.launch {
+            // The status now arrives twice per transition — from the binder callback and from
+            // the composition that guards against that callback being dropped. Only the first
+            // one should run the side effects below.
+            if (_serviceStatus.value == status && currentState.serviceStatus == status) {
+                return@launch
+            }
             _serviceStatus.emit(status)
             updateState {
                 copy(

@@ -260,6 +260,20 @@ class MainActivity :
         val dashboardViewModel: DashboardViewModel = viewModel()
         this.dashboardViewModel = dashboardViewModel
 
+        // onServiceStatusChanged() drops any update that arrives before the line above ran,
+        // and nothing ever resent it. The binding callback really can win that race: the
+        // activity is created with the service already running whenever the app is reopened
+        // after a back press or started from boot/tile, and `dashboardViewModel` is only
+        // assigned during the first composition. The shell then showed Connected (it reads
+        // the activity's status) while the view model still said Stopped — so pressing
+        // disconnect called toggleService(), which saw Stopped and asked to *start* an
+        // already running service. onStartCommand() returns immediately in that case, so the
+        // button did nothing at all and only killing the app took the tunnel down.
+        // Pushing from composition closes the window and keeps the two in step afterwards.
+        LaunchedEffect(currentServiceStatus) {
+            dashboardViewModel.updateServiceStatus(currentServiceStatus)
+        }
+
         var showErrorDialog by remember { mutableStateOf(false) }
         var errorMessage by remember { mutableStateOf("") }
 

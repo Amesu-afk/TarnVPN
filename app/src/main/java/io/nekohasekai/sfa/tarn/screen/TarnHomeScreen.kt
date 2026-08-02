@@ -161,7 +161,10 @@ fun TarnHomeScreen(
                     },
                 ),
                 onClick = onToggleConnection,
-                enabled = !transitioning && serverName != null,
+                // Live during a transition too. It reads Disconnect there, and pressing it is
+                // how the user says a stuck Connecting or Disconnecting should be taken down —
+                // greying it out was exactly what left them with no way out.
+                enabled = transitioning || serverName != null,
                 trailingIcon = if (connected || transitioning) null else Icons.AutoMirrored.Filled.ArrowForward,
             )
 

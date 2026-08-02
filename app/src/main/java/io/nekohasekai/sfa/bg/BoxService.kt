@@ -107,6 +107,12 @@ class BoxService(private val service: Service, private val platformInterface: Pl
 
     @Volatile
     private var shuttingDown = false
+
+    // Reset on every start: a bound client (the activity binds with BIND_AUTO_CREATE) keeps
+    // the Service object alive across stopSelf(), so the same BoxService instance serves the
+    // next connection, and a leftover flag would turn its first stop into a forced one.
+    @Volatile
+    private var stopRequested = false
     private var recoveryListenerRegistered = false
     private var recoveryListenerInitialized = false
     private var recoveryNetwork: Network? = null
@@ -427,22 +433,32 @@ class BoxService(private val service: Service, private val platformInterface: Pl
 
     @OptIn(DelicateCoroutinesApi::class)
     private fun stopService() {
-        if (status.value != Status.Started) return
+        // Anything but Stopped, on purpose. This used to insist on Started, which made every
+        // other state a trap: a start wedged inside libbox left the status at Starting with
+        // the tunnel up, and then no stop request — button, notification, revoke — did
+        // anything at all, because they all end up here.
+        if (status.value == Status.Stopped) return
+        if (stopRequested) {
+            // Asked again while the first stop is still unwinding. The user is telling us the
+            // orderly path is not getting there; take the terminal state now rather than
+            // waiting out a grace period that has evidently already failed them.
+            Log.w(TAG, "stop requested again while stopping, forcing shutdown")
+            terminate()
+            return
+        }
+        stopRequested = true
         shuttingDown = true
         status.value = Status.Stopping
-        if (receiverRegistered) {
-            service.unregisterReceiver(receiver)
-            receiverRegistered = false
-        }
+        // The receiver stays registered until terminate(): unregistering it here left a
+        // second SERVICE_CLOSE with nowhere to go, so a stop that got stuck could not even
+        // be repeated.
         notification.close()
         GlobalScope.launch(Dispatchers.IO) {
             // The graceful shutdown runs as its own job so the wait below can give up on it.
             // It used to be inline, and then a reload holding serviceReloadMutex could keep the
-            // shutdown queued forever: status stayed Stopping, the receiver was already
-            // unregistered above so a second BoxService.stop() broadcast went nowhere, and the
-            // button is disabled while transitioning — leaving no way to turn the VPN off at
-            // all. This app reloads on every settings change and on network handover, so that
-            // window is not rare.
+            // shutdown queued forever, with the status stuck at Stopping and no way left to
+            // turn the VPN off at all. This app reloads on every settings change and on network
+            // handover, so that window is not rare.
             val graceful = GlobalScope.launch(Dispatchers.IO) {
                 serviceReloadMutex.withLock {
                     val pfd = fileDescriptor
@@ -464,16 +480,33 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             // after it returned anyway. Waiting on a separate job can be abandoned.
             if (withTimeoutOrNull(STOP_GRACE_PERIOD_MS) { graceful.join() } == null) {
                 Log.w(TAG, "graceful stop still running after ${STOP_GRACE_PERIOD_MS}ms, forcing shutdown")
-                runCatching { fileDescriptor?.close() }
-                fileDescriptor = null
             }
-            Settings.startedByUser = false
             // Reached on both paths on purpose: whatever happened to the cleanup, the service
             // must end up in a terminal state the UI can act on.
             withContext(Dispatchers.Main) {
-                status.value = Status.Stopped
-                service.stopSelf()
+                terminate()
             }
+        }
+    }
+
+    /**
+     * The terminal state, and the only place that produces it. Idempotent, main thread only:
+     * both the orderly stop and a forced one land here, and a forced one can arrive while the
+     * orderly one is still queued behind a wedged reload.
+     */
+    @OptIn(DelicateCoroutinesApi::class)
+    private fun terminate() {
+        runCatching { fileDescriptor?.close() }
+        fileDescriptor = null
+        if (receiverRegistered) {
+            service.unregisterReceiver(receiver)
+            receiverRegistered = false
+        }
+        status.value = Status.Stopped
+        service.stopSelf()
+        // Off the main thread: this is a Room write, and it is only read at boot.
+        GlobalScope.launch(Dispatchers.IO) {
+            runCatching { Settings.startedByUser = false }
         }
     }
 
@@ -518,6 +551,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     internal fun onStartCommand(): Int {
         if (status.value != Status.Stopped) return Service.START_NOT_STICKY
         status.value = Status.Starting
+        stopRequested = false
 
         if (!receiverRegistered) {
             ContextCompat.registerReceiver(

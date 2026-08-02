@@ -17,9 +17,11 @@ class TileService :
         qsTile?.apply {
             state =
                 when (status) {
-                    Status.Started -> Tile.STATE_ACTIVE
+                    // Transitional states count as active rather than unavailable: the system
+                    // swallows clicks on an unavailable tile, and this tile is the fallback way
+                    // to stop a service whose own UI has gone quiet.
+                    Status.Started, Status.Starting, Status.Stopping -> Tile.STATE_ACTIVE
                     Status.Stopped -> Tile.STATE_INACTIVE
-                    else -> Tile.STATE_UNAVAILABLE
                 }
             updateTile()
         }
@@ -49,8 +51,9 @@ class TileService :
     private fun toggleService() {
         when (connection.status) {
             Status.Stopped -> BoxService.start()
-            Status.Started -> BoxService.stop()
-            else -> {}
+            // A transitional state stops too, so the tile stays a way out when the app's own
+            // button is out of reach. The service treats a repeat as "force it".
+            Status.Started, Status.Starting, Status.Stopping -> BoxService.stop()
         }
     }
 }
