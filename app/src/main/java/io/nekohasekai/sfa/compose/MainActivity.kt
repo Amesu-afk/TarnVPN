@@ -8,6 +8,7 @@ import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -145,6 +146,20 @@ import kotlinx.coroutines.withContext
 class MainActivity :
     AppCompatActivity(),
     ServiceConnection.Callback {
+    companion object {
+        private const val TAG = "MainActivity"
+
+        /** Poll step while waiting for a restart's stop half to land. */
+        private const val SERVICE_STOP_POLL_INTERVAL_MS = 100L
+
+        /**
+         * Ticks to wait for that stop, i.e. 8 seconds. Comfortably past the service's own
+         * 5-second grace period, so a stop that merely had to be forced still gets its
+         * restart; a wedge that outlives even that does not.
+         */
+        private const val SERVICE_STOP_WAIT_TICKS = 80
+    }
+
     private val connection = ServiceConnection(this, this)
     private lateinit var dashboardViewModel: DashboardViewModel
     private var currentServiceStatus by mutableStateOf(Status.Stopped)
@@ -1490,7 +1505,12 @@ class MainActivity :
         }
 
         BoxService.stop()
-        while (true) {
+        // Bounded, unlike the `while (true)` this replaces: a service that never reached
+        // Stopped left this coroutine ticking ten times a second for as long as the activity
+        // lived. The service now guarantees a terminal state within its own grace period, so
+        // anything past that is a wedge no amount of further waiting will clear — and
+        // restarting on top of it would be worse than leaving it be.
+        repeat(SERVICE_STOP_WAIT_TICKS) {
             when (currentServiceStatus) {
                 Status.Stopped -> {
                     startService()
@@ -1502,10 +1522,11 @@ class MainActivity :
                 }
 
                 Status.Started, Status.Stopping -> {
-                    delay(100L)
+                    delay(SERVICE_STOP_POLL_INTERVAL_MS)
                 }
             }
         }
+        Log.w(TAG, "service did not stop in time, leaving it alone instead of restarting")
     }
 
     override fun onDestroy() {

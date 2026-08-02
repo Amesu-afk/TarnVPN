@@ -224,37 +224,19 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         }
     }
 
-    @OptIn(DelicateCoroutinesApi::class)
+    /**
+     * The other door into shutdown: libbox calls this when a command client asks the service
+     * to stop. It is the same event as the user pressing disconnect and must end in the same
+     * place, so it goes through the same code.
+     *
+     * It used to have a teardown of its own that left the status at `Starting` with
+     * `shuttingDown` latched on and no `stopSelf()` — a state with no exit, exactly the trap
+     * [stopService] was fixed for. Nothing reaches it today (the libbox command client has no
+     * stop call), which is precisely why it was worth removing rather than leaving armed.
+     */
     override fun serviceStop() {
-        shuttingDown = true
         runBlocking {
-            // Bounded for the same reason stopService() is, and in the same way. This is the
-            // other door into shutdown — libbox calls it when a command client asks the
-            // service to stop — and taking serviceReloadMutex unbounded here would hang the
-            // caller's thread for as long as a wedged reload holds the lock. Waiting on a
-            // separate job is what makes the bound real: the cleanup ends in a blocking
-            // native call, and coroutine cancellation cannot interrupt one, so wrapping the
-            // work itself in withTimeoutOrNull would only fire after it had already returned.
-            val graceful = GlobalScope.launch(Dispatchers.IO) {
-                serviceReloadMutex.withLock {
-                    notification.close()
-                    status.postValue(Status.Starting)
-                    val pfd = fileDescriptor
-                    if (pfd != null) {
-                        pfd.close()
-                        fileDescriptor = null
-                    }
-                    closeService()
-                }
-            }
-            if (withTimeoutOrNull(STOP_GRACE_PERIOD_MS) { graceful.join() } == null) {
-                // Abandon the queued cleanup and take down the tunnel by hand, so a stuck
-                // reload cannot leave the tun device up with no way to ask again.
-                Log.w(TAG, "graceful serviceStop still running after ${STOP_GRACE_PERIOD_MS}ms, forcing shutdown")
-                notification.close()
-                runCatching { fileDescriptor?.close() }
-                fileDescriptor = null
-            }
+            withContext(Dispatchers.Main) { stopService() }
         }
     }
 
