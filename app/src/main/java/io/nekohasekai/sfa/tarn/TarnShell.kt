@@ -35,6 +35,7 @@ import io.nekohasekai.sfa.BuildConfig
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.compose.base.GlobalEventBus
 import io.nekohasekai.sfa.compose.base.UiEvent
+import io.nekohasekai.sfa.compose.component.UpdateFlowHost
 import io.nekohasekai.sfa.compose.screen.dashboard.DashboardViewModel
 import io.nekohasekai.sfa.compose.screen.log.LogScreen
 import io.nekohasekai.sfa.compose.screen.profileoverride.PerAppProxyScreen
@@ -58,6 +59,7 @@ import io.nekohasekai.sfa.tarn.screen.TarnShieldState
 import io.nekohasekai.sfa.tarn.screen.TarnSubscriptionsScreen
 import io.nekohasekai.sfa.tarn.screen.TarnSubscriptionsViewModel
 import io.nekohasekai.sfa.tarn.theme.TarnColors
+import io.nekohasekai.sfa.update.UpdateChecks
 import io.nekohasekai.sfa.utils.VlessImporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -271,6 +273,17 @@ fun TarnShell(
     LaunchedEffect(serviceStatus) {
         if (serviceStatus == Status.Started || serviceStatus == Status.Stopped) {
             serversViewModel.probeAll()
+        }
+    }
+
+    // Ask about a new version once the tunnel is up. This is the check that can actually
+    // succeed: api.github.com is not dependably reachable from the networks this app is built
+    // for, so the cold-start check in MainActivity.onCreate() often fails before it asks
+    // anything. UpdateChecks keeps its own interval, so reconnecting repeatedly does not
+    // hammer the API.
+    LaunchedEffect(serviceStatus) {
+        if (serviceStatus == Status.Started) {
+            UpdateChecks.runIfDue()
         }
     }
 
@@ -634,5 +647,10 @@ fun TarnShell(
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding(),
         )
+
+        // The update dialogs live in SFAApp(), which this shell never composes — so an update
+        // could be found and cached and the user never see it. Host them here as well; both
+        // shells drive the same UpdateState, so whichever is on screen shows it once.
+        UpdateFlowHost()
     }
 }

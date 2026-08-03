@@ -1311,6 +1311,9 @@ fun AppSettingsScreen(
                                 withContext(Dispatchers.IO) {
                                     try {
                                         val result = Vendor.checkUpdateAsync()
+                                        // Counts towards the automatic interval too: this asked
+                                        // GitHub the same question UpdateChecks would have.
+                                        Settings.lastUpdateCheckAt = System.currentTimeMillis()
                                         UpdateState.setUpdate(result)
                                         if (result == null) {
                                             showErrorDialog = context.getString(R.string.no_updates_available)

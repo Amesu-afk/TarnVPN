@@ -44,8 +44,16 @@ object Settings {
     var startedByUser by dataStore.boolean(SettingsKey.STARTED_BY_USER)
 
     var updateSource by dataStore.string(SettingsKey.UPDATE_SOURCE) { "github" }
-    var checkUpdateEnabled by dataStore.boolean(SettingsKey.CHECK_UPDATE_ENABLED) { false }
-    var updateCheckPrompted by dataStore.boolean(SettingsKey.UPDATE_CHECK_PROMPTED) { false }
+    // On by default, unlike upstream SFA. TarnVPN is handed to people who install it by
+    // sideloading a signed APK: nothing else will ever tell them a fixed build exists, and a
+    // stale VPN client is a security problem rather than a missing nicety. It stays a toggle in
+    // settings, and the only thing it costs is one unauthenticated request to api.github.com.
+    var checkUpdateEnabled by dataStore.boolean(SettingsKey.CHECK_UPDATE_ENABLED) { true }
+
+    // Consequently the "may we check for updates?" prompt has nothing left to ask — defaulting it
+    // to "already asked" keeps it from offering to switch on something that is on. It is still
+    // honoured if some older install wrote `false` into it.
+    var updateCheckPrompted by dataStore.boolean(SettingsKey.UPDATE_CHECK_PROMPTED) { true }
     var updateTrack by dataStore.string(SettingsKey.UPDATE_TRACK) {
         val versionName = BuildConfig.VERSION_NAME.lowercase()
         if (versionName.contains("-alpha") ||
@@ -346,6 +354,9 @@ object Settings {
     var cachedUpdateInfo by dataStore.string(SettingsKey.CACHED_UPDATE_INFO) { "" }
     var cachedApkPath by dataStore.string(SettingsKey.CACHED_APK_PATH) { "" }
     var lastShownUpdateVersion by dataStore.int(SettingsKey.LAST_SHOWN_UPDATE_VERSION) { 0 }
+
+    /** When the last automatic update check ran, for the interval in [io.nekohasekai.sfa.update.UpdateChecks]. */
+    var lastUpdateCheckAt by dataStore.long(SettingsKey.LAST_UPDATE_CHECK_AT) { 0L }
 
     fun serviceClass(): Class<*> = when (serviceMode) {
         ServiceMode.VPN -> VPNService::class.java

@@ -80,4 +80,5 @@ object SettingsKey {
     const val CACHED_UPDATE_INFO = "cached_update_info"
     const val CACHED_APK_PATH = "cached_apk_path"
     const val LAST_SHOWN_UPDATE_VERSION = "last_shown_update_version"
+    const val LAST_UPDATE_CHECK_AT = "last_update_check_at"
 }

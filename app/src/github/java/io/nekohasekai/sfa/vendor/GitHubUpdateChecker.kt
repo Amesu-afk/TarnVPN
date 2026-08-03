@@ -1,6 +1,7 @@
 package io.nekohasekai.sfa.vendor
 
 import android.os.Build
+import androidx.annotation.VisibleForTesting
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.BuildConfig
 import io.nekohasekai.sfa.ktx.unwrap
@@ -56,6 +57,51 @@ class GitHubUpdateChecker : Closeable {
 
         private val RELEASES_URL: String
             get() = "https://api.github.com/repos/$TARN_RELEASES_REPO/releases"
+
+        /**
+         * Picks the APK this device should actually download.
+         *
+         * The rule used to be "the FIRST asset that ends with `.apk`, has no `play` in the name and
+         * carries `legacy-android-5` iff the device is pre-M". That is fine when a release holds one
+         * APK per track and wrong the moment the per-ABI splits are attached alongside the universal
+         * build: GitHub returns assets ordered by name, `…-arm64-v8a.apk` sorts before
+         * `…-universal.apk`, so *every* device — armeabi-v7a and x86 included — was handed the arm64
+         * split, which then refuses to install with INSTALL_FAILED_NO_MATCHING_ABIS. Release
+         * `v1.14.0-alpha.47` shipped exactly that way.
+         *
+         * So match the device's own ABIs first, in [Build.SUPPORTED_ABIS] order (which is the
+         * device's preference order, 64-bit before 32-bit), and fall back to the universal build.
+         * The payoff is size: the arm64 split is ~31 MB against ~105 MB for universal.
+         *
+         * ABIs are matched as a whole `-<abi>.apk` suffix rather than with `contains`, because
+         * `x86` is a prefix of `x86_64`: a 32-bit x86 device asking for "x86" would otherwise
+         * happily accept the `x86_64` APK.
+         *
+         * NOTE for release-building: copies already in users' hands run the OLD first-match rule,
+         * so a release may only carry the splits once the installed base is past this build. See
+         * `RELEASING.md`.
+         */
+        @VisibleForTesting
+        fun pickApkAsset(
+            assets: List<GitHubAsset>,
+            deviceAbis: List<String>,
+            isLegacy: Boolean,
+        ): GitHubAsset? {
+            val candidates = assets.filter { asset ->
+                asset.name.endsWith(".apk") &&
+                    !asset.name.contains("play") &&
+                    asset.name.contains("legacy-android-5") == isLegacy
+            }
+            if (candidates.isEmpty()) return null
+
+            for (abi in deviceAbis) {
+                val match = candidates.find { it.name.endsWith("-$abi.apk") }
+                if (match != null) return match
+            }
+
+            // No split for this device (or a release that ships only the universal build).
+            return candidates.find { it.name.endsWith("-universal.apk") } ?: candidates.first()
+        }
     }
 
     private val client = Libbox.newHTTPClient().apply {
@@ -90,12 +136,11 @@ class GitHubUpdateChecker : Closeable {
         val release = selected?.release ?: return null
         val metadata = selected.metadata
 
-        val isLegacy = Build.VERSION.SDK_INT < Build.VERSION_CODES.M
-        val apkAsset = release.assets.find { asset ->
-            asset.name.endsWith(".apk") &&
-                !asset.name.contains("play") &&
-                asset.name.contains("legacy-android-5") == isLegacy
-        }
+        val apkAsset = pickApkAsset(
+            assets = release.assets,
+            deviceAbis = Build.SUPPORTED_ABIS.orEmpty().toList(),
+            isLegacy = Build.VERSION.SDK_INT < Build.VERSION_CODES.M,
+        )
 
         return UpdateInfo(
             versionCode = metadata.versionCode,

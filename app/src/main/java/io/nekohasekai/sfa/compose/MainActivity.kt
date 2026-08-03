@@ -102,7 +102,7 @@ import io.nekohasekai.sfa.compose.base.SelectableMessageDialog
 import io.nekohasekai.sfa.compose.base.UiEvent
 import io.nekohasekai.sfa.compose.component.RemoteStatusBar
 import io.nekohasekai.sfa.compose.component.ServiceStatusBar
-import io.nekohasekai.sfa.compose.component.UpdateAvailableDialog
+import io.nekohasekai.sfa.compose.component.UpdateFlowHost
 import io.nekohasekai.sfa.compose.component.UptimeText
 import io.nekohasekai.sfa.compose.model.Connection
 import io.nekohasekai.sfa.compose.navigation.NewProfileArgs
@@ -134,6 +134,7 @@ import io.nekohasekai.sfa.constant.Status
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.ktx.hasPermission
 import io.nekohasekai.sfa.ktx.launchCustomTab
+import io.nekohasekai.sfa.update.UpdateChecks
 import io.nekohasekai.sfa.update.UpdateState
 import io.nekohasekai.sfa.utils.RemoteControlManager
 import io.nekohasekai.sfa.vendor.Vendor
@@ -227,16 +228,9 @@ class MainActivity :
         RemoteControlManager.restore()
 
         UpdateState.loadFromCache()
-        if (Settings.checkUpdateEnabled) {
-            lifecycleScope.launch(Dispatchers.IO) {
-                try {
-                    val updateInfo = Vendor.checkUpdateAsync()
-                    UpdateState.setUpdate(updateInfo)
-                } catch (_: Exception) {
-                    UpdateState.setUpdate(null)
-                }
-            }
-        }
+        // Kept as a cold-start check, but the one that tends to succeed runs after the tunnel
+        // is up (see TarnShell). UpdateChecks owns the "is it due?" decision for both.
+        lifecycleScope.launch { UpdateChecks.runIfDue() }
 
         handleIntent(intent)
 
@@ -716,14 +710,9 @@ class MainActivity :
                         Settings.updateCheckPrompted = true
                         Settings.checkUpdateEnabled = true
                         showUpdateCheckPrompt = false
-                        scope.launch(Dispatchers.IO) {
-                            try {
-                                val result = Vendor.checkUpdateAsync()
-                                UpdateState.setUpdate(result)
-                            } catch (_: Exception) {
-                                UpdateState.setUpdate(null)
-                            }
-                        }
+                        // force: the user just pressed "yes, check", so the interval must not
+                        // swallow the answer.
+                        scope.launch { UpdateChecks.runIfDue(force = true) }
                     }) {
                         Text(stringResource(R.string.ok))
                     }
@@ -739,93 +728,9 @@ class MainActivity :
             )
         }
 
-        // Handle update available dialog
-        val updateInfo by UpdateState.updateInfo
-        val shouldShowUpdateDialog = updateInfo != null &&
-            updateInfo!!.versionCode > Settings.lastShownUpdateVersion
-        var showUpdateDialog by remember { mutableStateOf(true) }
-
-        // Download dialog state
-        var showDownloadDialog by remember { mutableStateOf(false) }
-        var downloadJob by remember { mutableStateOf<Job?>(null) }
-        var downloadError by remember { mutableStateOf<String?>(null) }
-
-        if (showUpdateDialog && shouldShowUpdateDialog) {
-            UpdateAvailableDialog(
-                updateInfo = updateInfo!!,
-                onDismiss = {
-                    Settings.lastShownUpdateVersion = updateInfo!!.versionCode
-                    showUpdateDialog = false
-                },
-                onUpdate = {
-                    showDownloadDialog = true
-                    downloadError = null
-                    downloadJob = scope.launch {
-                        try {
-                            withContext(Dispatchers.IO) {
-                                Vendor.downloadAndInstall(
-                                    this@MainActivity,
-                                    updateInfo!!.downloadUrl,
-                                )
-                            }
-                            showDownloadDialog = false
-                        } catch (e: Exception) {
-                            downloadError = e.message
-                        }
-                    }
-                },
-            )
-        }
-
-        // Download progress dialog
-        if (showDownloadDialog) {
-            AlertDialog(
-                onDismissRequest = {},
-                title = { Text(stringResource(R.string.update)) },
-                text = {
-                    Column {
-                        if (downloadError != null) {
-                            Text(
-                                downloadError!!,
-                                color = MaterialTheme.colorScheme.error,
-                            )
-                        } else {
-                            val progress by UpdateState.downloadProgress
-                            val progressValue = progress
-                            Column {
-                                if (progressValue != null) {
-                                    Text("${stringResource(R.string.downloading)} ${(progressValue * 100).toInt()}%")
-                                } else {
-                                    Text(stringResource(R.string.downloading))
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                if (progressValue != null) {
-                                    LinearProgressIndicator(
-                                        progress = { progressValue },
-                                        modifier = Modifier.fillMaxWidth(),
-                                    )
-                                } else {
-                                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                                }
-                            }
-                        }
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            downloadJob?.cancel()
-                            downloadJob = null
-                            showDownloadDialog = false
-                            downloadError = null
-                            UpdateState.downloadProgress.value = null
-                        },
-                    ) {
-                        Text(stringResource(if (downloadError != null) R.string.ok else android.R.string.cancel))
-                    }
-                },
-            )
-        }
+        // Both shells host the same updater UI; the implementation lives in
+        // UpdateFlowHost() so TarnShell and this screen cannot drift apart.
+        UpdateFlowHost()
 
         val remoteServer by RemoteControlManager.remoteServer.collectAsState()
         val remoteConnected by RemoteControlManager.isConnected.collectAsState()
