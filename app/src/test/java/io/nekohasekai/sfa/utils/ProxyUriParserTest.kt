@@ -120,7 +120,9 @@ class ProxyUriParserTest {
         val on = parse("vless://uuid@example.com:443?security=tls", fragment = true)
             .getJSONObject("tls")
         assertTrue(on.optBoolean("fragment"))
-        assertTrue(on.optBoolean("record_fragment"))
+        // The record-level half is a separate setting now: it re-frames the ClientHello, which
+        // some Reality servers fail to reassemble, so it must not ride along with the safe half.
+        assertFalse(on.has("record_fragment"))
 
         val off = parse("vless://uuid@example.com:443?security=tls", fragment = false)
             .getJSONObject("tls")

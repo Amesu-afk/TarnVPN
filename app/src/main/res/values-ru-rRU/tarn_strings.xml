@@ -68,12 +68,31 @@
     <string name="tarn_dns_custom_error">Введите корректный IPv4-адрес</string>
 
     <string name="tarn_shield_section_network">Сеть</string>
+    <string name="tarn_shield_ru_direct">Российские сайты мимо VPN</string>
+    <string name="tarn_shield_ru_direct_desc">Банки, госуслуги, маркетплейсы и сайты в .ru идут напрямую и резолвятся отсюда — с зарубежного адреса они отказывают или тормозят. Выключи, чтобы гнать через сервер вообще всё</string>
+    <string name="tarn_shield_direct_domains">Свои сайты напрямую</string>
+    <string name="tarn_shield_direct_domains_empty">Не добавлено</string>
+    <plurals name="tarn_shield_direct_domains_count">
+        <item quantity="one">%1$d домен</item>
+        <item quantity="few">%1$d домена</item>
+        <item quantity="many">%1$d доменов</item>
+        <item quantity="other">%1$d домена</item>
+    </plurals>
+    <string name="tarn_direct_domains_title">Сайты напрямую</string>
+    <string name="tarn_direct_domains_hint">Идут мимо VPN вместе со встроенным списком и продолжают работать, когда он выключен. Домен покрывает всё, что под ним: добавив example.com, получаешь и pay.example.com</string>
+    <string name="tarn_direct_domains_empty">Пока пусто. Добавь сайт, который отказывается работать через VPN, — банк, рабочий портал, местный сервис</string>
+    <string name="tarn_direct_domains_add">Добавить домен</string>
+    <string name="tarn_direct_domains_add_hint">Домен или скопированная ссылка — адрес вытащим сами</string>
+    <string name="tarn_direct_domains_add_action">Добавить</string>
+    <string name="tarn_direct_domains_placeholder">example.com</string>
+    <string name="tarn_direct_domains_invalid">Здесь нет домена. Ожидается что-то вроде example.com</string>
+    <string name="tarn_direct_domains_remove">Удалить</string>
     <string name="tarn_shield_dns_tunnel">DNS через VPN</string>
     <string name="tarn_shield_dns_tunnel_desc">Вкл: DNS идёт через туннель, и тест DNS-leak показывает регион сервера — но под нагрузкой запросы медленнее. Выкл: быстрый прямой DNS (всё равно шифрованный), но тест покажет твой реальный регион</string>
     <string name="tarn_shield_ipv6">IPv6</string>
     <string name="tarn_shield_ipv6_desc">Пускать IPv6-трафик через туннель — без этого приложения с нативным IPv6 могут обойти VPN целиком</string>
     <string name="tarn_shield_fragment">Фрагментация TLS</string>
-    <string name="tarn_shield_fragment_desc">Дробить TLS-хендшейк для поддерживаемых TLS-подключений. Не применяется к Reality.</string>
+    <string name="tarn_shield_fragment_desc">Разбивать TLS-хендшейк по пакетам, чтобы фильтрации было не за что зацепиться. Работает и с Reality. Стоит попробовать, если сервер подключается по Wi-Fi, но не по мобильному</string>
 
     <string name="tarn_shield_section_appearance">Внешний вид</string>
     <string name="tarn_shield_theme_system">Системная</string>
@@ -129,6 +148,11 @@
     <string name="tarn_shield_always_on">Постоянный VPN в системе</string>
     <string name="tarn_shield_always_on_desc">Тумблер выше действует, только пока сервис жив. Если он упадёт или телефон перезагрузится, трафик пойдёт напрямую. Полностью это закрывает только системная настройка: включите «Постоянный VPN» и «Блокировать соединения без VPN». Открыть настройки Android</string>
     <string name="tarn_connection_lab_ipv4_only_warning">Весь трафик пойдёт по IPv4, а приложениям сообщается, что у имени вообще нет IPv6. Держите при этом включённым «Отдавать серверу имя хоста» — иначе часть сервисов Google отвечает «недоступно в вашем регионе».</string>
+    <string name="tarn_connection_lab_tls_fingerprint">Отпечаток TLS</string>
+    <string name="tarn_connection_lab_tls_fingerprint_auto">Из ссылки</string>
+    <string name="tarn_connection_lab_tls_fingerprint_random">Случайный</string>
+    <string name="tarn_connection_lab_record_fragment">Дробить TLS-записи</string>
+    <string name="tarn_connection_lab_record_fragment_desc">Сильнее обычной фрагментации и рискованнее: меняет обрамление хендшейка, и часть Reality-серверов не собирает его обратно. Включай, только если обычной не хватило; если сервер перестал подключаться — дело в этом</string>
     <string name="tarn_connection_lab_send_hostname">Отдавать серверу имя хоста</string>
     <string name="tarn_connection_lab_send_hostname_desc">Как в Xray и v2rayNG: имя резолвит сервер и выбирает регион — это и нужно Gemini, чтобы не писал «недоступно в вашем регионе». YouTube — исключение, его резолвит телефон, иначе Music блокируется по региону. Выключать только если сервер не принимает имена</string>
     <string name="tarn_connection_lab_no_v6_warning">Диагностический режим. AAAA-записи отдаются как обычно, но IPv6-назначения отбиваются маршрутом, поэтому трафик уходит по IPv4 — fast.com покажет IPv4. Смысл: отделить «трафик по IPv4» от «клиенту сказали, что IPv6 нет». Заработает Gemini — значит виновата вторая половина.</string>

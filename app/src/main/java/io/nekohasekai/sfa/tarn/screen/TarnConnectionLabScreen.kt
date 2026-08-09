@@ -48,6 +48,7 @@ import io.nekohasekai.sfa.tarn.component.TarnPanel
 import io.nekohasekai.sfa.tarn.component.TarnRowDivider
 import io.nekohasekai.sfa.tarn.component.TarnSectionLabel
 import io.nekohasekai.sfa.tarn.component.TarnToggleRow
+import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.tarn.component.hairlineBorder
 import io.nekohasekai.sfa.tarn.theme.TarnColors
 import io.nekohasekai.sfa.tarn.theme.TarnLabelStyle
@@ -81,6 +82,12 @@ data class TarnConnectionLabState(
     val dnsProtection: Boolean = true,
     val logLevel: String = TarnConnectionLabValue.LOG_WARN,
     val sendHostname: Boolean = false,
+    /** The aggressive half of TLS fragmentation — see [Settings.tarnRecordFragment]. */
+    val recordFragment: Boolean = false,
+    /** Which browser the TLS handshake imitates — see [Settings.tarnTlsFingerprint]. */
+    val tlsFingerprint: String = Settings.TLS_FINGERPRINT_AUTO,
+    /** Whether the plain fragmentation toggle on the shield is on; this one builds on it. */
+    val fragmentEnabled: Boolean = false,
     val testUrl: String = TarnConnectionLabValue.DEFAULT_TEST_URL,
     val testTimeoutSeconds: Int = 5,
     val testRetries: Int = 2,
@@ -99,6 +106,8 @@ fun TarnConnectionLabScreen(
     onLogLevelChange: (String) -> Unit,
     onOpenLogs: () -> Unit,
     onSendHostnameChange: (Boolean) -> Unit,
+    onRecordFragmentChange: (Boolean) -> Unit,
+    onTlsFingerprintChange: (String) -> Unit,
     onTestUrlChange: (String) -> Unit,
     onTestTimeoutChange: (Int) -> Unit,
     onTestRetriesChange: (Int) -> Unit,
@@ -203,6 +212,38 @@ fun TarnConnectionLabScreen(
                     description = stringResource(R.string.tarn_connection_lab_send_hostname_desc),
                     checked = state.sendHostname,
                     onCheckedChange = onSendHostnameChange,
+                )
+                TarnRowDivider()
+                // Sits next to fragmentation because it answers the same question — "the server
+                // stopped connecting, what can I change from here?" — and needs nothing from the
+                // server side either.
+                LabOptionRow(
+                    title = stringResource(R.string.tarn_connection_lab_tls_fingerprint),
+                    selectedValue = state.tlsFingerprint,
+                    options = listOf(
+                        Settings.TLS_FINGERPRINT_AUTO to
+                            stringResource(R.string.tarn_connection_lab_tls_fingerprint_auto),
+                        "chrome" to "Chrome",
+                        "firefox" to "Firefox",
+                        "safari" to "Safari",
+                        "edge" to "Edge",
+                        "ios" to "iOS",
+                        "android" to "Android",
+                        Settings.TLS_FINGERPRINT_RANDOM to
+                            stringResource(R.string.tarn_connection_lab_tls_fingerprint_random),
+                    ),
+                    onSelect = onTlsFingerprintChange,
+                )
+                TarnRowDivider()
+                // Gated on the plain toggle: on its own this does nothing useful, and an
+                // enabled-looking switch with no effect is how the previous bundling confused
+                // people in the first place.
+                TarnToggleRow(
+                    title = stringResource(R.string.tarn_connection_lab_record_fragment),
+                    description = stringResource(R.string.tarn_connection_lab_record_fragment_desc),
+                    checked = state.recordFragment,
+                    onCheckedChange = onRecordFragmentChange,
+                    enabled = state.fragmentEnabled,
                 )
             }
             if (!state.dnsProtection) {

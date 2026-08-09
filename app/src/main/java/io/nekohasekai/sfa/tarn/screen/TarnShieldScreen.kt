@@ -50,6 +50,10 @@ data class TarnShieldState(
     val dnsProviderName: String = "",
     /** True when DNS is routed through the tunnel (leak test shows the exit, at some speed cost). */
     val dnsThroughVpn: Boolean = false,
+    /** True when Russian services bypass the tunnel — see [Settings.tarnRuDirect]. */
+    val ruDirect: Boolean = true,
+    /** How many domains the user added to the direct list themselves. */
+    val directDomainCount: Int = 0,
     val ipv6Enabled: Boolean = true,
     val fragmentEnabled: Boolean = false,
     /** [Settings.THEME_MODE_SYSTEM], [Settings.THEME_MODE_LIGHT] or [Settings.THEME_MODE_DARK]. */
@@ -68,6 +72,8 @@ fun TarnShieldScreen(
     onAutoConnectChange: (Boolean) -> Unit,
     onOpenDnsPicker: () -> Unit,
     onDnsThroughVpnChange: (Boolean) -> Unit,
+    onRuDirectChange: (Boolean) -> Unit,
+    onOpenDirectDomains: () -> Unit,
     onIpv6Change: (Boolean) -> Unit,
     onFragmentChange: (Boolean) -> Unit,
     onOpenConnectionLab: () -> Unit,
@@ -168,6 +174,30 @@ fun TarnShieldScreen(
             TarnSectionLabel(text = stringResource(R.string.tarn_shield_section_network))
             Spacer(Modifier.height(10.dp))
             TarnPanel {
+                TarnToggleRow(
+                    title = stringResource(R.string.tarn_shield_ru_direct),
+                    description = stringResource(R.string.tarn_shield_ru_direct_desc),
+                    checked = state.ruDirect,
+                    onCheckedChange = onRuDirectChange,
+                )
+                TarnRowDivider()
+                // Not gated on the toggle above: the user's own names are their own list and
+                // apply whether or not the built-in Russian one does.
+                TarnNavRow(
+                    title = stringResource(R.string.tarn_shield_direct_domains),
+                    value = if (state.directDomainCount == 0) {
+                        stringResource(R.string.tarn_shield_direct_domains_empty)
+                    } else {
+                        pluralStringResource(
+                            R.plurals.tarn_shield_direct_domains_count,
+                            state.directDomainCount,
+                            state.directDomainCount,
+                        )
+                    },
+                    onClick = onOpenDirectDomains,
+                    chevron = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                )
+                TarnRowDivider()
                 TarnToggleRow(
                     title = stringResource(R.string.tarn_shield_dns_tunnel),
                     description = stringResource(R.string.tarn_shield_dns_tunnel_desc),

@@ -23,8 +23,16 @@ object VlessImporter {
      *     phone-resolved hosts, media-CDN names resolved off the tunnel).
      * 2 — the same two rules widened past YouTube to every short-video CDN in
      *     [MEDIA_CDN_SUFFIXES].
+     * 3 — Russian services kept off the tunnel ([RU_DIRECT_SUFFIXES]), routed direct and
+     *     resolved off-tunnel so they are not handed a foreign edge.
+     * 4 — TCP keep-alive on the proxy outbound ([applyKeepAlive]), and `record_fragment` split
+     *     off the fragmentation toggle onto its own setting.
+     * 5 — the uTLS fingerprint is a setting ([applyTlsFingerprint]) rather than whatever the
+     *     share link happened to ask for.
+     * 6 — the direct list takes the user's own domains ([directSuffixes]) on top of the
+     *     built-in Russian one.
      */
-    const val CONFIG_GENERATION = 2
+    const val CONFIG_GENERATION = 6
 
     private data class ConnectionConfigSettings(
         val dnsOption: DnsOption,
@@ -38,6 +46,10 @@ object VlessImporter {
         val logLevel: String,
         val testUrl: String,
         val sendHostname: Boolean,
+        val ruDirect: Boolean,
+        val directDomains: Set<String>,
+        val recordFragment: Boolean,
+        val tlsFingerprint: String,
     )
 
     private fun currentConnectionConfigSettings() = ConnectionConfigSettings(
@@ -52,6 +64,10 @@ object VlessImporter {
         logLevel = Settings.tarnLogLevel,
         testUrl = Settings.tarnTestUrl,
         sendHostname = Settings.tarnSendHostname,
+        ruDirect = Settings.tarnRuDirect,
+        directDomains = Settings.tarnDirectDomains,
+        recordFragment = Settings.tarnRecordFragment,
+        tlsFingerprint = Settings.tarnTlsFingerprint,
     )
 
     /**
@@ -179,6 +195,10 @@ object VlessImporter {
         logLevel: String = Settings.tarnLogLevel,
         testUrl: String = Settings.tarnTestUrl,
         sendHostname: Boolean = Settings.tarnSendHostname,
+        ruDirect: Boolean = Settings.tarnRuDirect,
+        directDomains: Set<String> = Settings.tarnDirectDomains,
+        recordFragment: Boolean = Settings.tarnRecordFragment,
+        tlsFingerprint: String = Settings.tarnTlsFingerprint,
     ): String? {
         val config = runCatching { JSONObject(configJson) }.getOrNull() ?: return null
         if (!isTarnManagedConfig(config)) return null
@@ -194,9 +214,18 @@ object VlessImporter {
         val routeFinal = route?.optString("final")?.takeIf { it.isNotBlank() } ?: "direct"
         val effectiveIpStrategy = Settings.effectiveTarnIpStrategy(ipStrategy, ipv6Enabled)
         val blockQuic = shouldBlockQuic(quicPolicy)
+        val directSuffixes = directSuffixes(ruDirect, directDomains)
         config.put(
             "dns",
-            dnsBlock(option, dnsProtection, effectiveIpStrategy, dnsRoute, routeFinal, blockQuic),
+            dnsBlock(
+                option,
+                dnsProtection,
+                effectiveIpStrategy,
+                dnsRoute,
+                routeFinal,
+                blockQuic,
+                directSuffixes,
+            ),
         )
         config.put("experimental", experimentalBlock())
         config.put(
@@ -215,6 +244,7 @@ object VlessImporter {
                     blockQuic = blockQuic,
                     routeDnsDirect = shouldRouteDnsDirect(dnsRoute, dnsProtection, routeFinal),
                     sendHostname = sendHostname,
+                    directSuffixes = directSuffixes,
                 ),
             )
             route.put(
@@ -242,8 +272,12 @@ object VlessImporter {
         val outbounds = config.optJSONArray("outbounds")
         if (outbounds != null) {
             for (i in 0 until outbounds.length()) {
-                val tls = outbounds.optJSONObject(i)?.optJSONObject("tls") ?: continue
-                ProxyUriParser.applyFragment(tls, fragmentEnabled)
+                val outbound = outbounds.optJSONObject(i) ?: continue
+                outbound.optJSONObject("tls")?.let {
+                    ProxyUriParser.applyFragment(it, fragmentEnabled, recordFragment)
+                    applyTlsFingerprint(it, tlsFingerprint)
+                }
+                if (outbound.optString("type") in SERVER_OUTBOUND_TYPES) applyKeepAlive(outbound)
             }
             val normalizedTestUrl = normalizeTestUrl(testUrl)
             for (i in 0 until outbounds.length()) {
@@ -304,7 +338,7 @@ object VlessImporter {
         // not "this is vless". Checking for vless alone would have frozen every profile
         // imported from a trojan/ss/vmess/hysteria2/tuic/anytls link the moment those became
         // importable, silently reproducing the stale-profile bug this check exists to avoid.
-        val serverTypes = setOf("vless", "trojan", "shadowsocks", "vmess", "hysteria2", "tuic", "anytls")
+        val serverTypes = SERVER_OUTBOUND_TYPES
         var hasServer = false
         var hasDirect = false
         for (i in 0 until outbounds.length()) {
@@ -329,6 +363,7 @@ object VlessImporter {
         dnsRoute: String,
         routeFinal: String,
         blockQuic: Boolean,
+        directSuffixes: List<String>,
     ): JSONObject =
         JSONObject().apply {
             val tunnelDns = usesTunnelDns(dnsRoute, protectionEnabled, routeFinal)
@@ -392,6 +427,13 @@ object VlessImporter {
             // here instead of being routed anywhere.
             rules.put(suppressAaaaRule())
             if (tunnelDns && dnsRoute == Settings.DNS_ROUTE_AUTO) rules.put(mediaDnsBootstrapRule())
+            // Unconditional on the dns route, unlike the media rule above: a name whose
+            // traffic goes direct has to be resolved from here too. Resolving it through
+            // the exit would hand a Russian service a foreign edge address — or an address
+            // it refuses — and then dial that address direct, which is the worst of both.
+            if (tunnelDns && directSuffixes.isNotEmpty()) {
+                rules.put(directDnsBootstrapRule(directSuffixes))
+            }
             put("rules", rules)
             // DNS protection off means ordinary site lookups use the system resolver, but
             // outbound hostnames continue to use the literal-IP DoH resolver below.
@@ -501,6 +543,132 @@ object VlessImporter {
         "ttvnw.net",
         // Netflix Open Connect appliances.
         "nflxvideo.net",
+    )
+
+    /**
+     * Every name that bypasses the tunnel: the built-in Russian list when it is on, plus
+     * whatever the user added themselves. The two are independent — a custom list still works
+     * with the Russian one off, which is most of the reason for having it.
+     */
+    private fun directSuffixes(ruDirect: Boolean, custom: Set<String>): List<String> =
+        ((if (ruDirect) RU_DIRECT_SUFFIXES else emptyList()) + custom.sorted()).distinct()
+
+    /**
+     * Resolves [directSuffixes] through the off-tunnel `bootstrap` resolver, so a service routed
+     * direct is also *named* from here. Paired with [directRule]; one without the other is
+     * broken in both directions.
+     */
+    private fun directDnsBootstrapRule(suffixes: List<String>): JSONObject = JSONObject()
+        .put("domain_suffix", JSONArray().apply { suffixes.forEach(::put) })
+        .put("server", "bootstrap")
+
+    /**
+     * Overrides which browser the TLS ClientHello imitates, unless the setting is `auto` — in
+     * which case whatever the share link asked for is left exactly as it is.
+     *
+     * Only touches a `utls` block the parser already built, and only its `fingerprint`: the
+     * import path always emits one, so a missing block means this is not a TLS outbound (or not
+     * ours) and inventing uTLS for it is not this setting's job.
+     */
+    private fun applyTlsFingerprint(tls: JSONObject, fingerprint: String) {
+        if (fingerprint == Settings.TLS_FINGERPRINT_AUTO) return
+        tls.optJSONObject("utls")?.put("fingerprint", fingerprint)
+    }
+
+    /**
+     * Keeps the TCP connections under the proxy alive through short idle periods.
+     *
+     * The core's dialer defaults are 5 minutes idle before the first probe, then one every 75s
+     * (`constant/timeout.go`). Carrier NAT routinely drops an idle TCP mapping sooner than that,
+     * and nothing tells either end — which is the root of the stale-pool problem the transport
+     * currently treats after the fact: XHTTP holds several long-lived connections, they all go
+     * quiet together while the phone is idle, and the next dial discovers they are dead by
+     * timing out on it. Probing well inside the usual NAT window keeps the mapping instead.
+     *
+     * Cheaper than the connection-level HTTP/2 PING that was tried and removed: this is a bare
+     * kernel packet that does not wake the app, and a failed probe kills only the socket that
+     * is genuinely dead rather than aborting every stream multiplexed over it.
+     *
+     * Not a cure for deep Doze — there the radio is off and no timer of ours runs at all; that
+     * case stays with the wake-triggered reload and the dial-time staleness check.
+     *
+     * Applied to the proxy outbounds only. `direct` is deliberately left settings-less: the core
+     * treats an empty direct outbound as a special case (a DNS server detouring to one is
+     * rejected as a no-op), and there is nothing to gain from holding it open.
+     */
+    private fun applyKeepAlive(outbound: JSONObject) {
+        outbound.put("tcp_keep_alive", KEEP_ALIVE_IDLE)
+        outbound.put("tcp_keep_alive_interval", KEEP_ALIVE_INTERVAL)
+    }
+
+    private const val KEEP_ALIVE_IDLE = "90s"
+    private const val KEEP_ALIVE_INTERVAL = "45s"
+
+    /** The outbound types [ProxyUriParser] can emit for a server — everything except `direct`. */
+    private val SERVER_OUTBOUND_TYPES =
+        setOf("vless", "trojan", "shadowsocks", "vmess", "hysteria2", "tuic", "anytls")
+
+    /** Sends [directSuffixes] out the real interface instead of through the proxy. */
+    private fun directRule(suffixes: List<String>): JSONObject = JSONObject()
+        .put("domain_suffix", JSONArray().apply { suffixes.forEach(::put) })
+        .put("outbound", "direct")
+
+    /**
+     * Services that work *worse*, or not at all, when reached from a foreign address — the
+     * traffic a user in Russia needs to keep off the tunnel.
+     *
+     * The membership test is not "is it Russian", it is: **would routing it through the exit
+     * break it or slow it down with nothing gained?** Banks and state services refuse foreign
+     * addresses outright (often with a generic error, so it reads as "the app is broken");
+     * marketplaces, maps and video serve a distant edge or a foreign catalogue. None of it is
+     * traffic the user is trying to hide from the local network — that is what makes sending
+     * it direct a free win rather than a leak.
+     *
+     * Country TLDs carry most of it, which is why they lead the list: a domain-suffix match
+     * on `.ru`/`.su`/`.xn--p1ai` sweeps in every bank, ministry, shop and operator without
+     * enumerating them. The named entries below are the ones that sit on a neutral TLD, plus
+     * the CDNs those services load their content from — a page whose HTML comes direct and
+     * whose images come through Frankfurt is not fixed.
+     *
+     * Deliberately NOT here: Telegram, and anything else a user turns a VPN on *for*. The
+     * list is for services that reject the exit, not for services blocked at home.
+     *
+     * The gap this leaves is connections made to a literal address with no name to match —
+     * an app pinning IPs still goes through the tunnel. Closing that needs a geoip database,
+     * which is a megabytes-and-updates decision, not a list.
+     */
+    private val RU_DIRECT_SUFFIXES = listOf(
+        // Country TLDs — the bulk of it, banks and state services included.
+        ".ru",
+        ".su",
+        ".xn--p1ai", // .рф, as it appears on the wire
+        // VK / Mail.ru group and their content delivery.
+        "vk.com",
+        "vk.me",
+        "vk-cdn.net",
+        "vkuservideo.net",
+        "vkuseraudio.net",
+        "vkuser.net",
+        "userapi.com",
+        "mycdn.me",
+        // Yandex: the search, maps, taxi, Kinopoisk and the static/CDN hosts they load.
+        "yandex.net",
+        "yandex.com",
+        "yastatic.net",
+        "yandexcloud.net",
+        // Sber, Alfa — the two big banks whose public hosts are not on .ru.
+        "sberbank.com",
+        "alfabank.st",
+        // Marketplaces and classifieds: static hosts on neutral TLDs.
+        "avito.st",
+        "ozonru.me",
+        "wbstatic.net",
+        // Maps and video services with non-.ru domains.
+        "2gis.com",
+        "okko.tv",
+        "ivi.tv",
+        // CDN a large share of Russian media sits behind.
+        "ngenix.net",
     )
 
     /**
@@ -713,6 +881,7 @@ object VlessImporter {
         blockQuic: Boolean,
         routeDnsDirect: Boolean,
         sendHostname: Boolean,
+        directSuffixes: List<String>,
     ): JSONArray {
         val retained = mutableListOf<JSONObject>()
         for (i in 0 until rules.length()) {
@@ -730,6 +899,10 @@ object VlessImporter {
         val generated = buildList {
             if (blockQuic) add(quicRejectRule())
             if (routeDnsDirect) add(dnsDirectRule(dnsOption))
+            // Ahead of the phone-resolve rule: both match on domain_suffix and the first
+            // hit wins, so a name on both lists must reach its terminal outbound here
+            // rather than be resolved for a tunnel it is not going to use.
+            if (directSuffixes.isNotEmpty()) add(directRule(directSuffixes))
             // Only meaningful while destinations are names; without the override every
             // destination is already an address the phone resolved, so there is nothing to carve
             // back out. Sends everything to the server as a name except YouTube, which is
@@ -812,6 +985,7 @@ object VlessImporter {
         )
         val blockQuic = shouldBlockQuic(settings.quicPolicy)
         val normalizedMtu = normalizeTunMtu(settings.tunMtu)
+        val directSuffixes = directSuffixes(settings.ruDirect, settings.directDomains)
 
         val outboundsArr = JSONArray()
         // If more than one server: put an urltest selector first, name it "proxy".
@@ -832,7 +1006,17 @@ object VlessImporter {
         }
         val tunnelDns = usesTunnelDns(settings.dnsRoute, settings.dnsProtection, routeFinal)
         val routeDnsDirect = !tunnelDns
-        servers.forEach { outboundsArr.put(it.json) }
+        servers.forEach { server ->
+            // The parser's job is to translate the link; the connection policy on top of it is
+            // ours and is applied in one place, so applySettings can reproduce it exactly on a
+            // config that was written by an older generator.
+            server.json.optJSONObject("tls")?.let {
+                ProxyUriParser.applyFragment(it, settings.fragmentEnabled, settings.recordFragment)
+                applyTlsFingerprint(it, settings.tlsFingerprint)
+            }
+            applyKeepAlive(server.json)
+            outboundsArr.put(server.json)
+        }
         outboundsArr.put(JSONObject().apply {
             put("type", "direct"); put("tag", "direct")
         })
@@ -852,6 +1036,7 @@ object VlessImporter {
                     settings.dnsRoute,
                     routeFinal,
                     blockQuic,
+                    directSuffixes,
                 ),
             )
             put("inbounds", JSONArray().put(JSONObject().apply {
@@ -876,6 +1061,11 @@ object VlessImporter {
                     // Keep the literal-IP DoH resolver off the tunnel. Direct DoH avoids a
                     // plaintext bootstrap dependency and is fast enough before XHTTP is up.
                     if (routeDnsDirect) put(dnsDirectRule(settings.dnsOption))
+                    // Russian services and the user's own additions out the real interface:
+                    // they refuse or degrade a foreign address, and none of it is traffic
+                    // being hidden from the local network. Ahead of the phone-resolve rule,
+                    // which also matches on domain_suffix — see rebuildRouteRules().
+                    if (directSuffixes.isNotEmpty()) put(directRule(directSuffixes))
                     // Everything reaches the server as a name (so it resolves in its own region);
                     // YouTube is the one exception, phone-resolved to a v4 address. See
                     // phoneResolveRule() for why the exception list runs this way round.

@@ -47,6 +47,7 @@ import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.tarn.data.Latency
 import io.nekohasekai.sfa.tarn.data.TarnDns
 import io.nekohasekai.sfa.tarn.data.TarnServerRepository
+import io.nekohasekai.sfa.tarn.screen.TarnDirectDomainsScreen
 import io.nekohasekai.sfa.tarn.screen.TarnDnsScreen
 import io.nekohasekai.sfa.tarn.screen.TarnDnsViewModel
 import io.nekohasekai.sfa.tarn.screen.TarnConnectionLabScreen
@@ -72,6 +73,7 @@ private object TarnRoute {
     const val SHIELD = "tarn/shield"
     const val SPLIT_TUNNELING = "tarn/split"
     const val DNS = "tarn/dns"
+    const val DIRECT_DOMAINS = "tarn/direct-domains"
     const val CONNECTION_LAB = "tarn/connection-lab"
     const val LOGS = "tarn/logs"
 }
@@ -137,6 +139,10 @@ fun TarnShell(
     var dnsRoute by remember { mutableStateOf(Settings.tarnDnsRoute) }
     var logLevel by remember { mutableStateOf(Settings.tarnLogLevel) }
     var sendHostname by remember { mutableStateOf(Settings.tarnSendHostname) }
+    var ruDirect by remember { mutableStateOf(Settings.tarnRuDirect) }
+    var recordFragment by remember { mutableStateOf(Settings.tarnRecordFragment) }
+    var tlsFingerprint by remember { mutableStateOf(Settings.tarnTlsFingerprint) }
+    var directDomains by remember { mutableStateOf(Settings.tarnDirectDomains) }
     var testUrl by remember { mutableStateOf(Settings.tarnTestUrl) }
     var testTimeoutSeconds by remember { mutableIntStateOf(Settings.tarnTestTimeoutSeconds) }
     var testRetries by remember { mutableIntStateOf(Settings.tarnTestRetries) }
@@ -208,6 +214,27 @@ fun TarnShell(
     fun onDnsThroughVpnChange(enabled: Boolean) {
         dnsRoute = if (enabled) Settings.DNS_ROUTE_TUNNEL else Settings.DNS_ROUTE_DIRECT
         Settings.tarnDnsRoute = dnsRoute
+        repatchSettingsAndReload()
+    }
+
+    /**
+     * Returns false when there is no domain in what was typed, so the dialog can keep the text
+     * and say so rather than closing on input that silently did nothing. Adding a name already
+     * on the list counts as success — the user asked for it to be there, and it is.
+     */
+    fun onAddDirectDomain(raw: String): Boolean {
+        val domain = Settings.normalizeDirectDomain(raw) ?: return false
+        if (domain !in directDomains) {
+            directDomains = directDomains + domain
+            Settings.tarnDirectDomains = directDomains
+            repatchSettingsAndReload()
+        }
+        return true
+    }
+
+    fun onRemoveDirectDomain(domain: String) {
+        directDomains = directDomains - domain
+        Settings.tarnDirectDomains = directDomains
         repatchSettingsAndReload()
     }
 
@@ -412,6 +439,8 @@ fun TarnShell(
                         splitAppCount = splitAppCount,
                         dnsProviderName = TarnDns.byId(dnsProvider).title,
                         dnsThroughVpn = dnsRoute == Settings.DNS_ROUTE_TUNNEL,
+                        ruDirect = ruDirect,
+                        directDomainCount = directDomains.size,
                         ipv6Enabled = ipv6Enabled,
                         fragmentEnabled = fragmentEnabled,
                         themeMode = themeMode,
@@ -439,6 +468,12 @@ fun TarnShell(
                     },
                     onOpenDnsPicker = { navController.navigate(TarnRoute.DNS) },
                     onDnsThroughVpnChange = ::onDnsThroughVpnChange,
+                    onRuDirectChange = {
+                        ruDirect = it
+                        Settings.tarnRuDirect = it
+                        repatchSettingsAndReload()
+                    },
+                    onOpenDirectDomains = { navController.navigate(TarnRoute.DIRECT_DOMAINS) },
                     onIpv6Change = ::onIpv6Change,
                     onFragmentChange = ::onFragmentChange,
                     onOpenConnectionLab = { navController.navigate(TarnRoute.CONNECTION_LAB) },
@@ -537,6 +572,21 @@ fun TarnShell(
             }
 
             composable(
+                route = TarnRoute.DIRECT_DOMAINS,
+                enterTransition = slideIn,
+                exitTransition = slideOut,
+                popEnterTransition = popIn,
+                popExitTransition = popOut,
+            ) {
+                TarnDirectDomainsScreen(
+                    domains = directDomains.sorted(),
+                    onAdd = ::onAddDirectDomain,
+                    onRemove = ::onRemoveDirectDomain,
+                    onBack = { navController.navigateUp() },
+                )
+            }
+
+            composable(
                 route = TarnRoute.CONNECTION_LAB,
                 enterTransition = slideIn,
                 exitTransition = slideOut,
@@ -552,6 +602,9 @@ fun TarnShell(
                         dnsProtection = dnsProtection,
                         logLevel = logLevel,
                         sendHostname = sendHostname,
+                        recordFragment = recordFragment,
+                        fragmentEnabled = fragmentEnabled,
+                        tlsFingerprint = tlsFingerprint,
                         testUrl = testUrl,
                         testTimeoutSeconds = testTimeoutSeconds,
                         testRetries = testRetries,
@@ -584,6 +637,16 @@ fun TarnShell(
                     onSendHostnameChange = {
                         sendHostname = it
                         Settings.tarnSendHostname = it
+                        repatchSettingsAndReload()
+                    },
+                    onRecordFragmentChange = {
+                        recordFragment = it
+                        Settings.tarnRecordFragment = it
+                        repatchSettingsAndReload()
+                    },
+                    onTlsFingerprintChange = {
+                        tlsFingerprint = it
+                        Settings.tarnTlsFingerprint = it
                         repatchSettingsAndReload()
                     },
                     onTestUrlChange = {

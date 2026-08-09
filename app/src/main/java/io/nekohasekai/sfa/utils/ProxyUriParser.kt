@@ -52,14 +52,12 @@ object ProxyUriParser {
      * exactly where it matters most. The lx core patch in `common/tls/reality_client.go`
      * installs it on that path too, so REALITY is no longer an exception here.
      */
-    fun applyFragment(tls: JSONObject, enabled: Boolean) {
-        if (enabled) {
-            tls.put("fragment", true)
-            tls.put("record_fragment", true)
-        } else {
-            tls.remove("fragment")
-            tls.remove("record_fragment")
-        }
+    fun applyFragment(tls: JSONObject, enabled: Boolean, recordFragment: Boolean = false) {
+        if (enabled) tls.put("fragment", true) else tls.remove("fragment")
+        // Independent of the TCP-layer half on purpose: re-framing the ClientHello into several
+        // TLS records is the part a naive REALITY server can fail to reassemble, and it used to
+        // ride along silently with the safe half. See Settings.tarnRecordFragment.
+        if (recordFragment) tls.put("record_fragment", true) else tls.remove("record_fragment")
     }
 
     // ---- vless ------------------------------------------------------------------------

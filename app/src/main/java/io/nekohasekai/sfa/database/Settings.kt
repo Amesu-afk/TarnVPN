@@ -152,12 +152,81 @@ object Settings {
     var tarnIpv6Enabled by dataStore.boolean(SettingsKey.TARN_IPV6_ENABLED) { true }
 
     /**
-     * Split the TLS handshake at the TCP layer ([common/tlsfragment] in the core) so DPI
-     * that blocks on handshake shape rather than SNI content has less to match on. The current
-     * REALITY handshake path does not support this wrapper, so the importer omits those flags
-     * there instead of presenting this as an extra layer of protection.
+     * Split the TLS handshake across TCP segments (`common/tlsfragment` in the core) so DPI
+     * that blocks on handshake shape rather than SNI content has less to match on. Works on
+     * REALITY too since the core patch that moved the wrapper into `ClientHandshake` — and
+     * REALITY is exactly what it is turned on for.
+     *
+     * Safe by construction: the fragmenter overrides only `Write`, and re-segmenting changes
+     * no byte of the ClientHello, so the HMAC REALITY hides in the session id still covers the
+     * same content. The aggressive half lives separately in [tarnRecordFragment].
      */
     var tarnFragmentEnabled by dataStore.boolean(SettingsKey.TARN_FRAGMENT_ENABLED) { false }
+
+    /**
+     * The aggressive half of fragmentation: split the ClientHello across TLS *records* rather
+     * than only across TCP segments.
+     *
+     * Split from [tarnFragmentEnabled] because the two carry very different risk. Re-segmenting
+     * is invisible to the peer; re-framing is not — a handshake message may legally span records
+     * and the server must reassemble it, but a REALITY server that parses the first record
+     * naively will fail the handshake outright. Bundled together, the failure mode was that a
+     * user turned fragmentation on, REALITY stopped connecting, and they turned the whole thing
+     * back off — losing the safe half, which is the one that does the circumventing.
+     *
+     * Lives in the connection lab, off by default: try it when plain fragmentation is not enough.
+     */
+    var tarnRecordFragment by dataStore.boolean(SettingsKey.TARN_RECORD_FRAGMENT) { false }
+
+    /**
+     * Which browser's TLS ClientHello the proxy connection imitates (uTLS).
+     *
+     * [TLS_FINGERPRINT_AUTO] keeps whatever the share link asked for (`fp=`), falling back to
+     * Chrome — the behaviour before this setting existed, and the right default: the link's
+     * author usually knows what their server expects to see.
+     *
+     * It is a setting because filtering adapts. When a profile that worked yesterday stops
+     * connecting today while a different one on the same server still works, the ClientHello is
+     * the thing that changed hands — and swapping it is the cheapest thing a user can try that
+     * does not need the server touched at all. Purely client-side: no fingerprint is "wrong" for
+     * a server, they all produce a valid handshake.
+     *
+     * [TLS_FINGERPRINT_RANDOM] picks one of five real modern browser hellos (`common/tls/utls_client.go`
+     * init) once per process start, so it also rotates across restarts. The core's other random
+     * mode, `randomized`, synthesises a hello instead — deliberately not offered: a synthetic
+     * ClientHello matching no real browser is a signature of its own, which is the opposite of
+     * what this is for.
+     */
+    const val TLS_FINGERPRINT_AUTO = "auto"
+    const val TLS_FINGERPRINT_RANDOM = "random"
+
+    /** Values the core's `uTLSClientHelloID` accepts, plus our own [TLS_FINGERPRINT_AUTO]. */
+    val TARN_TLS_FINGERPRINTS = listOf(
+        TLS_FINGERPRINT_AUTO,
+        "chrome",
+        "firefox",
+        "safari",
+        "edge",
+        "ios",
+        "android",
+        TLS_FINGERPRINT_RANDOM,
+    )
+
+    private var tarnTlsFingerprintStored by
+        dataStore.string(SettingsKey.TARN_TLS_FINGERPRINT) { TLS_FINGERPRINT_AUTO }
+    var tarnTlsFingerprint: String
+        get() = normalizeChoice(
+            tarnTlsFingerprintStored,
+            TARN_TLS_FINGERPRINTS.toSet(),
+            TLS_FINGERPRINT_AUTO,
+        )
+        set(value) {
+            tarnTlsFingerprintStored = normalizeChoice(
+                value,
+                TARN_TLS_FINGERPRINTS.toSet(),
+                TLS_FINGERPRINT_AUTO,
+            )
+        }
 
     /** Profile ids starred on the servers screen. */
     var tarnFavouriteProfiles by dataStore.stringSet(SettingsKey.TARN_FAVOURITE_PROFILES) { emptySet() }
@@ -241,6 +310,62 @@ object Settings {
      * Left as a toggle so it can be turned off if a server mishandles domain destinations.
      */
     var tarnSendHostname by dataStore.boolean(SettingsKey.TARN_SEND_HOSTNAME) { true }
+
+    /**
+     * Keep Russian services off the tunnel: they are routed direct and resolved from the
+     * phone's own location instead of the exit's.
+     *
+     * On by default because the failure it avoids is silent and looks like the app is broken.
+     * A large share of the services a user in Russia needs every day — banks, Gosuslugi,
+     * marketplaces, transport, streaming — either block foreign addresses outright or serve a
+     * degraded/foreign edge to one, so a VPN that carries everything makes them stop working
+     * the moment it is switched on. Sending them direct is also simply faster: the traffic
+     * never leaves the country.
+     *
+     * The cost is the honest one: those hosts see the real address, which is the point — they
+     * are the traffic the user is not trying to hide. Anyone who wants everything through the
+     * exit turns this off.
+     */
+    var tarnRuDirect by dataStore.boolean(SettingsKey.TARN_RU_DIRECT) { true }
+
+    /**
+     * Domains the user has added to the direct list themselves, on top of [tarnRuDirect].
+     *
+     * The built-in list covers country TLDs and the services that sit outside them, but it can
+     * never be complete: somebody's bank, employer portal or regional service will be missing,
+     * and without this the only thing they could do about it was turn the whole feature off.
+     *
+     * Independent of [tarnRuDirect] on purpose — these are the user's own names and they apply
+     * whether or not the Russian list does. Stored as a set of already-normalised suffixes; use
+     * [normalizeDirectDomain] on anything typed in.
+     */
+    var tarnDirectDomains by dataStore.stringSet(SettingsKey.TARN_DIRECT_DOMAINS) { emptySet() }
+
+    /**
+     * Turns whatever the user typed into a suffix the core can match on, or null if there is no
+     * domain in it.
+     *
+     * Accepts what people actually paste — a full URL, a name with a leading dot, mixed case,
+     * trailing junk — because the alternative is an error message for input whose intent is
+     * obvious. Converts to punycode: the matcher compares against the name as it appears on the
+     * wire, so `мойбанк.рф` typed in Cyrillic would otherwise never match anything.
+     */
+    fun normalizeDirectDomain(raw: String): String? {
+        var value = raw.trim().lowercase()
+        if (value.isEmpty()) return null
+        // A pasted URL: keep the host only.
+        value = value.substringAfter("://").substringBefore('/').substringBefore('?')
+        // Strip credentials and port if the paste carried them.
+        value = value.substringAfterLast('@').substringBefore(':')
+        value = value.trim('.', ' ')
+        if (value.isEmpty()) return null
+        val ascii = runCatching { java.net.IDN.toASCII(value) }.getOrNull() ?: return null
+        // One dot minimum, and only characters a hostname may carry. A bare TLD is rejected:
+        // "com" as a suffix would send a quarter of the internet direct by accident.
+        if (!ascii.contains('.')) return null
+        if (!ascii.all { it.isLetterOrDigit() || it == '.' || it == '-' }) return null
+        return ascii
+    }
 
     const val DNS_ROUTE_AUTO = "auto"
     const val DNS_ROUTE_DIRECT = "direct"

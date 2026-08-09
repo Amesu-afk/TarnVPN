@@ -71,12 +71,29 @@
     <string name="tarn_dns_custom_error">Enter a valid IPv4 address</string>
 
     <string name="tarn_shield_section_network">Network</string>
+    <string name="tarn_shield_ru_direct">Russian sites bypass the VPN</string>
+    <string name="tarn_shield_ru_direct_desc">Banks, state services, marketplaces and .ru sites go out directly and are resolved from here — they refuse or slow down for a foreign address. Turn off to send everything through the exit</string>
+    <string name="tarn_shield_direct_domains">My own direct sites</string>
+    <string name="tarn_shield_direct_domains_empty">None added</string>
+    <plurals name="tarn_shield_direct_domains_count">
+        <item quantity="one">%1$d domain</item>
+        <item quantity="other">%1$d domains</item>
+    </plurals>
+    <string name="tarn_direct_domains_title">Direct sites</string>
+    <string name="tarn_direct_domains_hint">These bypass the VPN along with the built-in list, and keep working when it is off. A domain covers everything under it: adding example.com also covers pay.example.com</string>
+    <string name="tarn_direct_domains_empty">Nothing added yet. Add a site that refuses to work through the VPN — a bank, a work portal, a local service</string>
+    <string name="tarn_direct_domains_add">Add a domain</string>
+    <string name="tarn_direct_domains_add_hint">A domain or a link you copied — the address is picked out of it</string>
+    <string name="tarn_direct_domains_add_action">Add</string>
+    <string name="tarn_direct_domains_placeholder">example.com</string>
+    <string name="tarn_direct_domains_invalid">No domain in that. Expected something like example.com</string>
+    <string name="tarn_direct_domains_remove">Remove</string>
     <string name="tarn_shield_dns_tunnel">DNS through VPN</string>
     <string name="tarn_shield_dns_tunnel_desc">On: DNS goes through the tunnel, so a DNS-leak test shows the exit region — but lookups are slower under load. Off: fast direct DNS (still encrypted), but the test shows your real region</string>
     <string name="tarn_shield_ipv6">IPv6</string>
     <string name="tarn_shield_ipv6_desc">Route IPv6 traffic through the tunnel too — otherwise apps with native IPv6 can bypass the VPN entirely</string>
     <string name="tarn_shield_fragment">TLS fragmentation</string>
-    <string name="tarn_shield_fragment_desc">Split the TLS handshake for supported TLS connections. It does not apply to Reality.</string>
+    <string name="tarn_shield_fragment_desc">Split the TLS handshake across packets so filtering that matches on its shape has less to go on. Works on Reality too. Try it when a server connects on Wi-Fi but not on mobile</string>
 
     <string name="tarn_connection_lab_entry">Connection lab</string>
     <string name="tarn_connection_lab_entry_desc">Tune routing and full-test parameters</string>
@@ -109,6 +126,11 @@
     <string name="tarn_shield_always_on">System always-on VPN</string>
     <string name="tarn_shield_always_on_desc">The toggle above only holds while the service is alive. If it crashes or the phone reboots, traffic goes out directly. Only the system setting closes that: turn on "Always-on VPN" and "Block connections without VPN". Open Android settings</string>
     <string name="tarn_connection_lab_ipv4_only_warning">All traffic goes over IPv4, and apps are told the name has no IPv6 at all. Keep "Send the hostname to the server" on alongside it, or some Google services answer "not available in your region".</string>
+    <string name="tarn_connection_lab_tls_fingerprint">TLS fingerprint</string>
+    <string name="tarn_connection_lab_tls_fingerprint_auto">From the link</string>
+    <string name="tarn_connection_lab_tls_fingerprint_random">Random</string>
+    <string name="tarn_connection_lab_record_fragment">Fragment TLS records</string>
+    <string name="tarn_connection_lab_record_fragment_desc">Stronger than plain fragmentation, and riskier: it changes how the handshake is framed, which some Reality servers fail to reassemble. Turn on only if plain fragmentation was not enough; if the server stops connecting, this is why</string>
     <string name="tarn_connection_lab_send_hostname">Send the hostname to the server</string>
     <string name="tarn_connection_lab_send_hostname_desc">What Xray and v2rayNG do: the server resolves the name and picks the region, which is what Gemini needs to avoid "not available in your region". YouTube is the exception — resolved on the phone, or Music region-blocks. Turn off only if a server rejects domain destinations</string>
     <string name="tarn_connection_lab_no_v6_warning">Diagnostic mode. AAAA records are served as usual, but IPv6 destinations are refused by the route table, so traffic rides IPv4 — fast.com will show IPv4. The point is to separate "traffic over IPv4" from "the client was told there is no IPv6". If Gemini works here, the second half is the culprit.</string>
