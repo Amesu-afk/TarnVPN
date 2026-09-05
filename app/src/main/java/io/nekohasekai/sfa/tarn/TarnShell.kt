@@ -20,8 +20,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -47,11 +47,11 @@ import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.tarn.data.Latency
 import io.nekohasekai.sfa.tarn.data.TarnDns
 import io.nekohasekai.sfa.tarn.data.TarnServerRepository
+import io.nekohasekai.sfa.tarn.screen.TarnConnectionLabScreen
+import io.nekohasekai.sfa.tarn.screen.TarnConnectionLabState
 import io.nekohasekai.sfa.tarn.screen.TarnDirectDomainsScreen
 import io.nekohasekai.sfa.tarn.screen.TarnDnsScreen
 import io.nekohasekai.sfa.tarn.screen.TarnDnsViewModel
-import io.nekohasekai.sfa.tarn.screen.TarnConnectionLabScreen
-import io.nekohasekai.sfa.tarn.screen.TarnConnectionLabState
 import io.nekohasekai.sfa.tarn.screen.TarnHomeScreen
 import io.nekohasekai.sfa.tarn.screen.TarnServersScreen
 import io.nekohasekai.sfa.tarn.screen.TarnServersViewModel

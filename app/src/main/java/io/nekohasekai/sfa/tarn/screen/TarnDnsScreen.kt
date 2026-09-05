@@ -233,7 +233,10 @@ private fun CustomDnsDialog(
             ) {
                 BasicTextField(
                     value = value,
-                    onValueChange = { value = it; error = false },
+                    onValueChange = {
+                        value = it
+                        error = false
+                    },
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyMedium.copy(color = TarnColors.TextPrimary),
                     cursorBrush = SolidColor(TarnColors.Accent),

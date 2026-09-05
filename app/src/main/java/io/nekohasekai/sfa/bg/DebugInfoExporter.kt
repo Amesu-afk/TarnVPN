@@ -40,6 +40,12 @@ object DebugInfoExporter {
         var entriesAdded = 0
         try {
             ZipOutputStream(BufferedOutputStream(FileOutputStream(outFile))).use { zip ->
+                // Root exports must be owned by the requesting app, not readable by everyone.
+                android.system.Os.chmod(outFile.absolutePath, 384) // 0600
+                val appUid = context.packageManager.getApplicationInfo(packageName, 0).uid
+                if (android.os.Process.myUid() != appUid) {
+                    android.system.Os.chown(outFile.absolutePath, appUid, -1)
+                }
                 Log.i(TAG, "adding export_info.txt")
                 addTextEntry(zip, "system/export_info.txt", buildExportInfo(context, packageName))
                 entriesAdded++
@@ -77,7 +83,6 @@ object DebugInfoExporter {
             outFile.delete()
             throw IllegalStateException(error)
         }
-        outFile.setReadable(true, false)
         if (warnings.isNotEmpty()) {
             Log.w(TAG, "export finished with ${warnings.size} warnings, output size: ${outFile.length()}")
         } else {

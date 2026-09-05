@@ -26,6 +26,10 @@ object UpdateState {
     val installStatus = mutableStateOf<InstallStatus>(InstallStatus.Idle)
 
     fun setUpdate(info: UpdateInfo?) {
+        if (info?.versionCode != updateInfo.value?.versionCode || info?.downloadUrl != updateInfo.value?.downloadUrl) {
+            cachedApkFile.value = null
+            Settings.cachedApkPath = ""
+        }
         updateInfo.value = info
         hasUpdate.value = info != null
         saveToCache(info)

@@ -101,6 +101,7 @@ fun EditProfileContentScreen(
         )
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val successConfigurationSaved = stringResource(R.string.success_configuration_saved)
     var showUnsavedChangesDialog by remember { mutableStateOf(false) }
     val searchFocusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
@@ -126,7 +127,7 @@ fun EditProfileContentScreen(
         if (uiState.showSaveSuccessMessage) {
             Toast.makeText(
                 context,
-                context.getString(R.string.success_configuration_saved),
+                successConfigurationSaved,
                 Toast.LENGTH_SHORT,
             ).show()
             viewModel.clearSaveSuccessMessage()

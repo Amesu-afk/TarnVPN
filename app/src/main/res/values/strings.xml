@@ -66,6 +66,7 @@
     <string name="status_starting">Starting</string>
     <string name="status_stopping">Stopping</string>
     <string name="status_started">Started</string>
+    <string name="tarn_ru_direct_database_updated">Russian services list updated: %1$d domains</string>
 
     <!-- Dashboard -->
     <string name="dashboard_items">Dashboard Items</string>

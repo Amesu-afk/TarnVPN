@@ -66,9 +66,10 @@ object TarnSubscriptionStore {
     @Synchronized
     fun load(): List<Subscription> {
         val f = file
-        if (!f.isFile) return emptyList()
-        val text = runCatching { f.readText() }.getOrNull() ?: return emptyList()
-        val array = runCatching { JSONArray(text) }.getOrNull() ?: return emptyList()
+        if (!f.isFile && !File(f.path + ".bak").isFile) return emptyList()
+        // Recover AtomicFile backups, and never overwrite unreadable/corrupt data as an empty list.
+        val text = AtomicFile(f).openRead().bufferedReader().use { it.readText() }
+        val array = JSONArray(text)
         return (0 until array.length()).mapNotNull { i ->
             array.optJSONObject(i)?.let(Subscription::fromJson)
         }

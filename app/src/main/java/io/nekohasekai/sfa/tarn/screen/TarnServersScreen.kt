@@ -107,6 +107,13 @@ fun TarnServersScreen(
     // The dialog stays open through "importing" so the spinner is visible, then closes
     // itself only once a run finishes with no error to show.
     if (showImportDialog) {
+        val importNotice = state.importNotice?.let { notice ->
+            stringResource(
+                R.string.tarn_servers_import_partial,
+                notice.serverCount,
+                notice.rejectedCount,
+            )
+        }
         TarnImportDialog(
             value = importInput,
             onValueChange = { importInput = it },
@@ -118,10 +125,14 @@ fun TarnServersScreen(
             },
             importing = state.importing,
             errorMessage = state.importError,
+            noticeMessage = importNotice,
         )
     }
-    LaunchedEffect(state.importing, state.importError) {
-        if (showImportDialog && !state.importing && state.importError == null && importInput.isNotBlank()) {
+    LaunchedEffect(state.importing, state.importError, state.importNotice) {
+        if (
+            showImportDialog && !state.importing && state.importError == null &&
+            state.importNotice == null && importInput.isNotBlank()
+        ) {
             showImportDialog = false
             importInput = ""
         }

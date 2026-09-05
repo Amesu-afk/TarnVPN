@@ -31,8 +31,12 @@ object VlessImporter {
      *     share link happened to ask for.
      * 6 — the direct list takes the user's own domains ([directSuffixes]) on top of the
      *     built-in Russian one.
+     * 7 — the maintained Russian-services database joins the built-in direct list. The current
+     *     copy is refreshed before a Tarn-managed VPN session starts and is safely cached.
+     * 8 — imported links preserve their protocol-specific fields (including VLESS encryption,
+     *     XHTTP extras and HTTP/h2 transport); source-backed profiles are regenerated once.
      */
-    const val CONFIG_GENERATION = 6
+    const val CONFIG_GENERATION = 8
 
     private data class ConnectionConfigSettings(
         val dnsOption: DnsOption,
@@ -47,6 +51,7 @@ object VlessImporter {
         val testUrl: String,
         val sendHostname: Boolean,
         val ruDirect: Boolean,
+        val remoteDirectDomains: Set<String>,
         val directDomains: Set<String>,
         val recordFragment: Boolean,
         val tlsFingerprint: String,
@@ -65,6 +70,7 @@ object VlessImporter {
         testUrl = Settings.tarnTestUrl,
         sendHostname = Settings.tarnSendHostname,
         ruDirect = Settings.tarnRuDirect,
+        remoteDirectDomains = Settings.tarnRuDirectRemoteDomains,
         directDomains = Settings.tarnDirectDomains,
         recordFragment = Settings.tarnRecordFragment,
         tlsFingerprint = Settings.tarnTlsFingerprint,
@@ -97,30 +103,75 @@ object VlessImporter {
      */
     fun toSingBoxJson(input: String, fetch: (String) -> String): String {
         val settings = currentConnectionConfigSettings()
-        return buildConfig(parseServers(input, fetch, settings.fragmentEnabled), settings)
+        return buildConfig(parseServers(input, fetch, settings.fragmentEnabled).servers, settings)
     }
 
     /**
      * One profile per server, so each shows up as its own row on the servers screen.
-     * [sourceUri] is the single `vless://` link this server came from; the repository persists
+     * [sourceUri] is the single share link this server came from; the repository persists
      * it next to the config so a later repatch can regenerate the config from source instead
      * of surgically patching (see [rebuildConfig]).
      */
     data class ImportedServer(val name: String, val config: String, val sourceUri: String)
+
+    /** One rejected link is reported rather than silently discarded during a subscription refresh. */
+    data class ImportIssue(
+        val source: String,
+        val reason: String,
+    )
+
+    /**
+     * The parsed subscription together with the entries the app could not safely materialise.
+     *
+     * Callers that only need the old all-or-nothing API can use [toSingBoxConfigs]. The
+     * repository uses this richer form to keep existing servers if a provider responds with an
+     * incomplete or newly unsupported list instead of treating the omission as a deletion.
+     */
+    data class ImportedServerBatch(
+        val servers: List<ImportedServer>,
+        val totalEntries: Int,
+        val issues: List<ImportIssue>,
+        val isSubscription: Boolean,
+    ) {
+        val rejectedCount: Int get() = issues.size
+    }
+
+    private data class ParsedServerBatch(
+        val servers: List<ProxyUriParser.ParsedOutbound>,
+        val totalEntries: Int,
+        val issues: List<ImportIssue>,
+        val isSubscription: Boolean,
+    )
+
+    /** Lightweight parser report for tests and future import UI; it does not touch Settings. */
+    internal data class SubscriptionParsePreview(
+        val parsedCount: Int,
+        val totalEntries: Int,
+        val issues: List<ImportIssue>,
+    )
 
     /**
      * Same inputs as [toSingBoxJson], but a subscription is split into one standalone
      * config per server instead of a single config with an urltest group. The shell treats
      * a profile as a server, so a group would collapse the whole subscription into one row.
      */
-    fun toSingBoxConfigs(input: String, fetch: (String) -> String): List<ImportedServer> {
+    fun toSingBoxConfigs(input: String, fetch: (String) -> String): List<ImportedServer> = toSingBoxImportBatch(input, fetch).servers
+
+    /** Parses a link or subscription without hiding entries that failed to convert. */
+    fun toSingBoxImportBatch(input: String, fetch: (String) -> String): ImportedServerBatch {
         // Read once for the whole batch: buildConfig() used to re-read both settings on
         // every call, which for an N-server subscription meant 2N redundant DataStore
         // queries for values that can't change mid-import.
         val settings = currentConnectionConfigSettings()
-        return parseServers(input, fetch, settings.fragmentEnabled).map {
-            ImportedServer(it.tag, buildConfig(listOf(it), settings), it.sourceUri)
-        }
+        val parsed = parseServers(input, fetch, settings.fragmentEnabled)
+        return ImportedServerBatch(
+            servers = parsed.servers.map {
+                ImportedServer(it.tag, buildConfig(listOf(it), settings), it.sourceUri)
+            },
+            totalEntries = parsed.totalEntries,
+            issues = parsed.issues,
+            isSubscription = parsed.isSubscription,
+        )
     }
 
     /**
@@ -140,29 +191,18 @@ object VlessImporter {
         input: String,
         fetch: (String) -> String,
         fragmentEnabled: Boolean,
-    ): List<ProxyUriParser.ParsedOutbound> {
+    ): ParsedServerBatch {
         val t = input.trim()
         return when {
-            isVlessUri(t) -> listOf(ProxyUriParser.parse(t, fragmentEnabled))
+            isVlessUri(t) -> ParsedServerBatch(
+                servers = listOf(ProxyUriParser.parse(t, fragmentEnabled)),
+                totalEntries = 1,
+                issues = emptyList(),
+                isSubscription = false,
+            )
             isHttpsUrl(t) -> {
                 val body = fetch(t)
-                require(body.length <= MAX_SUBSCRIPTION_CHARS) {
-                    "Subscription is too large (max $MAX_SUBSCRIPTION_CHARS characters)"
-                }
-                val entries = expandSubscriptionBody(body)
-                require(entries.size <= MAX_SUBSCRIPTION_SERVERS) {
-                    "Subscription contains too many servers (max $MAX_SUBSCRIPTION_SERVERS)"
-                }
-                // One unparseable entry must not sink a whole subscription — mixed lists
-                // routinely carry a scheme we do not handle yet.
-                entries.mapNotNull { entry ->
-                    runCatching { ProxyUriParser.parse(entry, fragmentEnabled) }.getOrNull()
-                }.ifEmpty {
-                    throw IllegalArgumentException(
-                        "Subscription contained no server links we could read. " +
-                            "Response was ${body.length} chars."
-                    )
-                }
+                parseSubscriptionBody(body, fragmentEnabled)
             }
             else -> throw IllegalArgumentException(
                 "Unsupported input: paste a vless/trojan/ss/vmess/hysteria2/tuic/anytls link, " +
@@ -173,6 +213,51 @@ object VlessImporter {
 
     private const val MAX_SUBSCRIPTION_CHARS = 1_048_576
     private const val MAX_SUBSCRIPTION_SERVERS = 128
+
+    internal fun inspectSubscriptionBody(
+        body: String,
+        fragmentEnabled: Boolean = false,
+    ): SubscriptionParsePreview {
+        val parsed = parseSubscriptionBody(body, fragmentEnabled)
+        return SubscriptionParsePreview(parsed.servers.size, parsed.totalEntries, parsed.issues)
+    }
+
+    private fun parseSubscriptionBody(body: String, fragmentEnabled: Boolean): ParsedServerBatch {
+        require(body.length <= MAX_SUBSCRIPTION_CHARS) {
+            "Subscription is too large (max $MAX_SUBSCRIPTION_CHARS characters)"
+        }
+        val entries = expandSubscriptionBody(body)
+        require(entries.size <= MAX_SUBSCRIPTION_SERVERS) {
+            "Subscription contains too many servers (max $MAX_SUBSCRIPTION_SERVERS)"
+        }
+        val servers = mutableListOf<ProxyUriParser.ParsedOutbound>()
+        val issues = mutableListOf<ImportIssue>()
+        entries.forEach { entry ->
+            if (!ProxyUriParser.isSupportedUri(entry)) {
+                issues += ImportIssue(entry, "Unsupported share-link scheme")
+            } else {
+                runCatching { ProxyUriParser.parse(entry, fragmentEnabled) }
+                    .onSuccess(servers::add)
+                    .onFailure { error ->
+                        issues += ImportIssue(entry, importIssueReason(error))
+                    }
+            }
+        }
+        if (servers.isEmpty()) {
+            throw IllegalArgumentException(
+                "Subscription contained no server links we could read. " +
+                    "Response was ${body.length} chars; rejected ${issues.size}/${entries.size} entries.",
+            )
+        }
+        return ParsedServerBatch(
+            servers = servers,
+            totalEntries = entries.size,
+            issues = issues,
+            isSubscription = true,
+        )
+    }
+
+    private fun importIssueReason(error: Throwable): String = error.message?.lineSequence()?.firstOrNull()?.take(180) ?: error.javaClass.simpleName
 
     /**
      * Rewrites every Tarn-owned connection setting of an already-stored config. The legacy
@@ -196,6 +281,7 @@ object VlessImporter {
         testUrl: String = Settings.tarnTestUrl,
         sendHostname: Boolean = Settings.tarnSendHostname,
         ruDirect: Boolean = Settings.tarnRuDirect,
+        remoteDirectDomains: Set<String> = Settings.tarnRuDirectRemoteDomains,
         directDomains: Set<String> = Settings.tarnDirectDomains,
         recordFragment: Boolean = Settings.tarnRecordFragment,
         tlsFingerprint: String = Settings.tarnTlsFingerprint,
@@ -214,7 +300,7 @@ object VlessImporter {
         val routeFinal = route?.optString("final")?.takeIf { it.isNotBlank() } ?: "direct"
         val effectiveIpStrategy = Settings.effectiveTarnIpStrategy(ipStrategy, ipv6Enabled)
         val blockQuic = shouldBlockQuic(quicPolicy)
-        val directSuffixes = directSuffixes(ruDirect, directDomains)
+        val directSuffixes = directSuffixes(ruDirect, remoteDirectDomains, directDomains)
         config.put(
             "dns",
             dnsBlock(
@@ -292,6 +378,36 @@ object VlessImporter {
     }
 
     /**
+     * Applies the current Tarn settings to one managed config without writing it back to disk.
+     *
+     * The service uses this at startup after refreshing the Russian-services database: the
+     * fetched entries affect this connection immediately, while a failed fetch simply leaves
+     * the last valid cached entries in place. Hand-written configs are never changed here.
+     */
+    fun applyCurrentSettings(configJson: String): String? {
+        val settings = currentConnectionConfigSettings()
+        return applySettings(
+            configJson = configJson,
+            option = settings.dnsOption,
+            dnsProtection = settings.dnsProtection,
+            ipv6Enabled = settings.legacyIpv6Enabled,
+            fragmentEnabled = settings.fragmentEnabled,
+            quicPolicy = settings.quicPolicy,
+            tunMtu = settings.tunMtu,
+            ipStrategy = settings.ipStrategy,
+            dnsRoute = settings.dnsRoute,
+            logLevel = settings.logLevel,
+            testUrl = settings.testUrl,
+            sendHostname = settings.sendHostname,
+            ruDirect = settings.ruDirect,
+            remoteDirectDomains = settings.remoteDirectDomains,
+            directDomains = settings.directDomains,
+            recordFragment = settings.recordFragment,
+            tlsFingerprint = settings.tlsFingerprint,
+        )
+    }
+
+    /**
      * Whether [applySettings] would do anything to this config — the same preconditions it
      * checks before touching a byte. Exposed so the servers list can tell the user that a
      * profile is frozen, instead of leaving them to discover it by toggling settings that
@@ -364,10 +480,11 @@ object VlessImporter {
         routeFinal: String,
         blockQuic: Boolean,
         directSuffixes: List<String>,
-    ): JSONObject =
-        JSONObject().apply {
-            val tunnelDns = usesTunnelDns(dnsRoute, protectionEnabled, routeFinal)
-            put("servers", JSONArray().apply {
+    ): JSONObject = JSONObject().apply {
+        val tunnelDns = usesTunnelDns(dnsRoute, protectionEnabled, routeFinal)
+        put(
+            "servers",
+            JSONArray().apply {
                 // DoH always connects to a literal resolver IP, so there is no plaintext
                 // bootstrap lookup either way. What differs is the path:
                 //   tunnelDns → detour through the proxy, so the resolver (and any leak
@@ -377,78 +494,90 @@ object VlessImporter {
                 //     poisoning; only the fact that this resolver is in use is visible.
                 // usesTunnelDns() picks between them (auto = tunnel except on XHTTP, where
                 // the over-tunnel round-trip — ~700ms measured — stalls video sessions).
-                put(JSONObject().apply {
-                    put("tag", "doh"); put("type", "https")
-                    put("server", option.server)
-                    if (tunnelDns) put("detour", routeFinal)
-                    option.tlsServerName?.let { serverName ->
-                        put("tls", JSONObject().put("server_name", serverName))
-                    }
-                })
-                if (tunnelDns) {
-                    put(JSONObject().apply {
-                        put("tag", "bootstrap"); put("type", "https")
+                put(
+                    JSONObject().apply {
+                        put("tag", "doh")
+                        put("type", "https")
                         put("server", option.server)
-                        // No detour on purpose. bootstrap must dial the resolver IP off-tunnel
-                        // (it resolves the proxy's own hostname before the tunnel is up — a
-                        // chicken-and-egg otherwise). A detour-less DNS server already dials
-                        // straight out the underlying interface via the default dialer, which is
-                        // byte-for-byte the same dialer as detouring to a settings-less "direct"
-                        // outbound — so the core (rc.18+) rejects that explicit detour as a
-                        // no-op: "detour to an empty direct outbound makes no sense". Dropping it
-                        // keeps the exact off-tunnel behaviour and passes the check.
+                        if (tunnelDns) put("detour", routeFinal)
                         option.tlsServerName?.let { serverName ->
                             put("tls", JSONObject().put("server_name", serverName))
                         }
-                    })
+                    },
+                )
+                if (tunnelDns) {
+                    put(
+                        JSONObject().apply {
+                            put("tag", "bootstrap")
+                            put("type", "https")
+                            put("server", option.server)
+                            // No detour on purpose. bootstrap must dial the resolver IP off-tunnel
+                            // (it resolves the proxy's own hostname before the tunnel is up — a
+                            // chicken-and-egg otherwise). A detour-less DNS server already dials
+                            // straight out the underlying interface via the default dialer, which is
+                            // byte-for-byte the same dialer as detouring to a settings-less "direct"
+                            // outbound — so the core (rc.18+) rejects that explicit detour as a
+                            // no-op: "detour to an empty direct outbound makes no sense". Dropping it
+                            // keeps the exact off-tunnel behaviour and passes the check.
+                            option.tlsServerName?.let { serverName ->
+                                put("tls", JSONObject().put("server_name", serverName))
+                            }
+                        },
+                    )
                 }
                 if (!protectionEnabled) {
-                    put(JSONObject().apply {
-                        put("tag", "local"); put("type", "local")
-                    })
+                    put(
+                        JSONObject().apply {
+                            put("tag", "local")
+                            put("type", "local")
+                        },
+                    )
                 }
-            })
-            val rules = JSONArray()
-            // Suppressing HTTPS/SVCB answers is what actually stops HTTP/3: rejecting QUIC in
-            // the route table only kills the connection *after* the browser has committed to
-            // it, and Chrome learns h3 from this record (alpn="h3") before any packet is sent.
-            // Without it every h3-capable host pays an attempt-then-reset-then-fall-back round
-            // for each new connection, which is worst exactly where it hurts — Google
-            // properties, which advertise h3 everywhere. Cost is losing ECH (also carried in
-            // this record); acceptable, since we already refuse the transport it advertises.
-            if (blockQuic) {
-                rules.put(JSONObject().apply {
+            },
+        )
+        val rules = JSONArray()
+        // Suppressing HTTPS/SVCB answers is what actually stops HTTP/3: rejecting QUIC in
+        // the route table only kills the connection *after* the browser has committed to
+        // it, and Chrome learns h3 from this record (alpn="h3") before any packet is sent.
+        // Without it every h3-capable host pays an attempt-then-reset-then-fall-back round
+        // for each new connection, which is worst exactly where it hurts — Google
+        // properties, which advertise h3 everywhere. Cost is losing ECH (also carried in
+        // this record); acceptable, since we already refuse the transport it advertises.
+        if (blockQuic) {
+            rules.put(
+                JSONObject().apply {
                     put("query_type", JSONArray().put("HTTPS"))
                     put("action", "predefined")
                     put("rcode", "NOERROR")
-                })
-            }
-            // Must precede the media rule below: an AAAA for a host on both lists is answered
-            // here instead of being routed anywhere.
-            rules.put(suppressAaaaRule())
-            if (tunnelDns && dnsRoute == Settings.DNS_ROUTE_AUTO) rules.put(mediaDnsBootstrapRule())
-            // Unconditional on the dns route, unlike the media rule above: a name whose
-            // traffic goes direct has to be resolved from here too. Resolving it through
-            // the exit would hand a Russian service a foreign edge address — or an address
-            // it refuses — and then dial that address direct, which is the worst of both.
-            if (tunnelDns && directSuffixes.isNotEmpty()) {
-                rules.put(directDnsBootstrapRule(directSuffixes))
-            }
-            put("rules", rules)
-            // DNS protection off means ordinary site lookups use the system resolver, but
-            // outbound hostnames continue to use the literal-IP DoH resolver below.
-            put("final", if (protectionEnabled) "doh" else "local")
-            // The tun always captures IPv6, even for ipv4_only, so native IPv6 cannot leak.
-            put("strategy", ipStrategy)
-            // Serve-stale: an expired entry is answered from cache immediately and refreshed in
-            // the background. This is what makes "DNS through VPN" usable — a cache miss there
-            // costs a full round-trip through the proxy (~700ms on XHTTP, and it competes with
-            // video traffic for the same transports), and page loads that touch a dozen hosts
-            // paid that serially every time a short Google TTL lapsed. Only the very first
-            // lookup of a name is still synchronous. Bounded at 24h so a host that has really
-            // moved is re-resolved for real rather than pinned to a dead address forever.
-            put("optimistic", JSONObject().put("enabled", true).put("timeout", "24h"))
+                },
+            )
         }
+        // Must precede the media rule below: an AAAA for a host on both lists is answered
+        // here instead of being routed anywhere.
+        rules.put(suppressAaaaRule())
+        if (tunnelDns && dnsRoute == Settings.DNS_ROUTE_AUTO) rules.put(mediaDnsBootstrapRule())
+        // Unconditional on the dns route, unlike the media rule above: a name whose
+        // traffic goes direct has to be resolved from here too. Resolving it through
+        // the exit would hand a Russian service a foreign edge address — or an address
+        // it refuses — and then dial that address direct, which is the worst of both.
+        if (tunnelDns && directSuffixes.isNotEmpty()) {
+            rules.put(directDnsBootstrapRule(directSuffixes))
+        }
+        put("rules", rules)
+        // DNS protection off means ordinary site lookups use the system resolver, but
+        // outbound hostnames continue to use the literal-IP DoH resolver below.
+        put("final", if (protectionEnabled) "doh" else "local")
+        // The tun always captures IPv6, even for ipv4_only, so native IPv6 cannot leak.
+        put("strategy", ipStrategy)
+        // Serve-stale: an expired entry is answered from cache immediately and refreshed in
+        // the background. This is what makes "DNS through VPN" usable — a cache miss there
+        // costs a full round-trip through the proxy (~700ms on XHTTP, and it competes with
+        // video traffic for the same transports), and page loads that touch a dozen hosts
+        // paid that serially every time a short Google TTL lapsed. Only the very first
+        // lookup of a name is still synchronous. Bounded at 24h so a host that has really
+        // moved is re-resolved for real rather than pinned to a dead address forever.
+        put("optimistic", JSONObject().put("enabled", true).put("timeout", "24h"))
+    }
 
     /**
      * Answers AAAA for [PHONE_RESOLVE_SUFFIXES] locally, with an empty NOERROR, instead of
@@ -546,12 +675,15 @@ object VlessImporter {
     )
 
     /**
-     * Every name that bypasses the tunnel: the built-in Russian list when it is on, plus
-     * whatever the user added themselves. The two are independent — a custom list still works
-     * with the Russian one off, which is most of the reason for having it.
+     * Every name that bypasses the tunnel: the built-in and refreshed Russian lists when they
+     * are on, plus whatever the user added themselves. The user list is independent — it still
+     * works with the Russian switch off.
      */
-    private fun directSuffixes(ruDirect: Boolean, custom: Set<String>): List<String> =
-        ((if (ruDirect) RU_DIRECT_SUFFIXES else emptyList()) + custom.sorted()).distinct()
+    private fun directSuffixes(
+        ruDirect: Boolean,
+        remote: Set<String>,
+        custom: Set<String>,
+    ): List<String> = ((if (ruDirect) RU_DIRECT_SUFFIXES + remote.sorted() else emptyList()) + custom.sorted()).distinct()
 
     /**
      * Resolves [directSuffixes] through the off-tunnel `bootstrap` resolver, so a service routed
@@ -750,12 +882,10 @@ object VlessImporter {
         else -> Settings.LOG_LEVEL_WARN
     }
 
-    private fun normalizeTestUrl(url: String): String =
-        url.trim().takeIf(Settings::isValidTarnTestUrl) ?: Settings.DEFAULT_TARN_TEST_URL
+    private fun normalizeTestUrl(url: String): String = url.trim().takeIf(Settings::isValidTarnTestUrl) ?: Settings.DEFAULT_TARN_TEST_URL
 
-    private fun isQuicRejectRule(rule: JSONObject): Boolean =
-        rule.optString("protocol").equals("quic", ignoreCase = true) &&
-            rule.optString("action") == "reject"
+    private fun isQuicRejectRule(rule: JSONObject): Boolean = rule.optString("protocol").equals("quic", ignoreCase = true) &&
+        rule.optString("action") == "reject"
 
     /**
      * Rejects QUIC so browsers fall back to TCP (which tunnels cleanly, unlike a
@@ -768,8 +898,7 @@ object VlessImporter {
      * stutter. no_drop keeps every QUIC attempt getting a prompt reset so the TCP
      * fallback stays immediate under load.
      */
-    private fun quicRejectRule(): JSONObject =
-        JSONObject().put("protocol", "quic").put("action", "reject").put("no_drop", true)
+    private fun quicRejectRule(): JSONObject = JSONObject().put("protocol", "quic").put("action", "reject").put("no_drop", true)
 
     /**
      * `override_destination` makes the outbound send the sniffed hostname upstream instead of
@@ -853,8 +982,7 @@ object VlessImporter {
      * `domain_suffix`+`outbound` hostname rule). Generated configs are the only source of a
      * `domain_suffix` rule or a `resolve` action, so matching on either is safe.
      */
-    private fun isGeneratedDestinationRule(rule: JSONObject): Boolean =
-        rule.optString("action") == "resolve" || rule.has("domain_suffix")
+    private fun isGeneratedDestinationRule(rule: JSONObject): Boolean = rule.optString("action") == "resolve" || rule.has("domain_suffix")
 
     /**
      * Recognises the IPv6 reject rule an interim build could emit, so repatching drops it. The
@@ -890,7 +1018,9 @@ object VlessImporter {
                 isDnsDirectRule(rule, oldDohServer) ||
                 isIpv6RejectRule(rule) ||
                 isGeneratedDestinationRule(rule)
-            ) continue
+            ) {
+                continue
+            }
             // Regenerated in place so the hostname flag tracks the setting; keeping the stored
             // rule would freeze whatever it was imported with.
             retained += if (isSniffRule(rule)) sniffRule(sendHostname) else rule
@@ -940,13 +1070,16 @@ object VlessImporter {
         put(TUN_IPV6_ADDRESS)
     }
 
-    /** Try base64-decode; fall back to raw. Extract share links of any supported scheme. */
+    /**
+     * Try base64-decode; fall back to raw. Keep every URI-shaped entry, including a scheme the
+     * current app cannot parse yet, so a subscription refresh can report it and preserve the
+     * previously working list instead of silently interpreting it as a removed server.
+     */
     private fun expandSubscriptionBody(body: String): List<String> {
-        val trimmed = body.trim()
-        val prefixes = ProxyUriParser.schemePrefixes()
+        val trimmed = body.trim().removePrefix("\uFEFF")
         fun linesOf(text: String) = text.split('\n', '\r')
-            .map { it.trim() }
-            .filter { line -> prefixes.any { line.startsWith(it, ignoreCase = true) } }
+            .map { it.trim().removePrefix("\uFEFF") }
+            .filter { line -> SHARE_LINK_PREFIX.matches(line) }
 
         val candidates = mutableListOf(trimmed)
         // Try base64 variants (standard + url-safe, with/without padding).
@@ -973,6 +1106,8 @@ object VlessImporter {
         return emptyList()
     }
 
+    private val SHARE_LINK_PREFIX = Regex("[A-Za-z][A-Za-z0-9+.-]*://.*")
+
     private fun buildConfig(
         servers: List<ProxyUriParser.ParsedOutbound>,
         settings: ConnectionConfigSettings,
@@ -985,22 +1120,31 @@ object VlessImporter {
         )
         val blockQuic = shouldBlockQuic(settings.quicPolicy)
         val normalizedMtu = normalizeTunMtu(settings.tunMtu)
-        val directSuffixes = directSuffixes(settings.ruDirect, settings.directDomains)
+        val directSuffixes = directSuffixes(
+            settings.ruDirect,
+            settings.remoteDirectDomains,
+            settings.directDomains,
+        )
 
         val outboundsArr = JSONArray()
         // If more than one server: put an urltest selector first, name it "proxy".
         val routeFinal: String
         if (servers.size > 1) {
             routeFinal = "proxy"
-            outboundsArr.put(JSONObject().apply {
-                put("type", "urltest")
-                put("tag", "proxy")
-                put("outbounds", JSONArray().apply {
-                    servers.forEach { put(it.tag) }
-                })
-                put("url", normalizeTestUrl(settings.testUrl))
-                put("interval", "3m")
-            })
+            outboundsArr.put(
+                JSONObject().apply {
+                    put("type", "urltest")
+                    put("tag", "proxy")
+                    put(
+                        "outbounds",
+                        JSONArray().apply {
+                            servers.forEach { put(it.tag) }
+                        },
+                    )
+                    put("url", normalizeTestUrl(settings.testUrl))
+                    put("interval", "3m")
+                },
+            )
         } else {
             routeFinal = servers[0].tag
         }
@@ -1017,9 +1161,12 @@ object VlessImporter {
             applyKeepAlive(server.json)
             outboundsArr.put(server.json)
         }
-        outboundsArr.put(JSONObject().apply {
-            put("type", "direct"); put("tag", "direct")
-        })
+        outboundsArr.put(
+            JSONObject().apply {
+                put("type", "direct")
+                put("tag", "direct")
+            },
+        )
 
         val config = JSONObject().apply {
             // "debug" logs every connection and DNS query — real I/O/CPU cost for a session
@@ -1039,45 +1186,56 @@ object VlessImporter {
                     directSuffixes,
                 ),
             )
-            put("inbounds", JSONArray().put(JSONObject().apply {
-                put("type", "tun")
-                put("tag", "tun-in")
-                put("address", tunAddress())
-                if (normalizedMtu != 0) put("mtu", normalizedMtu)
-                put("auto_route", true)
-                put("strict_route", true)
-            }))
+            put(
+                "inbounds",
+                JSONArray().put(
+                    JSONObject().apply {
+                        put("type", "tun")
+                        put("tag", "tun-in")
+                        put("address", tunAddress())
+                        if (normalizedMtu != 0) put("mtu", normalizedMtu)
+                        put("auto_route", true)
+                        put("strict_route", true)
+                    },
+                ),
+            )
             put("outbounds", outboundsArr)
-            put("route", JSONObject().apply {
-                put("rules", JSONArray().apply {
-                    put(sniffRule(settings.sendHostname))
-                    put(JSONObject().put("protocol", "dns").put("action", "hijack-dns"))
-                    // Reject QUIC so browsers fall back to TCP: every UDP flow is wrapped
-                    // in XUDP and costs a separate stream on the proxy, and QUIC-heavy
-                    // sites open them by the dozen. See shouldBlockQuic() for why this no
-                    // longer depends on the transport, and quicRejectRule() for why
-                    // no_drop matters (silent-drop-under-flood = Shorts stutter).
-                    if (blockQuic) put(quicRejectRule())
-                    // Keep the literal-IP DoH resolver off the tunnel. Direct DoH avoids a
-                    // plaintext bootstrap dependency and is fast enough before XHTTP is up.
-                    if (routeDnsDirect) put(dnsDirectRule(settings.dnsOption))
-                    // Russian services and the user's own additions out the real interface:
-                    // they refuse or degrade a foreign address, and none of it is traffic
-                    // being hidden from the local network. Ahead of the phone-resolve rule,
-                    // which also matches on domain_suffix — see rebuildRouteRules().
-                    if (directSuffixes.isNotEmpty()) put(directRule(directSuffixes))
-                    // Everything reaches the server as a name (so it resolves in its own region);
-                    // YouTube is the one exception, phone-resolved to a v4 address. See
-                    // phoneResolveRule() for why the exception list runs this way round.
-                    if (settings.sendHostname) put(phoneResolveRule())
-                    put(JSONObject().put("ip_is_private", true).put("outbound", "direct"))
-                })
-                put("final", routeFinal)
-                put("auto_detect_interface", true)
-                // Resolve the VPN endpoint itself through the literal-IP encrypted resolver;
-                // otherwise an endpoint hostname leaks to the system DNS before connect.
-                put("default_domain_resolver", if (tunnelDns) "bootstrap" else "doh")
-            })
+            put(
+                "route",
+                JSONObject().apply {
+                    put(
+                        "rules",
+                        JSONArray().apply {
+                            put(sniffRule(settings.sendHostname))
+                            put(JSONObject().put("protocol", "dns").put("action", "hijack-dns"))
+                            // Reject QUIC so browsers fall back to TCP: every UDP flow is wrapped
+                            // in XUDP and costs a separate stream on the proxy, and QUIC-heavy
+                            // sites open them by the dozen. See shouldBlockQuic() for why this no
+                            // longer depends on the transport, and quicRejectRule() for why
+                            // no_drop matters (silent-drop-under-flood = Shorts stutter).
+                            if (blockQuic) put(quicRejectRule())
+                            // Keep the literal-IP DoH resolver off the tunnel. Direct DoH avoids a
+                            // plaintext bootstrap dependency and is fast enough before XHTTP is up.
+                            if (routeDnsDirect) put(dnsDirectRule(settings.dnsOption))
+                            // Russian services and the user's own additions out the real interface:
+                            // they refuse or degrade a foreign address, and none of it is traffic
+                            // being hidden from the local network. Ahead of the phone-resolve rule,
+                            // which also matches on domain_suffix — see rebuildRouteRules().
+                            if (directSuffixes.isNotEmpty()) put(directRule(directSuffixes))
+                            // Everything reaches the server as a name (so it resolves in its own region);
+                            // YouTube is the one exception, phone-resolved to a v4 address. See
+                            // phoneResolveRule() for why the exception list runs this way round.
+                            if (settings.sendHostname) put(phoneResolveRule())
+                            put(JSONObject().put("ip_is_private", true).put("outbound", "direct"))
+                        },
+                    )
+                    put("final", routeFinal)
+                    put("auto_detect_interface", true)
+                    // Resolve the VPN endpoint itself through the literal-IP encrypted resolver;
+                    // otherwise an endpoint hostname leaks to the system DNS before connect.
+                    put("default_domain_resolver", if (tunnelDns) "bootstrap" else "doh")
+                },
+            )
             put("experimental", experimentalBlock())
         }
         return config.toString(2)

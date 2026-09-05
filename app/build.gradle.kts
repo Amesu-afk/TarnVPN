@@ -1,3 +1,4 @@
+import com.android.build.api.artifact.SingleArtifact
 import org.gradle.api.file.DuplicatesStrategy
 import org.gradle.api.tasks.Sync
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -9,7 +10,6 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.parcelize")
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -133,14 +133,17 @@ android {
     sourceSets {
         getByName("play") {
             java.directories.add("src/minApi23/java")
+            kotlin.directories.add("src/minApi23/java")
             aidl.directories.add("src/minApi23/aidl")
         }
         getByName("other") {
             java.directories.addAll(listOf("src/minApi23/java", "src/github/java"))
+            kotlin.directories.addAll(listOf("src/minApi23/java", "src/github/java"))
             aidl.directories.add("src/minApi23/aidl")
         }
         getByName("otherLegacy") {
             java.directories.addAll(listOf("src/minApi21/java", "src/github/java"))
+            kotlin.directories.addAll(listOf("src/minApi21/java", "src/github/java"))
             aidl.directories.add("src/minApi23/aidl")
         }
     }
@@ -192,15 +195,27 @@ android {
         fatal += "NewApi"
     }
 
-    applicationVariants.configureEach {
-        outputs.configureEach {
-            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-            var fileName = output.outputFileName
-            fileName = fileName.replace("-release", "")
-            fileName = fileName.replace("-play", "-play")
-            fileName = fileName.replace("-otherLegacy", "-legacy-android-5")
-            fileName = fileName.replace("-other", "")
-            output.outputFileName = fileName
+}
+
+androidComponents {
+    onVariants { variant ->
+        val variantTaskSuffix = variant.name.replaceFirstChar {
+            if (it.isLowerCase()) it.titlecase() else it.toString()
+        }
+        val copyTask = tasks.register<Sync>("copy${variantTaskSuffix}TarnApks") {
+            from(variant.artifacts.get(SingleArtifact.APK)) {
+                include("*.apk")
+                rename { fileName ->
+                    fileName
+                        .replace("-release", "")
+                        .replace("-otherLegacy", "-legacy-android-5")
+                        .replace("-other", "")
+                }
+            }
+            into(layout.buildDirectory.dir("outputs/tarn-apk/${variant.name}"))
+        }
+        tasks.matching { it.name == "assemble$variantTaskSuffix" }.configureEach {
+            finalizedBy(copyTask)
         }
     }
 }

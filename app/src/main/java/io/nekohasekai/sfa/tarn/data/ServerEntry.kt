@@ -69,13 +69,12 @@ sealed interface Latency {
  * Used both for server endpoints and for DNS resolvers ([io.nekohasekai.sfa.tarn.data.TarnDns])
  * so the two sets of numbers on screen are measured the same way and stay comparable.
  */
-suspend fun tcpConnectLatencyMs(host: String, port: Int, timeoutMs: Int = 3000): Int? =
-    withContext(Dispatchers.IO) {
-        runCatching {
-            val started = System.nanoTime()
-            Socket().use { socket ->
-                socket.connect(InetSocketAddress(host, port), timeoutMs)
-            }
-            ((System.nanoTime() - started) / 1_000_000L).toInt().coerceAtLeast(1)
-        }.getOrNull()
-    }
+suspend fun tcpConnectLatencyMs(host: String, port: Int, timeoutMs: Int = 3000): Int? = withContext(Dispatchers.IO) {
+    runCatching {
+        val started = System.nanoTime()
+        Socket().use { socket ->
+            socket.connect(InetSocketAddress(host, port), timeoutMs)
+        }
+        ((System.nanoTime() - started) / 1_000_000L).toInt().coerceAtLeast(1)
+    }.getOrNull()
+}

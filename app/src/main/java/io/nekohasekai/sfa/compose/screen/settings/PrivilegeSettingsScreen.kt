@@ -102,6 +102,11 @@ fun PrivilegeSettingsScreen(navController: NavController, serviceStatus: Status 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val notifyApplyChange = rememberApplyServiceChangeNotifier(serviceStatus)
+    val errorTitle = stringResource(R.string.error_title)
+    val exportDebugFailedTemplate = stringResource(R.string.privilege_settings_export_debug_failed, "%1\$s")
+    val rootAccessRequired = stringResource(R.string.root_access_required)
+    val moduleRestartFailedTemplate = stringResource(R.string.privilege_module_restart_failed, "%1\$s")
+    fun formatPrivilegeMessage(template: String, value: Any?): String = String.format(Locale.getDefault(), template, value)
     val systemHookStatus by HookStatusClient.status.collectAsState()
     var privilegeSettingsEnabled by remember { mutableStateOf(Settings.privilegeSettingsEnabled) }
 
@@ -196,7 +201,7 @@ fun PrivilegeSettingsScreen(navController: NavController, serviceStatus: Status 
                                     PrivilegeSettingsClient.sync()
                                 }
                             if (failure != null) {
-                                messageDialogTitle = context.getString(R.string.error_title)
+                                messageDialogTitle = errorTitle
                                 messageDialogMessage = failure.message ?: failure.toString()
                                 showMessageDialog = true
                             } else {
@@ -469,11 +474,8 @@ fun PrivilegeSettingsScreen(navController: NavController, serviceStatus: Status 
                                         exportedFile = outZip
                                         showExportSuccessDialog = true
                                     } else {
-                                        messageDialogTitle = context.getString(R.string.error_title)
-                                        messageDialogMessage = context.getString(
-                                            R.string.privilege_settings_export_debug_failed,
-                                            failure,
-                                        )
+                                        messageDialogTitle = errorTitle
+                                        messageDialogMessage = formatPrivilegeMessage(exportDebugFailedTemplate, failure)
                                         showMessageDialog = true
                                     }
                                 }
@@ -527,11 +529,11 @@ fun PrivilegeSettingsScreen(navController: NavController, serviceStatus: Status 
                                     if (failure != null) {
                                         val message =
                                             if (failure == "unknown" || failure.startsWith("exit=")) {
-                                                context.getString(R.string.root_access_required)
+                                                rootAccessRequired
                                             } else {
-                                                context.getString(R.string.privilege_module_restart_failed, failure)
+                                                formatPrivilegeMessage(moduleRestartFailedTemplate, failure)
                                             }
-                                        messageDialogTitle = context.getString(R.string.error_title)
+                                        messageDialogTitle = errorTitle
                                         messageDialogMessage = message
                                         showMessageDialog = true
                                     }
@@ -606,7 +608,7 @@ fun PrivilegeSettingsScreen(navController: NavController, serviceStatus: Status 
                                             PrivilegeSettingsClient.sync()
                                         }
                                     if (failure != null) {
-                                        messageDialogTitle = context.getString(R.string.error_title)
+                                        messageDialogTitle = errorTitle
                                         messageDialogMessage = failure.message ?: failure.toString()
                                         showMessageDialog = true
                                     } else {
@@ -714,7 +716,7 @@ fun PrivilegeSettingsScreen(navController: NavController, serviceStatus: Status 
                                             PrivilegeSettingsClient.sync()
                                         }
                                     if (failure != null) {
-                                        messageDialogTitle = context.getString(R.string.error_title)
+                                        messageDialogTitle = errorTitle
                                         messageDialogMessage = failure.message ?: failure.toString()
                                         showMessageDialog = true
                                     } else {

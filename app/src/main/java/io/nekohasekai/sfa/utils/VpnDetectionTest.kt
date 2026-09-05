@@ -1,5 +1,6 @@
 package io.nekohasekai.sfa.utils
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.LinkProperties
@@ -138,17 +139,24 @@ object VpnDetectionTest {
 
     private fun readProxyFromLinkProperties(lp: LinkProperties?): android.net.ProxyInfo? {
         if (lp == null) return null
-        return try {
-            val method = lp.javaClass.getMethod("getHttpProxy")
-            method.invoke(lp) as? android.net.ProxyInfo
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            return lp.httpProxy
+        }
+        return readLegacyProxyFromLinkProperties(lp)
+    }
+
+    /** Android Q exposes LinkProperties.httpProxy; retain the old fallback only for API 23–28. */
+    @SuppressLint("SoonBlockedPrivateApi")
+    private fun readLegacyProxyFromLinkProperties(lp: LinkProperties): android.net.ProxyInfo? = try {
+        val method = lp.javaClass.getMethod("getHttpProxy")
+        method.invoke(lp) as? android.net.ProxyInfo
+    } catch (_: Throwable) {
+        try {
+            val field = lp.javaClass.getDeclaredField("mHttpProxy")
+            field.isAccessible = true
+            field.get(lp) as? android.net.ProxyInfo
         } catch (_: Throwable) {
-            try {
-                val field = lp.javaClass.getDeclaredField("mHttpProxy")
-                field.isAccessible = true
-                field.get(lp) as? android.net.ProxyInfo
-            } catch (_: Throwable) {
-                null
-            }
+            null
         }
     }
 

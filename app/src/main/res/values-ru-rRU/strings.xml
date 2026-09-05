@@ -66,6 +66,7 @@
     <string name="status_starting">Запуск</string>
     <string name="status_stopping">Остановка</string>
     <string name="status_started">Запущена</string>
+    <string name="tarn_ru_direct_database_updated">База российских сервисов обновлена: %1$d доменов</string>
 
     <!-- Dashboard -->
     <string name="dashboard_items">Элементы главной страницы</string>

@@ -375,13 +375,11 @@ class NewProfileViewModel(application: Application) : AndroidViewModel(applicati
         return profile
     }
 
-    private fun isSupportedLocalImportUri(uri: Uri): Boolean =
-        uri.scheme.equals("content", ignoreCase = true) ||
-            uri.scheme.equals("file", ignoreCase = true) ||
-            isHttpsUri(uri)
+    private fun isSupportedLocalImportUri(uri: Uri): Boolean = uri.scheme.equals("content", ignoreCase = true) ||
+        uri.scheme.equals("file", ignoreCase = true) ||
+        isHttpsUri(uri)
 
     private fun isHttpsUrl(url: String): Boolean = isHttpsUri(Uri.parse(url.trim()))
 
-    private fun isHttpsUri(uri: Uri): Boolean =
-        uri.scheme.equals("https", ignoreCase = true) && !uri.host.isNullOrBlank()
+    private fun isHttpsUri(uri: Uri): Boolean = uri.scheme.equals("https", ignoreCase = true) && !uri.host.isNullOrBlank()
 }

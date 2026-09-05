@@ -1,5 +1,6 @@
 package io.nekohasekai.sfa.database
 
+import android.util.Log
 import androidx.room.Room
 import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.constant.Path
@@ -9,6 +10,7 @@ import kotlinx.coroutines.launch
 
 @Suppress("RedundantSuspendModifier")
 object ProfileManager {
+    private const val TAG = "ProfileManager"
     private val callbacks = mutableListOf<() -> Unit>()
 
     fun registerCallback(callback: () -> Unit) {
@@ -37,6 +39,12 @@ object ProfileManager {
 
     suspend fun nextOrder(): Long = instance.profileDao().nextOrder() ?: 0
 
+    /** Publish a reconciled subscription as one database change, never a partial row set. */
+    suspend fun reconcile(add: List<Profile>, update: List<Profile>, remove: List<Profile>) {
+        reconcileProfiles(instance, add, update, remove)
+        notifyCallbacks()
+    }
+
     suspend fun nextFileID(): Long = instance.profileDao().nextFileID() ?: 1
 
     suspend fun get(id: Long): Profile? = instance.profileDao().get(id)
@@ -46,9 +54,7 @@ object ProfileManager {
         if (andSelect) {
             Settings.selectedProfile = profile.id
         }
-        for (callback in callbacks.toList()) {
-            callback()
-        }
+        notifyCallbacks()
         return profile
     }
 
@@ -62,9 +68,7 @@ object ProfileManager {
         if (profiles.isEmpty()) return profiles
         val ids = instance.profileDao().insert(profiles)
         profiles.forEachIndexed { index, profile -> profile.id = ids[index] }
-        for (callback in callbacks.toList()) {
-            callback()
-        }
+        notifyCallbacks()
         return profiles
     }
 
@@ -72,9 +76,7 @@ object ProfileManager {
         try {
             return instance.profileDao().update(profile)
         } finally {
-            for (callback in callbacks.toList()) {
-                callback()
-            }
+            notifyCallbacks()
         }
     }
 
@@ -82,9 +84,7 @@ object ProfileManager {
         try {
             return instance.profileDao().update(profiles)
         } finally {
-            for (callback in callbacks.toList()) {
-                callback()
-            }
+            notifyCallbacks()
         }
     }
 
@@ -92,9 +92,7 @@ object ProfileManager {
         try {
             return instance.profileDao().delete(profile)
         } finally {
-            for (callback in callbacks.toList()) {
-                callback()
-            }
+            notifyCallbacks()
         }
     }
 
@@ -102,13 +100,20 @@ object ProfileManager {
         try {
             return instance.profileDao().delete(profiles)
         } finally {
-            for (callback in callbacks.toList()) {
-                callback()
-            }
+            notifyCallbacks()
         }
     }
 
     suspend fun list(): List<Profile> = instance.profileDao().list()
 
     fun remoteServerDao(): RemoteServer.Dao = instance.remoteServerDao()
+
+    /** Observers refresh UI state only; one bad observer must not roll back a committed DB edit. */
+    private fun notifyCallbacks() {
+        callbacks.toList().forEach { callback ->
+            runCatching(callback).onFailure { error ->
+                Log.e(TAG, "Profile change callback failed", error)
+            }
+        }
+    }
 }

@@ -125,8 +125,7 @@ class TarnFullTestSession {
         return TarnFullTestResult.Failed(lastError, attempts)
     }
 
-    private fun String.toDisplayError(): String =
-        lineSequence().firstOrNull()?.trim().orEmpty().ifBlank { "URL-test failed" }.take(240)
+    private fun String.toDisplayError(): String = lineSequence().firstOrNull()?.trim().orEmpty().ifBlank { "URL-test failed" }.take(240)
 
     private companion object {
         const val MAX_CONCURRENCY = 3

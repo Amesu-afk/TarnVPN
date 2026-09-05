@@ -31,8 +31,8 @@ import io.nekohasekai.sfa.tarn.theme.TarnMetaStyle
 
 /**
  * Paste-a-link dialog used to add servers from the servers screen. Deliberately narrow: it
- * only takes vless:// links and subscription URLs — anything richer (QR, file import, raw
- * JSON) stays behind "Advanced" since it needs UI this shell doesn't have room for.
+ * accepts share links handled by [io.nekohasekai.sfa.utils.ProxyUriParser] and HTTPS
+ * subscriptions, while QR, file import and raw JSON stay behind "Advanced".
  */
 @Composable
 fun TarnImportDialog(
@@ -42,6 +42,7 @@ fun TarnImportDialog(
     onDismiss: () -> Unit,
     importing: Boolean,
     errorMessage: String?,
+    noticeMessage: String?,
 ) {
     Dialog(onDismissRequest = { if (!importing) onDismiss() }) {
         Column(
@@ -97,6 +98,14 @@ fun TarnImportDialog(
                     text = errorMessage,
                     style = TarnMetaStyle,
                     color = TarnColors.Danger,
+                )
+            }
+            if (noticeMessage != null) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = noticeMessage,
+                    style = TarnMetaStyle,
+                    color = TarnColors.Accent,
                 )
             }
 

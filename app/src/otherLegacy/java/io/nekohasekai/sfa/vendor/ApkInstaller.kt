@@ -30,6 +30,7 @@ object ApkInstaller {
     }
 
     suspend fun install(context: Context, apkFile: File, method: InstallMethod = getConfiguredMethod()) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { ApkValidation.validate(context, apkFile) }
         when (method) {
             InstallMethod.ROOT -> RootInstaller.install(apkFile)
             InstallMethod.PACKAGE_INSTALLER -> SystemPackageInstaller.install(context, apkFile)

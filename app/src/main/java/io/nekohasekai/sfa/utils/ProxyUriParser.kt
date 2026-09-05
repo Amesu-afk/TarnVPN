@@ -4,6 +4,7 @@ import android.net.Uri
 import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
+import java.math.BigDecimal
 
 /**
  * Turns a share link into one sing-box outbound.
@@ -23,7 +24,7 @@ object ProxyUriParser {
     private val SCHEMES = setOf("vless", "trojan", "ss", "vmess", "hysteria2", "hy2", "tuic", "anytls")
 
     fun isSupportedUri(input: String): Boolean {
-        val scheme = input.trim().substringBefore("://", "").lowercase()
+        val scheme = normalizedInput(input).substringBefore("://", "").lowercase()
         return scheme in SCHEMES
     }
 
@@ -31,7 +32,7 @@ object ProxyUriParser {
     fun schemePrefixes(): List<String> = SCHEMES.map { "$it://" }
 
     fun parse(rawUri: String, fragmentEnabled: Boolean): ParsedOutbound {
-        val trimmed = rawUri.trim()
+        val trimmed = normalizedInput(rawUri)
         return when (trimmed.substringBefore("://", "").lowercase()) {
             "vless" -> parseVless(trimmed, fragmentEnabled)
             "trojan" -> parseTrojan(trimmed, fragmentEnabled)
@@ -70,21 +71,30 @@ object ProxyUriParser {
         val tag = displayTag(uri, host, port)
         val q = parseQuery(uri.query.orEmpty())
 
-        val transportType = q["type"] ?: "tcp"
+        val transportType = queryValue(q, "type", "transport", "net") ?: "tcp"
         // xtls-rprx-vision flow is only valid over raw TCP+Reality. With a stream transport
         // (xhttp/ws/grpc) it must be empty, otherwise the tunnel connects but silently passes
         // no data.
-        val hasTransport = transportType != "tcp" && transportType != "raw" && transportType.isNotEmpty()
+        val hasTransport = transportType.lowercase() !in setOf("", "tcp", "raw", "none")
 
         val outbound = JSONObject().apply {
             put("type", "vless")
             put("tag", tag)
             put("server", host)
             put("server_port", port)
-            put("uuid", userInfo)
-            put("flow", if (hasTransport) "" else q["flow"].orEmpty())
+            put("uuid", Uri.decode(userInfo))
+            put("flow", if (hasTransport) "" else queryValue(q, "flow").orEmpty())
+            // `none` is the core default, but a real post-quantum VLESS spec must survive
+            // import exactly: dropping it makes the profile look valid and then fail only
+            // after the transport has connected.
+            queryValue(q, "encryption")
+                ?.takeIf { it.isNotBlank() && !it.equals("none", ignoreCase = true) }
+                ?.let { put("encryption", it) }
+            queryValue(q, "packet_encoding", "packetEncoding")
+                ?.takeIf { it.isNotBlank() }
+                ?.let { put("packet_encoding", it) }
         }
-        streamTls(q, host, q["security"] ?: "none", fragmentEnabled)?.let { outbound.put("tls", it) }
+        streamTls(q, host, queryValue(q, "security") ?: "none", fragmentEnabled)?.let { outbound.put("tls", it) }
         streamTransport(q, transportType)?.let { outbound.put("transport", it) }
         return ParsedOutbound(tag, outbound, rawUri)
     }
@@ -108,8 +118,8 @@ object ProxyUriParser {
             put("password", password)
         }
         // Trojan is TLS-only by definition; `security=none` is the odd case, not the default.
-        streamTls(q, host, q["security"] ?: "tls", fragmentEnabled)?.let { outbound.put("tls", it) }
-        streamTransport(q, q["type"] ?: "tcp")?.let { outbound.put("transport", it) }
+        streamTls(q, host, queryValue(q, "security") ?: "tls", fragmentEnabled)?.let { outbound.put("tls", it) }
+        streamTransport(q, queryValue(q, "type", "transport", "net") ?: "tcp")?.let { outbound.put("transport", it) }
         return ParsedOutbound(tag, outbound, rawUri)
     }
 
@@ -121,7 +131,7 @@ object ProxyUriParser {
      */
     private fun parseShadowsocks(rawUri: String): ParsedOutbound {
         val fragment = rawUri.substringAfter('#', "").let(Uri::decode).orEmpty()
-        val body = rawUri.removePrefix("ss://").substringBefore('#')
+        val body = payloadAfterScheme(rawUri).substringBefore('#')
 
         val query = body.substringAfter('?', "")
         val withoutQuery = body.substringBefore('?')
@@ -137,9 +147,9 @@ object ProxyUriParser {
             method = credentials.substringBefore(':')
             password = credentials.substringAfter(':', "")
             val endpoint = withoutQuery.substringAfterLast('@')
-            host = endpoint.substringBeforeLast(':')
-            port = endpoint.substringAfterLast(':').toIntOrNull()
-                ?: throw IllegalArgumentException("Missing port in ss URL")
+            val (parsedHost, parsedPort) = parseHostPort(endpoint)
+            host = parsedHost
+            port = parsedPort
         } else {
             val decoded = decodeBase64(withoutQuery)
                 ?: throw IllegalArgumentException("Malformed ss URL")
@@ -147,9 +157,9 @@ object ProxyUriParser {
             val rest = decoded.substringAfter(':', "")
             password = rest.substringBeforeLast('@')
             val endpoint = rest.substringAfterLast('@')
-            host = endpoint.substringBeforeLast(':')
-            port = endpoint.substringAfterLast(':').toIntOrNull()
-                ?: throw IllegalArgumentException("Missing port in ss URL")
+            val (parsedHost, parsedPort) = parseHostPort(endpoint)
+            host = parsedHost
+            port = parsedPort
         }
         require(method.isNotBlank()) { "Missing cipher in ss URL" }
         require(host.isNotBlank()) { "Missing host in ss URL" }
@@ -164,7 +174,7 @@ object ProxyUriParser {
             put("password", password)
         }
         // SIP003 plugins pass straight through; the core owns whether it supports one.
-        parseQuery(query)["plugin"]?.takeIf { it.isNotBlank() }?.let { plugin ->
+        queryValue(parseQuery(query), "plugin")?.takeIf { it.isNotBlank() }?.let { plugin ->
             outbound.put("plugin", plugin.substringBefore(';'))
             plugin.substringAfter(';', "").takeIf { it.isNotBlank() }
                 ?.let { outbound.put("plugin_opts", it) }
@@ -176,7 +186,7 @@ object ProxyUriParser {
 
     /** The widely used v2rayN form: `vmess://` followed by base64 of a JSON object. */
     private fun parseVMess(rawUri: String, fragmentEnabled: Boolean): ParsedOutbound {
-        val decoded = decodeBase64(rawUri.removePrefix("vmess://").substringBefore('#'))
+        val decoded = decodeBase64(payloadAfterScheme(rawUri).substringBefore('#'))
             ?: throw IllegalArgumentException("Malformed vmess URL")
         val json = runCatching { JSONObject(decoded) }.getOrNull()
             ?: throw IllegalArgumentException("vmess payload is not JSON")
@@ -228,14 +238,17 @@ object ProxyUriParser {
             put("server", host)
             put("server_port", port)
             if (password.isNotEmpty()) put("password", password)
-            q["obfs"]?.takeIf { it.isNotBlank() }?.let { obfs ->
+            queryValue(q, "obfs")?.takeIf { it.isNotBlank() }?.let { obfs ->
                 put(
                     "obfs",
                     JSONObject().put("type", obfs).apply {
-                        (q["obfs-password"] ?: q["obfs_password"])?.let { put("password", it) }
+                        queryValue(q, "obfs-password", "obfs_password", "obfsPassword")
+                            ?.let { put("password", it) }
                     },
                 )
             }
+            queryInt(q, "up_mbps", "upMbps", "upmbps", "up")?.let { put("up_mbps", it) }
+            queryInt(q, "down_mbps", "downMbps", "downmbps", "down")?.let { put("down_mbps", it) }
             // QUIC-based: TLS is not optional, so it is built unconditionally.
             put("tls", quicTls(q, host))
         }
@@ -260,8 +273,14 @@ object ProxyUriParser {
             put("uuid", Uri.decode(userInfo.substringBefore(':')))
             userInfo.substringAfter(':', "").takeIf { it.isNotBlank() }
                 ?.let { put("password", Uri.decode(it)) }
-            (q["congestion_control"] ?: q["congestion-control"])?.let { put("congestion_control", it) }
-            (q["udp_relay_mode"] ?: q["udp-relay-mode"])?.let { put("udp_relay_mode", it) }
+            queryValue(q, "congestion_control", "congestion-control", "congestionControl")
+                ?.let { put("congestion_control", it) }
+            queryValue(q, "udp_relay_mode", "udp-relay-mode", "udpRelayMode")
+                ?.let { put("udp_relay_mode", it) }
+            queryBoolean(q, "udp_over_stream", "udpOverStream")?.let { put("udp_over_stream", it) }
+            queryBoolean(q, "zero_rtt_handshake", "zeroRttHandshake", "zero_rtt")
+                ?.let { put("zero_rtt_handshake", it) }
+            queryValue(q, "heartbeat")?.takeIf { it.isNotBlank() }?.let { put("heartbeat", it) }
             put("tls", quicTls(q, host))
         }
         return ParsedOutbound(tag, outbound, rawUri)
@@ -282,6 +301,16 @@ object ProxyUriParser {
             put("server", host)
             put("server_port", port)
             uri.userInfo?.let(Uri::decode)?.takeIf { it.isNotBlank() }?.let { put("password", it) }
+            queryValue(q, "idle_session_check_interval", "idleSessionCheckInterval")
+                ?.takeIf { it.isNotBlank() }
+                ?.let { put("idle_session_check_interval", it) }
+            queryValue(q, "idle_session_timeout", "idleSessionTimeout")
+                ?.takeIf { it.isNotBlank() }
+                ?.let { put("idle_session_timeout", it) }
+            queryInt(q, "min_idle_session", "minIdleSession")?.let { put("min_idle_session", it) }
+            queryValue(q, "client_metadata", "clientMetadata")
+                ?.takeIf { it.isNotBlank() }
+                ?.let { put("client_metadata", it) }
             put("tls", quicTls(q, host))
         }
         return ParsedOutbound(tag, outbound, rawUri)
@@ -292,11 +321,11 @@ object ProxyUriParser {
     /** TLS for protocols that are always encrypted and never carry REALITY or a transport. */
     private fun quicTls(q: Map<String, String>, host: String): JSONObject = JSONObject().apply {
         put("enabled", true)
-        put("server_name", q["sni"] ?: q["peer"] ?: host)
-        if (isTruthy(q["insecure"]) || isTruthy(q["allowInsecure"]) || isTruthy(q["allow_insecure"])) {
+        put("server_name", queryValue(q, "sni", "peer") ?: host)
+        if (isTruthy(queryValue(q, "insecure", "allowInsecure", "allow_insecure"))) {
             put("insecure", true)
         }
-        alpnArray(q["alpn"])?.let { put("alpn", it) }
+        alpnArray(queryValue(q, "alpn"))?.let { put("alpn", it) }
     }
 
     private fun streamTls(
@@ -309,22 +338,22 @@ object ProxyUriParser {
         if (normalized != "tls" && normalized != "reality" && normalized != "xtls") return null
         val tls = JSONObject().apply {
             put("enabled", true)
-            put("server_name", q["sni"] ?: q["host"] ?: host)
-            if (isTruthy(q["allowInsecure"]) || isTruthy(q["insecure"])) put("insecure", true)
-            alpnArray(q["alpn"])?.let { put("alpn", it) }
+            put("server_name", queryValue(q, "sni", "host") ?: host)
+            if (isTruthy(queryValue(q, "allowInsecure", "allow_insecure", "insecure"))) put("insecure", true)
+            alpnArray(queryValue(q, "alpn"))?.let { put("alpn", it) }
             put(
                 "utls",
-                JSONObject().put("enabled", true).put("fingerprint", q["fp"] ?: "chrome"),
+                JSONObject().put("enabled", true).put("fingerprint", queryValue(q, "fp") ?: "chrome"),
             )
         }
         if (normalized == "reality") {
-            val publicKey = q["pbk"] ?: throw IllegalArgumentException("reality requires 'pbk'")
+            val publicKey = queryValue(q, "pbk") ?: throw IllegalArgumentException("reality requires 'pbk'")
             tls.put(
                 "reality",
                 JSONObject().apply {
                     put("enabled", true)
                     put("public_key", publicKey)
-                    put("short_id", q["sid"].orEmpty())
+                    put("short_id", queryValue(q, "sid").orEmpty())
                 },
             )
         }
@@ -332,35 +361,56 @@ object ProxyUriParser {
         return tls
     }
 
-    private fun streamTransport(q: Map<String, String>, transportType: String): JSONObject? =
-        when (transportType.lowercase()) {
-            "", "tcp", "raw", "none" -> null
-            "xhttp", "splithttp" -> JSONObject().apply {
-                put("type", "xhttp")
-                q["host"]?.let { put("host", it) }
-                q["path"]?.let { put("path", it) }
-                // Pass the server's mode through verbatim: an XHTTP inbound accepts only the
-                // mode it is configured for and answers "<mode> is not allowed" for anything
-                // else, so substituting a "safer" mode breaks the connection outright.
-                put("mode", q["mode"] ?: "auto")
-                applyXhttpExtras(this, q)
-            }
-            "ws", "websocket" -> JSONObject().apply {
-                put("type", "ws")
-                q["path"]?.let { put("path", it) }
-                q["host"]?.let { put("headers", JSONObject().put("Host", it)) }
-            }
-            "grpc" -> JSONObject().apply {
-                put("type", "grpc")
-                (q["serviceName"] ?: q["servicename"])?.let { put("service_name", it) }
-            }
-            "httpupgrade" -> JSONObject().apply {
-                put("type", "httpupgrade")
-                q["path"]?.let { put("path", it) }
-                q["host"]?.let { put("host", it) }
-            }
-            else -> JSONObject().put("type", transportType)
+    private fun streamTransport(q: Map<String, String>, transportType: String): JSONObject? = when (transportType.lowercase()) {
+        "", "tcp", "raw", "none" -> null
+        "xhttp", "splithttp" -> JSONObject().apply {
+            val fields = xhttpFields(q)
+            put("type", "xhttp")
+            textValue(fields[foldKey("host")])?.takeIf { it.isNotBlank() }?.let { put("host", it) }
+            textValue(fields[foldKey("path")])?.substringBefore('?')?.takeIf { it.isNotBlank() }
+                ?.let { put("path", it) }
+            // Pass the server's mode through verbatim: an XHTTP inbound accepts only the
+            // mode it is configured for and answers "<mode> is not allowed" for anything
+            // else, so substituting a "safer" mode breaks the connection outright.
+            put("mode", textValue(fields[foldKey("mode")])?.takeIf { it.isNotBlank() } ?: "auto")
+            applyXhttpExtras(this, fields)
         }
+        "ws", "websocket" -> JSONObject().apply {
+            put("type", "ws")
+            queryValue(q, "path")?.let { put("path", it) }
+            headersFromQuery(q)?.let { put("headers", it) }
+            queryValue(q, "host")?.let { host ->
+                val headers = optJSONObject("headers") ?: JSONObject().also { put("headers", it) }
+                headers.put("Host", host)
+            }
+        }
+        "http", "h2", "http2" -> JSONObject().apply {
+            put("type", "http")
+            queryValue(q, "host")?.let { host ->
+                val values = host.split(',').map(String::trim).filter(String::isNotEmpty)
+                if (values.size == 1) {
+                    put("host", values.single())
+                } else if (values.isNotEmpty()) {
+                    put("host", JSONArray().apply { values.forEach(::put) })
+                }
+            }
+            queryValue(q, "path")?.let { put("path", it) }
+            queryValue(q, "method")?.let { put("method", it) }
+            headersFromQuery(q)?.let { put("headers", it) }
+        }
+        "quic" -> JSONObject().put("type", "quic")
+        "grpc" -> JSONObject().apply {
+            put("type", "grpc")
+            queryValue(q, "serviceName", "servicename", "service_name")?.let { put("service_name", it) }
+        }
+        "httpupgrade" -> JSONObject().apply {
+            put("type", "httpupgrade")
+            queryValue(q, "path")?.let { put("path", it) }
+            queryValue(q, "host")?.let { put("host", it) }
+            headersFromQuery(q)?.let { put("headers", it) }
+        }
+        else -> throw IllegalArgumentException("Unsupported transport '$transportType'")
+    }
 
     /**
      * Client-relevant XHTTP knobs the core accepts (`option/v2ray_xhttp.go`). Only `host`,
@@ -379,35 +429,122 @@ object ProxyUriParser {
 
     private val XHTTP_BOOL_KEYS = listOf("x_padding_obfs_mode", "no_grpc_header")
 
+    private val XHTTP_RANGE_KEYS = setOf(
+        "uplink_chunk_size",
+        "x_padding_bytes",
+        "sc_max_each_post_bytes",
+        "sc_min_posts_interval_ms",
+    )
+
     /**
      * Links spell these either the core's way (`sc_min_posts_interval_ms`) or Xray's
      * (`scMinPostsIntervalMs`), and Xray additionally packs them into an `extra` JSON blob.
      * Folding every key to letters-only makes all three spellings compare equal, which beats
      * maintaining an alias table that would drift from the core's option list.
      */
-    private fun applyXhttpExtras(transport: JSONObject, q: Map<String, String>) {
-        val flat = mutableMapOf<String, String>()
-        q["extra"]?.let { raw ->
+    private fun xhttpFields(q: Map<String, String>): Map<String, Any?> {
+        val flat = mutableMapOf<String, Any?>()
+        queryValue(q, "extra")?.let { raw ->
             runCatching { JSONObject(raw) }.getOrNull()?.let { extra ->
-                extra.keys().forEach { key -> flat[foldKey(key)] = extra.optString(key) }
+                extra.keys().forEach { key -> flat[foldKey(key)] = extra.opt(key) }
             }
         }
         // An explicit query parameter beats the same key inside `extra`.
         q.forEach { (key, value) -> flat[foldKey(key)] = value }
-
-        XHTTP_STRING_KEYS.forEach { key ->
-            flat[foldKey(key)]?.takeIf { it.isNotBlank() }?.let { transport.put(key, it) }
-        }
-        XHTTP_BOOL_KEYS.forEach { key ->
-            flat[foldKey(key)]?.takeIf { isTruthy(it) }?.let { transport.put(key, true) }
-        }
+        return flat
     }
 
-    private fun foldKey(key: String): String =
-        key.lowercase().filter { it.isLetterOrDigit() }
+    private fun applyXhttpExtras(transport: JSONObject, fields: Map<String, Any?>) {
+        XHTTP_STRING_KEYS.forEach { key ->
+            textValue(fields[foldKey(key)])?.takeIf { it.isNotBlank() }?.let { value ->
+                transport.put(key, if (key in XHTTP_RANGE_KEYS) normalizeRangeValue(value) else value)
+            }
+        }
+        XHTTP_BOOL_KEYS.forEach { key ->
+            booleanValue(fields[foldKey(key)])?.let { transport.put(key, it) }
+        }
+        headerObject(fields[foldKey("headers")])?.let { transport.put("headers", it) }
+    }
 
-    private fun displayTag(uri: Uri, host: String, port: Int): String =
-        uri.fragment?.takeIf { it.isNotBlank() } ?: "$host:$port"
+    private fun foldKey(key: String): String = key.lowercase().filter { it.isLetterOrDigit() }
+
+    private fun normalizedInput(raw: String): String = raw.trim().removePrefix("\uFEFF")
+
+    private fun payloadAfterScheme(rawUri: String): String {
+        val separator = rawUri.indexOf("://")
+        require(separator >= 0) { "Malformed share URL" }
+        return rawUri.substring(separator + 3)
+    }
+
+    private fun parseHostPort(rawEndpoint: String): Pair<String, Int> {
+        val endpoint = Uri.decode(rawEndpoint).trim()
+        val (host, portText) = if (endpoint.startsWith("[")) {
+            val closing = endpoint.indexOf(']')
+            require(closing > 1 && endpoint.getOrNull(closing + 1) == ':') { "Missing port in ss URL" }
+            endpoint.substring(1, closing) to endpoint.substring(closing + 2)
+        } else {
+            val separator = endpoint.lastIndexOf(':')
+            require(separator > 0) { "Missing port in ss URL" }
+            endpoint.substring(0, separator) to endpoint.substring(separator + 1)
+        }
+        require(host.isNotBlank()) { "Missing host in ss URL" }
+        val port = portText.toIntOrNull() ?: throw IllegalArgumentException("Missing port in ss URL")
+        return host to port
+    }
+
+    private fun queryValue(q: Map<String, String>, vararg keys: String): String? {
+        keys.forEach { key -> q[key]?.let { return it } }
+        val wanted = keys.map(::foldKey).toSet()
+        return q.entries.firstOrNull { (key, _) -> foldKey(key) in wanted }?.value
+    }
+
+    private fun queryInt(q: Map<String, String>, vararg keys: String): Int? = queryValue(q, *keys)?.trim()?.toIntOrNull()
+
+    private fun queryBoolean(q: Map<String, String>, vararg keys: String): Boolean? = booleanValue(queryValue(q, *keys))
+
+    private fun headersFromQuery(q: Map<String, String>): JSONObject? = headerObject(queryValue(q, "headers"))
+
+    private fun headerObject(value: Any?): JSONObject? = when (value) {
+        is JSONObject -> value.takeIf { it.length() > 0 }
+        is String -> runCatching { JSONObject(value) }.getOrNull()?.takeIf { it.length() > 0 }
+        else -> null
+    }
+
+    private fun textValue(value: Any?): String? = when (value) {
+        null, JSONObject.NULL -> null
+        is String -> value
+        is Number, is Boolean -> value.toString()
+        else -> null
+    }
+
+    private fun booleanValue(value: Any?): Boolean? = when (value) {
+        is Boolean -> value
+        is Number -> value.toInt() != 0
+        is String -> when {
+            value == "1" || value.equals("true", ignoreCase = true) -> true
+            value == "0" || value.equals("false", ignoreCase = true) -> false
+            else -> null
+        }
+        else -> null
+    }
+
+    private fun normalizeRangeValue(raw: String): String {
+        val match = RANGE_VALUE.matchEntire(raw.trim()) ?: return raw
+        val first = normalizedInteger(match.groupValues[1]) ?: return raw
+        val secondRaw = match.groupValues[2]
+        val second = secondRaw.takeIf { it.isNotBlank() }?.let(::normalizedInteger) ?: first
+        return "$first-$second"
+    }
+
+    private fun normalizedInteger(raw: String): String? = runCatching {
+        val value = BigDecimal(raw).stripTrailingZeros()
+        require(value.scale() <= 0)
+        value.toBigIntegerExact().toString()
+    }.getOrNull()
+
+    private val RANGE_VALUE = Regex("(\\d+(?:\\.0+)?)(?:\\s*-\\s*(\\d+(?:\\.0+)?))?")
+
+    private fun displayTag(uri: Uri, host: String, port: Int): String = uri.fragment?.takeIf { it.isNotBlank() } ?: "$host:$port"
 
     private fun alpnArray(raw: String?): JSONArray? {
         val values = raw?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }.orEmpty()
@@ -415,8 +552,7 @@ object ProxyUriParser {
         return JSONArray().apply { values.forEach(::put) }
     }
 
-    private fun isTruthy(value: String?): Boolean =
-        value != null && (value == "1" || value.equals("true", ignoreCase = true))
+    private fun isTruthy(value: String?): Boolean = booleanValue(value) == true
 
     private fun decodeBase64(raw: String): String? {
         if (raw.isBlank()) return null

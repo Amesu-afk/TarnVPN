@@ -123,6 +123,16 @@ fun PrivilegeSettingsManageScreen(
     var searchQuery by remember { mutableStateOf("") }
     var riskyWarningMessage by remember { mutableStateOf<String?>(null) }
     var syncErrorMessage by remember { mutableStateOf<String?>(null) }
+    val riskyVpnMessageSingleTemplate =
+        stringResource(R.string.privilege_settings_risky_vpn_message_single, "%1\$s")
+    val riskyVpnMessageMultiTemplate =
+        stringResource(R.string.privilege_settings_risky_vpn_message_multi, "%1\$s")
+    val riskyManagementMessageSingleTemplate =
+        stringResource(R.string.privilege_settings_risky_management_message_single, "%1\$s")
+    val riskyManagementMessageMultiTemplate =
+        stringResource(R.string.privilege_settings_risky_management_message_multi, "%1\$s")
+
+    fun formatRiskMessage(template: String, labels: String): String = String.format(Locale.getDefault(), template, labels)
 
     fun getRiskCategory(packageCache: PackageCache): RiskCategory {
         val permissions = packageCache.info.requestedPermissions ?: emptyArray()
@@ -214,15 +224,9 @@ fun PrivilegeSettingsManageScreen(
             val labels = labelList.joinToString(listSeparator)
             messages +=
                 if (labelList.size == 1) {
-                    context.getString(
-                        R.string.privilege_settings_risky_vpn_message_single,
-                        labels,
-                    )
+                    formatRiskMessage(riskyVpnMessageSingleTemplate, labels)
                 } else {
-                    context.getString(
-                        R.string.privilege_settings_risky_vpn_message_multi,
-                        labels,
-                    )
+                    formatRiskMessage(riskyVpnMessageMultiTemplate, labels)
                 }
         }
         if (managementApps.isNotEmpty()) {
@@ -230,15 +234,9 @@ fun PrivilegeSettingsManageScreen(
             val labels = labelList.joinToString(listSeparator)
             messages +=
                 if (labelList.size == 1) {
-                    context.getString(
-                        R.string.privilege_settings_risky_management_message_single,
-                        labels,
-                    )
+                    formatRiskMessage(riskyManagementMessageSingleTemplate, labels)
                 } else {
-                    context.getString(
-                        R.string.privilege_settings_risky_management_message_multi,
-                        labels,
-                    )
+                    formatRiskMessage(riskyManagementMessageMultiTemplate, labels)
                 }
         }
         riskyWarningMessage = messages.joinToString("\n")

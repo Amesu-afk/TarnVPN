@@ -90,6 +90,7 @@ fun ProfileOverrideScreen(
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val rootAccessRequired = stringResource(R.string.root_access_required)
 
     var autoRedirect by remember { mutableStateOf(Settings.autoRedirect) }
     var perAppProxyEnabled by remember { mutableStateOf(Settings.perAppProxyEnabled) }
@@ -243,7 +244,7 @@ fun ProfileOverrideScreen(
                                     } else {
                                         Toast.makeText(
                                             context,
-                                            context.getString(R.string.root_access_required),
+                                            rootAccessRequired,
                                             Toast.LENGTH_LONG,
                                         ).show()
                                     }

@@ -1,5 +1,6 @@
 package io.nekohasekai.sfa.utils
 
+import android.net.Uri
 import android.util.Base64
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
@@ -23,8 +24,7 @@ import org.robolectric.annotation.Config
 @Config(sdk = [34])
 class ProxyUriParserTest {
 
-    private fun parse(uri: String, fragment: Boolean = false): JSONObject =
-        ProxyUriParser.parse(uri, fragment).json
+    private fun parse(uri: String, fragment: Boolean = false): JSONObject = ProxyUriParser.parse(uri, fragment).json
 
     // ---- scheme recognition -----------------------------------------------------------
 
@@ -62,6 +62,15 @@ class ProxyUriParserTest {
             assertTrue(uri, ProxyUriParser.isSupportedUri(uri))
             assertEquals(uri, expectedType, parse(uri).optString("type"))
         }
+    }
+
+    @Test
+    fun `accepts uppercase schemes all the way through parsing`() {
+        val ss = parse("SS://${b64("aes-256-gcm:secret")}@example.com:8388")
+        assertEquals("shadowsocks", ss.optString("type"))
+
+        val vmess = parse("VMESS://${b64("""{"add":"example.com","port":"443","id":"uuid"}""")}")
+        assertEquals("vmess", vmess.optString("type"))
     }
 
     // ---- vless ------------------------------------------------------------------------
@@ -137,6 +146,56 @@ class ProxyUriParserTest {
         assertTrue(tls.optBoolean("insecure"))
     }
 
+    @Test
+    fun `preserves vless encryption and packet encoding`() {
+        val encryption = "mlkem768x25519plus.native.0rtt.PUBLIC_KEY"
+        val out = parse(
+            "vless://uuid@example.com:443?TYPE=TCP&ENCRYPTION=$encryption&packetEncoding=xudp&flow=xtls-rprx-vision",
+        )
+        assertEquals(encryption, out.optString("encryption"))
+        assertEquals("xudp", out.optString("packet_encoding"))
+        assertEquals("xtls-rprx-vision", out.optString("flow"))
+    }
+
+    @Test
+    fun `maps h2 and http link transports instead of emitting invalid types`() {
+        val h2 = parse(
+            "vless://uuid@example.com:443?type=h2&host=one.example.com,two.example.com&path=/h2&method=GET",
+        ).getJSONObject("transport")
+        assertEquals("http", h2.optString("type"))
+        assertEquals("/h2", h2.optString("path"))
+        assertEquals("GET", h2.optString("method"))
+        assertEquals(2, h2.getJSONArray("host").length())
+
+        val vmessPayload = """{"add":"example.com","port":"443","id":"uuid","net":"h2","host":"cdn.example.com","path":"/vmess"}"""
+        val vmess = parse("vmess://${b64(vmessPayload)}").getJSONObject("transport")
+        assertEquals("http", vmess.optString("type"))
+        assertEquals("cdn.example.com", vmess.optString("host"))
+        assertEquals("/vmess", vmess.optString("path"))
+    }
+
+    @Test
+    fun `normalises xhttp extra ranges and strips path query`() {
+        val extra = Uri.encode(
+            """{"scMaxEachPostBytes":1000000,"scMinPostsIntervalMs":30.0,"xPaddingBytes":"100-1000","noGRPCHeader":false,"headers":{"X-Test":"value"}}""",
+        )
+        val transport = parse(
+            "vless://uuid@example.com:443?type=xhttp&path=%2Fedge%3Fed%3D2048&extra=$extra",
+        ).getJSONObject("transport")
+        assertEquals("/edge", transport.optString("path"))
+        assertEquals("1000000-1000000", transport.optString("sc_max_each_post_bytes"))
+        assertEquals("30-30", transport.optString("sc_min_posts_interval_ms"))
+        assertEquals("100-1000", transport.optString("x_padding_bytes"))
+        assertTrue(transport.has("no_grpc_header"))
+        assertFalse(transport.optBoolean("no_grpc_header"))
+        assertEquals("value", transport.getJSONObject("headers").optString("X-Test"))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `rejects unknown transports before a broken profile is written`() {
+        parse("vless://uuid@example.com:443?type=not-a-transport")
+    }
+
     // ---- trojan -----------------------------------------------------------------------
 
     @Test
@@ -158,6 +217,13 @@ class ProxyUriParserTest {
         assertEquals("example.com", out.optString("server"))
         assertEquals(8388, out.optInt("server_port"))
         assertEquals("SS", out.optString("tag"))
+    }
+
+    @Test
+    fun `parses an IPv6 shadowsocks endpoint`() {
+        val out = parse("ss://${b64("aes-256-gcm:secret")}@[2001:db8::1]:8388#IPv6")
+        assertEquals("2001:db8::1", out.optString("server"))
+        assertEquals(8388, out.optInt("server_port"))
     }
 
     @Test
@@ -216,6 +282,26 @@ class ProxyUriParserTest {
     }
 
     @Test
+    fun `preserves available QUIC outbound tuning`() {
+        val hy2 = parse("hy2://secret@example.com:443?upMbps=25&down_mbps=120")
+        assertEquals(25, hy2.optInt("up_mbps"))
+        assertEquals(120, hy2.optInt("down_mbps"))
+
+        val tuic = parse("tuic://uuid:pass@example.com:443?zeroRttHandshake=true&udpOverStream=1&heartbeat=10s")
+        assertTrue(tuic.optBoolean("zero_rtt_handshake"))
+        assertTrue(tuic.optBoolean("udp_over_stream"))
+        assertEquals("10s", tuic.optString("heartbeat"))
+
+        val anytls = parse(
+            "anytls://secret@example.com:443?idleSessionCheckInterval=30s&idle_session_timeout=60s&minIdleSession=2&clientMetadata=phone",
+        )
+        assertEquals("30s", anytls.optString("idle_session_check_interval"))
+        assertEquals("60s", anytls.optString("idle_session_timeout"))
+        assertEquals(2, anytls.optInt("min_idle_session"))
+        assertEquals("phone", anytls.optString("client_metadata"))
+    }
+
+    @Test
     fun `tuic splits uuid and password out of the userinfo`() {
         val out = parse("tuic://uuid-7:pa%3Ass@example.com:443?congestion_control=bbr&udp_relay_mode=quic")
         assertEquals("uuid-7", out.optString("uuid"))
@@ -246,6 +332,5 @@ class ProxyUriParserTest {
         parse("vless://example.com:443")
     }
 
-    private fun b64(value: String): String =
-        Base64.encodeToString(value.toByteArray(), Base64.NO_WRAP)
+    private fun b64(value: String): String = Base64.encodeToString(value.toByteArray(), Base64.NO_WRAP)
 }

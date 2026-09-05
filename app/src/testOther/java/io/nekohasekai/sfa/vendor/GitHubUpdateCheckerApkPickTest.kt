@@ -11,6 +11,10 @@ import org.junit.Test
  * handed the arm64 split to every device.
  */
 class GitHubUpdateCheckerApkPickTest {
+    @Test
+    fun `incompatible split without universal is not offered`() {
+        assertNull(GitHubUpdateChecker.pickApkAsset(listOf(asset("TarnVPN-1.15.0-x86.apk")), listOf("arm64-v8a"), false))
+    }
     private val version = "1.15.0"
 
     private fun asset(name: String) = GitHubAsset(name = name, browserDownloadUrl = "https://x/$name", size = 1)

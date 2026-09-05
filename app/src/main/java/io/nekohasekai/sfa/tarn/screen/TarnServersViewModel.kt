@@ -6,10 +6,10 @@ import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.tarn.data.Latency
 import io.nekohasekai.sfa.tarn.data.ServerEntry
-import io.nekohasekai.sfa.tarn.data.regionalFlag
 import io.nekohasekai.sfa.tarn.data.TarnFullTestResult
 import io.nekohasekai.sfa.tarn.data.TarnFullTestSession
 import io.nekohasekai.sfa.tarn.data.TarnServerRepository
+import io.nekohasekai.sfa.tarn.data.regionalFlag
 import io.nekohasekai.sfa.utils.HTTPClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +24,9 @@ import kotlinx.coroutines.withContext
 /** One country chip: its code, flag, and how many loaded servers carry it. */
 data class TarnCountryOption(val code: String, val flag: String, val count: Int)
 
+/** Successful-but-partial subscription imports stay visible instead of looking like a clean run. */
+data class TarnImportNotice(val serverCount: Int, val rejectedCount: Int)
+
 data class TarnServersUiState(
     val servers: List<ServerEntry> = emptyList(),
     val latencies: Map<Long, Latency> = emptyMap(),
@@ -35,6 +38,7 @@ data class TarnServersUiState(
     val loading: Boolean = false,
     val importing: Boolean = false,
     val importError: String? = null,
+    val importNotice: TarnImportNotice? = null,
     val fullTests: Map<Long, TarnFullTestResult> = emptyMap(),
     val fullTestRunning: Boolean = false,
     val fullTestNotice: String? = null,
@@ -92,8 +96,7 @@ data class TarnServersUiState(
     val suggestedTcpFailover: ServerEntry?
         get() = suggestedTcpFailoverProfileId?.let { id -> servers.firstOrNull { it.profileId == id } }
 
-    private fun latencyOf(server: ServerEntry): Int? =
-        (latencies[server.profileId] as? Latency.Ok)?.millis
+    private fun latencyOf(server: ServerEntry): Int? = (latencies[server.profileId] as? Latency.Ok)?.millis
 }
 
 class TarnServersViewModel : ViewModel() {
@@ -183,23 +186,27 @@ class TarnServersViewModel : ViewModel() {
      * [ProfileManager] callback picks the new rows up and probes them the moment they land.
      */
     fun importServers(input: String) {
-        _uiState.update { it.copy(importing = true, importError = null) }
+        _uiState.update { it.copy(importing = true, importError = null, importNotice = null) }
         viewModelScope.launch {
             val result = runCatching {
                 TarnServerRepository.import(input) { url ->
                     HTTPClient().use { it.getString(url) }
                 }
             }
+            val outcome = result.getOrNull()
             _uiState.update {
                 it.copy(
                     importing = false,
                     importError = result.exceptionOrNull()?.message,
+                    importNotice = outcome?.takeIf { it.rejectedCount > 0 }?.let {
+                        TarnImportNotice(it.serverCount, it.rejectedCount)
+                    },
                 )
             }
         }
     }
 
-    fun dismissImportError() = _uiState.update { it.copy(importError = null) }
+    fun dismissImportError() = _uiState.update { it.copy(importError = null, importNotice = null) }
 
     /**
      * Deletes a server profile and the files behind it. [ProfileManager] fires its change
@@ -363,18 +370,16 @@ class TarnServersViewModel : ViewModel() {
         Settings.tarnFavouriteProfiles = updated.map(Long::toString).toSet()
     }
 
-    private fun readFavourites(): Set<Long> =
-        Settings.tarnFavouriteProfiles.mapNotNull(String::toLongOrNull).toSet()
+    private fun readFavourites(): Set<Long> = Settings.tarnFavouriteProfiles.mapNotNull(String::toLongOrNull).toSet()
 
     /** TCP-only suggestion; it is never applied automatically as a successful full test. */
-    private fun fastestTcpFallback(excludingProfileId: Long): ServerEntry? =
-        _uiState.value.servers
-            .asSequence()
-            .filter { it.profileId != excludingProfileId }
-            .mapNotNull { server ->
-                val millis = (_uiState.value.latencies[server.profileId] as? Latency.Ok)?.millis
-                millis?.let { server to it }
-            }
-            .minByOrNull { (_, millis) -> millis }
-            ?.first
+    private fun fastestTcpFallback(excludingProfileId: Long): ServerEntry? = _uiState.value.servers
+        .asSequence()
+        .filter { it.profileId != excludingProfileId }
+        .mapNotNull { server ->
+            val millis = (_uiState.value.latencies[server.profileId] as? Latency.Ok)?.millis
+            millis?.let { server to it }
+        }
+        .minByOrNull { (_, millis) -> millis }
+        ?.first
 }

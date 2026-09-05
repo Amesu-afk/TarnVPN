@@ -22,6 +22,7 @@ import io.nekohasekai.sfa.R
 fun SelectableMessageDialog(title: String, message: String, onDismiss: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
+    val copiedToClipboard = stringResource(R.string.copied_to_clipboard)
     val scrollState = rememberScrollState()
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -41,7 +42,7 @@ fun SelectableMessageDialog(title: String, message: String, onDismiss: () -> Uni
             TextButton(
                 onClick = {
                     clipboard.setText(AnnotatedString(message))
-                    Toast.makeText(context, context.getString(R.string.copied_to_clipboard), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, copiedToClipboard, Toast.LENGTH_SHORT).show()
                 },
             ) {
                 Text(stringResource(R.string.per_app_proxy_action_copy))

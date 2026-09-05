@@ -9,13 +9,14 @@ import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.database.TypedProfile
 import io.nekohasekai.sfa.utils.VlessImporter
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 
@@ -28,6 +29,12 @@ import java.io.File
  * and is what the servers screen shows before you connect.
  */
 object TarnServerRepository {
+
+    /** Result shown after manual import; rejected links are never hidden from the user. */
+    data class ImportOutcome(
+        val serverCount: Int,
+        val rejectedCount: Int,
+    )
 
     /** Outbound types that are plumbing rather than an actual remote server. */
     private val NON_SERVER_TYPES = setOf("selector", "urltest", "direct", "block", "dns")
@@ -61,14 +68,14 @@ object TarnServerRepository {
      *
      * @return how many server profiles the subscription/link now accounts for.
      */
-    suspend fun import(input: String, fetch: (String) -> String): Int = withContext(Dispatchers.IO) {
+    suspend fun import(input: String, fetch: (String) -> String): ImportOutcome = withContext(Dispatchers.IO) {
         val trimmed = input.trim()
         if (VlessImporter.isHttpsUrl(trimmed)) {
             importSubscription(trimmed, fetch)
         } else {
-            val configs = VlessImporter.toSingBoxConfigs(trimmed, fetch)
-            mutex.withLock { writeServerProfiles(configs, subscriptionId = null) }
-            configs.size
+            val batch = VlessImporter.toSingBoxImportBatch(trimmed, fetch)
+            mutex.withLock { writeServerProfiles(batch.servers, subscriptionId = null) }
+            ImportOutcome(batch.servers.size, batch.rejectedCount)
         }
     }
 
@@ -76,16 +83,22 @@ object TarnServerRepository {
      * Finds or creates the [Subscription] for [url] (dedup is by URL), then refreshes it. The
      * initial import is just a refresh against an empty existing set — every server is an add.
      */
-    private suspend fun importSubscription(url: String, fetch: (String) -> String): Int {
-        val subscription = TarnSubscriptionStore.findByUrl(url)
-            ?: Subscription(
-                id = Subscription.newId(),
-                name = subscriptionName(url),
-                url = url,
-                lastUpdated = 0L,
-                autoUpdate = false,
-            ).also { TarnSubscriptionStore.upsert(it) }
-        return refreshSubscription(subscription.id, fetch)
+    private suspend fun importSubscription(url: String, fetch: (String) -> String): ImportOutcome {
+        TarnSubscriptionStore.findByUrl(url)?.let { return refreshSubscriptionOutcome(it.id, fetch) }
+        // Do not leave an empty, unrefreshable subscription behind when the first request or
+        // parse fails. It becomes durable only after every profile has been written safely.
+        val subscription = Subscription(
+            id = Subscription.newId(),
+            name = subscriptionName(url),
+            url = url,
+            lastUpdated = 0L,
+            autoUpdate = false,
+        )
+        val fetched = VlessImporter.toSingBoxImportBatch(url, fetch)
+        val serverCount = mutex.withLock {
+            applyRefresh(TarnSubscriptionStore.findByUrl(url) ?: subscription, fetched)
+        }
+        return ImportOutcome(serverCount, fetched.rejectedCount)
     }
 
     /** Every stored subscription, each with a live count of the profiles still tagged to it. */
@@ -107,75 +120,164 @@ object TarnServerRepository {
      * it its favourite star, its order, and its measured latency. New keys are created, missing
      * keys are deleted, and a key whose config actually changed is rewritten in place.
      *
-     * @return the number of servers the subscription now contains, or 0 if it no longer exists.
+     * @return server count and any links the current build could not materialise.
      */
-    suspend fun refreshSubscription(subscriptionId: String, fetch: (String) -> String): Int =
-        withContext(Dispatchers.IO) {
-            val subscription = TarnSubscriptionStore.get(subscriptionId) ?: return@withContext 0
-            // Network first, outside the lock.
-            val fetched = VlessImporter.toSingBoxConfigs(subscription.url, fetch)
-            mutex.withLock { applyRefresh(subscription, fetched) }
+    suspend fun refreshSubscription(
+        subscriptionId: String,
+        fetch: (String) -> String,
+    ): ImportOutcome = refreshSubscriptionOutcome(subscriptionId, fetch)
+
+    private suspend fun refreshSubscriptionOutcome(
+        subscriptionId: String,
+        fetch: (String) -> String,
+    ): ImportOutcome = withContext(Dispatchers.IO) {
+        val subscription = TarnSubscriptionStore.get(subscriptionId)
+            ?: return@withContext ImportOutcome(serverCount = 0, rejectedCount = 0)
+        // Network first, outside the lock.
+        val fetched = VlessImporter.toSingBoxImportBatch(subscription.url, fetch)
+        val serverCount = mutex.withLock {
+            val current = TarnSubscriptionStore.get(subscriptionId)
+                ?: return@withLock 0
+            applyRefresh(current, fetched)
         }
+        ImportOutcome(serverCount, fetched.rejectedCount)
+    }
 
     private suspend fun applyRefresh(
         subscription: Subscription,
-        fetched: List<VlessImporter.ImportedServer>,
-    ): Int {
+        fetched: VlessImporter.ImportedServerBatch,
+    ): Int = withContext(NonCancellable) {
         // Dedup within the fetched batch; a subscription that lists the same endpoint twice
         // must not create two rows. Last occurrence wins, matching a plain overwrite.
         val newByKey = LinkedHashMap<String, VlessImporter.ImportedServer>()
-        fetched.forEach { newByKey[connectionKey(it.sourceUri)] = it }
+        fetched.servers.forEach { newByKey[connectionKey(it.sourceUri)] = it }
 
         val existingByKey = LinkedHashMap<String, Profile>()
+        var profilesMissingSourceMetadata = 0
         ProfileManager.list().forEach { profile ->
             val file = File(profile.typed.path)
             if (subscriptionIdOf(file) != subscription.id) return@forEach
             val source = runCatching { sidecarFile(file).takeIf { it.isFile }?.readText()?.trim() }
-                .getOrNull() ?: return@forEach
+                .getOrNull()
+                ?.takeIf { it.isNotBlank() }
+            if (source == null) {
+                profilesMissingSourceMetadata++
+                return@forEach
+            }
             existingByKey[connectionKey(source)] = profile
         }
 
-        // Additions first, so the predicted-next file id still sits above the rows about to be
-        // removed (ids only ever climb, but this keeps the prediction honest either way).
+        // A `.sub` tag without its original share-link sidecar cannot be reconciled safely:
+        // silently skipping it used to leave a ghost profile behind forever, or add a duplicate
+        // when the same endpoint arrived again. Preserve the profile and make the refresh fail
+        // visibly until the user repairs or removes that broken entry.
+        if (profilesMissingSourceMetadata > 0) {
+            throw IllegalStateException(
+                "Subscription refresh kept $profilesMissingSourceMetadata profile(s) with missing source metadata.",
+            )
+        }
+
         val toAdd = newByKey.filterKeys { it !in existingByKey }.values.toList()
-        if (toAdd.isNotEmpty()) writeServerProfiles(toAdd, subscription.id)
-
         val toRemove = existingByKey.filterKeys { it !in newByKey }.values.toList()
-        if (toRemove.isNotEmpty()) deleteProfilesLocked(toRemove)
 
-        // Kept servers: rewrite the config only when it actually changed, and update the row
-        // name only when the subscription renamed it. Both keep the profile id, so nothing the
-        // user attached to this row is lost.
-        val renamed = mutableListOf<Profile>()
-        newByKey.forEach { (key, server) ->
-            val profile = existingByKey[key] ?: return@forEach
+        // A provider can briefly send a partial response or start including a link type this
+        // build does not support. Those links used to disappear in mapNotNull(), making their
+        // former profiles look deliberately removed. Refuse that destructive reconciliation and
+        // retain the working list until a clean response arrives.
+        if (TarnSubscriptionSafety.keepExistingProfiles(toRemove.size, fetched.rejectedCount)) {
+            throw IllegalArgumentException(
+                "Subscription refresh kept ${toRemove.size} existing server(s): " +
+                    "${fetched.rejectedCount} link(s) could not be imported.",
+            )
+        }
+
+        val rewrites = newByKey.mapNotNull { (key, server) ->
+            val profile = existingByKey[key] ?: return@mapNotNull null
             val file = File(profile.typed.path)
-            val currentConfig = runCatching { file.readText() }.getOrNull()
-            if (currentConfig != server.config) {
-                Libbox.checkConfig(server.config)
-                writeAtomically(file, server.config)
-                runCatching { sidecarFile(file).writeText(server.sourceUri) }
-            } else if (profile.name != server.name) {
-                runCatching { sidecarFile(file).writeText(server.sourceUri) }
-            }
-            if (profile.name != server.name) {
-                profile.name = server.name
-                renamed += profile
+            val current = file.readText()
+            if (current == server.config && sidecarFile(file).readText() == server.sourceUri) {
+                null
+            } else {
+                PendingRewrite(
+                    profile = profile,
+                    file = file,
+                    previousConfig = current,
+                    previousSource = runCatching { sidecarFile(file).readText() }.getOrNull(),
+                    server = server,
+                )
             }
         }
-        if (renamed.isNotEmpty()) ProfileManager.update(renamed)
 
-        TarnSubscriptionStore.upsert(subscription.copy(lastUpdated = System.currentTimeMillis()))
-        return newByKey.size
+        // Validate *every* future config before changing even one profile file. This turns a
+        // malformed entry into a clean failed refresh instead of a half-written subscription.
+        validateConfigs(toAdd)
+        rewrites.forEach { Libbox.checkConfig(it.server.config) }
+
+        var created = emptyList<Profile>()
+        val appliedRewrites = mutableListOf<PendingRewrite>()
+        val previousSubscriptions = TarnSubscriptionStore.load()
+        var metadataChanged = false
+        try {
+            // Additions happen before deletion so a recoverable write failure never costs the
+            // user a known-good server. The rollback below removes only profiles created here.
+            if (toAdd.isNotEmpty()) created = writeServerProfiles(toAdd, subscription.id, persist = false)
+
+            rewrites.forEach { rewrite ->
+                appliedRewrites += rewrite
+                writeAtomically(rewrite.file, rewrite.server.config)
+                writeAtomically(sidecarFile(rewrite.file), rewrite.server.sourceUri)
+            }
+
+            val renamed = newByKey.mapNotNull { (key, server) ->
+                existingByKey[key]?.takeIf { it.name != server.name }?.apply { name = server.name }
+            }
+            metadataChanged = true
+            TarnSubscriptionStore.upsert(subscription.copy(lastUpdated = System.currentTimeMillis()))
+            // This is the commit point. No fallible cleanup may roll back after this succeeds.
+            ProfileManager.reconcile(created, renamed, toRemove)
+        } catch (error: Throwable) {
+            // Best effort restores the old contents; ProfileManager rows for newly-created
+            // profiles are rolled back too. The original failure remains the visible one.
+            appliedRewrites.asReversed().forEach { rewrite ->
+                runCatching { writeAtomically(rewrite.file, rewrite.previousConfig) }
+                    .onFailure { error.addSuppressed(it) }
+                runCatching {
+                    val sourceFile = sidecarFile(rewrite.file)
+                    if (rewrite.previousSource == null) {
+                        sourceFile.delete()
+                    } else {
+                        writeAtomically(sourceFile, rewrite.previousSource)
+                    }
+                }.onFailure { error.addSuppressed(it) }
+            }
+            created.forEach { deleteProfileFilesQuietly(File(it.typed.path)) }
+            if (metadataChanged) {
+                runCatching { TarnSubscriptionStore.save(previousSubscriptions) }
+                    .onFailure { error.addSuppressed(it) }
+            }
+            throw error
+        }
+        runCatching { pruneFavourites(toRemove.map { it.id }) }
+        toRemove.forEach { deleteProfileFilesQuietly(File(it.typed.path)) }
+        newByKey.size
     }
 
+    private data class PendingRewrite(
+        val profile: Profile,
+        val file: File,
+        val previousConfig: String,
+        val previousSource: String?,
+        val server: VlessImporter.ImportedServer,
+    )
+
     /** Flips a subscription's auto-update flag. Actual refreshing is driven by the caller. */
-    suspend fun setSubscriptionAutoUpdate(id: String, enabled: Boolean): Unit =
-        withContext(Dispatchers.IO) {
+    suspend fun setSubscriptionAutoUpdate(id: String, enabled: Boolean): Unit = withContext(Dispatchers.IO) {
+        mutex.withLock {
             TarnSubscriptionStore.get(id)?.let {
                 TarnSubscriptionStore.upsert(it.copy(autoUpdate = enabled))
             }
         }
+    }
 
     /**
      * Refreshes every auto-update subscription that has gone stale past [AUTO_UPDATE_INTERVAL_MS].
@@ -215,8 +317,10 @@ object TarnServerRepository {
     private suspend fun writeServerProfiles(
         configs: List<VlessImporter.ImportedServer>,
         subscriptionId: String?,
+        persist: Boolean = true,
     ): List<Profile> {
         if (configs.isEmpty()) return emptyList()
+        validateConfigs(configs)
         val configDirectory = configDirectory()
         // nextFileID()/nextOrder() predict the row a create() is about to insert by reading
         // MAX(...)+1 — correct for one profile, but not re-queryable mid-batch since none of
@@ -225,24 +329,34 @@ object TarnServerRepository {
         // per server (see its doc comment for why that matters at subscription size).
         var nextFileId = ProfileManager.nextFileID()
         var nextOrder = ProfileManager.nextOrder()
-        val profiles = configs.map { server ->
-            Libbox.checkConfig(server.config)
-            val configFile = File(configDirectory, "$nextFileId.json")
-            configFile.writeText(server.config)
-            sidecarFile(configFile).writeText(server.sourceUri)
-            subscriptionId?.let { subscriptionSidecarFile(configFile).writeText(it) }
-            val profile = Profile(
-                name = server.name,
-                typed = TypedProfile().apply {
-                    type = TypedProfile.Type.Local
-                    path = configFile.path
-                },
-            ).apply { userOrder = nextOrder }
-            nextFileId++
-            nextOrder++
-            profile
+        val profiles = mutableListOf<Profile>()
+        val writtenFiles = mutableListOf<File>()
+        try {
+            configs.forEach { server ->
+                val configFile = File(configDirectory, "$nextFileId.json")
+                writtenFiles += configFile
+                writeAtomically(configFile, server.config)
+                writeAtomically(sidecarFile(configFile), server.sourceUri)
+                subscriptionId?.let { writeAtomically(subscriptionSidecarFile(configFile), it) }
+                profiles += Profile(
+                    name = server.name,
+                    typed = TypedProfile().apply {
+                        type = TypedProfile.Type.Local
+                        path = configFile.path
+                    },
+                ).apply { userOrder = nextOrder }
+                nextFileId++
+                nextOrder++
+            }
+            return if (persist) ProfileManager.createAll(profiles) else profiles
+        } catch (error: Throwable) {
+            writtenFiles.forEach(::deleteProfileFilesQuietly)
+            throw error
         }
-        return ProfileManager.createAll(profiles)
+    }
+
+    private fun validateConfigs(configs: Iterable<VlessImporter.ImportedServer>) {
+        configs.forEach { Libbox.checkConfig(it.config) }
     }
 
     /**
@@ -256,17 +370,30 @@ object TarnServerRepository {
         }
     }
 
-    /** Bulk delete of profiles, their files, and their favourite stars. Caller holds [mutex]. */
+    /**
+     * Bulk delete of profiles, their files, and their favourite stars. Caller holds [mutex].
+     *
+     * The database row is the source of truth for a profile's existence. Delete it before
+     * touching its files: a failed Room operation must leave the user's working config intact.
+     * A later cleanup failure can at worst leave an unreachable orphan for a future cleanup; it
+     * cannot turn a failed refresh into lost server credentials.
+     */
     private suspend fun deleteProfilesLocked(profiles: List<Profile>) {
         if (profiles.isEmpty()) return
-        profiles.forEach { profile ->
-            val configFile = File(profile.typed.path)
-            runCatching { sidecarFile(configFile).delete() }
-            runCatching { subscriptionSidecarFile(configFile).delete() }
-            runCatching { configFile.delete() }
-        }
-        pruneFavourites(profiles.map { it.id })
         ProfileManager.delete(profiles)
+        try {
+            pruneFavourites(profiles.map { it.id })
+        } finally {
+            profiles.forEach { profile ->
+                deleteProfileFilesQuietly(File(profile.typed.path))
+            }
+        }
+    }
+
+    private fun deleteProfileFilesQuietly(configFile: File) {
+        runCatching { sidecarFile(configFile).delete() }
+        runCatching { subscriptionSidecarFile(configFile).delete() }
+        runCatching { configFile.delete() }
     }
 
     /** Drops favourite stars for profiles that no longer exist, so the set can't leak forever. */
@@ -278,31 +405,26 @@ object TarnServerRepository {
         if (pruned.size != current.size) Settings.tarnFavouriteProfiles = pruned
     }
 
-    private fun configDirectory(): File =
-        File(Application.application.filesDir, "configs").also { it.mkdirs() }
+    private fun configDirectory(): File = File(Application.application.filesDir, "configs").also { it.mkdirs() }
 
-    /** Fragment-stripped share link: the identity of a server independent of its display name. */
-    private fun connectionKey(sourceUri: String): String = sourceUri.substringBefore('#').trim()
+    /** A parsed, tag-free outbound keeps profile identity stable across harmless URI rewrites. */
+    private fun connectionKey(sourceUri: String): String = TarnLinkIdentity.connectionKey(sourceUri)
 
-    private fun subscriptionName(url: String): String =
-        runCatching { android.net.Uri.parse(url).host }.getOrNull()?.takeIf { it.isNotBlank() } ?: url
+    private fun subscriptionName(url: String): String = runCatching { android.net.Uri.parse(url).host }.getOrNull()?.takeIf { it.isNotBlank() } ?: url
 
     /** The subscription id a profile is tagged with, or null for a standalone/imported profile. */
-    private fun subscriptionIdOf(configFile: File): String? =
-        runCatching { subscriptionSidecarFile(configFile).takeIf { it.isFile }?.readText()?.trim() }
-            .getOrNull()
-            ?.takeIf { it.isNotBlank() }
+    private fun subscriptionIdOf(configFile: File): String? = runCatching { subscriptionSidecarFile(configFile).takeIf { it.isFile }?.readText()?.trim() }
+        .getOrNull()
+        ?.takeIf { it.isNotBlank() }
 
     /**
      * The `<id>.vless` file sitting next to a `<id>.json` config, holding the original
      * share link the profile was imported from (see [VlessImporter.rebuildConfig]).
      */
-    private fun sidecarFile(configFile: File): File =
-        File(configFile.parentFile, configFile.nameWithoutExtension + ".vless")
+    private fun sidecarFile(configFile: File): File = File(configFile.parentFile, configFile.nameWithoutExtension + ".vless")
 
     /** The `<id>.sub` file naming the subscription a profile belongs to; absent when standalone. */
-    private fun subscriptionSidecarFile(configFile: File): File =
-        File(configFile.parentFile, configFile.nameWithoutExtension + ".sub")
+    private fun subscriptionSidecarFile(configFile: File): File = File(configFile.parentFile, configFile.nameWithoutExtension + ".sub")
 
     /**
      * Rewrites DNS, the tun's IPv6 address, and per-outbound TLS fragmentation of every
@@ -325,6 +447,7 @@ object TarnServerRepository {
             val testUrl = Settings.tarnTestUrl
             val sendHostname = Settings.tarnSendHostname
             val ruDirect = Settings.tarnRuDirect
+            val remoteDirectDomains = Settings.tarnRuDirectRemoteDomains
             val recordFragment = Settings.tarnRecordFragment
             val tlsFingerprint = Settings.tarnTlsFingerprint
             val directDomains = Settings.tarnDirectDomains
@@ -360,6 +483,7 @@ object TarnServerRepository {
                                 testUrl = testUrl,
                                 sendHostname = sendHostname,
                                 ruDirect = ruDirect,
+                                remoteDirectDomains = remoteDirectDomains,
                                 directDomains = directDomains,
                                 recordFragment = recordFragment,
                                 tlsFingerprint = tlsFingerprint,
@@ -467,12 +591,11 @@ object TarnServerRepository {
     fun fullTestTargets(
         entries: List<ServerEntry>,
         runningProfileId: Long,
-    ): List<TarnFullTestTarget> =
-        entries
-            .asSequence()
-            .filter { it.profileId == runningProfileId && it.tag.isNotBlank() }
-            .map { TarnFullTestTarget(it.profileId, it.tag) }
-            .toList()
+    ): List<TarnFullTestTarget> = entries
+        .asSequence()
+        .filter { it.profileId == runningProfileId && it.tag.isNotBlank() }
+        .map { TarnFullTestTarget(it.profileId, it.tag) }
+        .toList()
 
     fun newFullTestSession(): TarnFullTestSession = TarnFullTestSession()
 }

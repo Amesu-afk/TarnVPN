@@ -46,6 +46,7 @@ object ApkInstaller {
     }
 
     suspend fun install(context: Context, apkFile: File, method: InstallMethod = getConfiguredMethod()) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { ApkValidation.validate(context, apkFile) }
         stopServiceIfRunning()
         when (method) {
             InstallMethod.SHIZUKU -> ShizukuInstaller.install(apkFile)

@@ -221,6 +221,8 @@ private fun ProfilePickerRow(
     var expandedShareSubmenu by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val successProfileSaved = stringResource(R.string.success_profile_saved)
+    val failedSaveProfile = stringResource(R.string.failed_save_profile)
 
     val animatedElevation by animateFloatAsState(
         targetValue = when {
@@ -245,7 +247,7 @@ private fun ProfilePickerRow(
                     withContext(Dispatchers.Main) {
                         Toast.makeText(
                             context,
-                            context.getString(R.string.success_profile_saved),
+                            successProfileSaved,
                             Toast.LENGTH_SHORT,
                         ).show()
                     }
@@ -253,7 +255,7 @@ private fun ProfilePickerRow(
                     withContext(Dispatchers.Main) {
                         Toast.makeText(
                             context,
-                            "${context.getString(R.string.failed_save_profile)}: ${e.message}",
+                            "$failedSaveProfile: ${e.message}",
                             Toast.LENGTH_SHORT,
                         ).show()
                     }

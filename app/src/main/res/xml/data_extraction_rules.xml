@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
+        <exclude domain="file" path="subscriptions.json" />
         <!-- Profiles, settings and generated configs can contain VPN credentials. -->
         <exclude
             domain="database"
@@ -13,6 +14,7 @@
             path="configuration.json" />
     </cloud-backup>
     <device-transfer>
+        <exclude domain="file" path="subscriptions.json" />
         <!-- Profiles, settings and generated configs can contain VPN credentials. -->
         <exclude
             domain="database"

@@ -1,5 +1,6 @@
 package io.nekohasekai.sfa.xposed.hooks.hidevpn
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.net.Proxy
@@ -47,16 +48,7 @@ class HookConnectivityManagerProxyChangeAction(private val helper: ConnectivityS
                     intent.putExtra("android.intent.extra.PROXY_INFO", proxyInfo)
                     val ident = Binder.clearCallingIdentity()
                     try {
-                        val userAll = try {
-                            UserHandle::class.java.getField("ALL").get(null) as? UserHandle
-                        } catch (_: Throwable) {
-                            null
-                        }
-                        if (userAll != null) {
-                            context.sendStickyBroadcastAsUser(intent, userAll)
-                        } else {
-                            context.sendStickyBroadcast(intent)
-                        }
+                        sendClearedProxyBroadcast(context, intent)
                     } finally {
                         Binder.restoreCallingIdentity(ident)
                     }
@@ -77,6 +69,29 @@ class HookConnectivityManagerProxyChangeAction(private val helper: ConnectivityS
                 }
             },
         )
+    }
+
+    /**
+     * This hook executes inside Android's connectivity service, whose context owns the two
+     * signature permissions lint reports for sticky broadcasts. Keep the suppression local and
+     * retain a runtime fallback: a platform change must not crash system_server.
+     */
+    @SuppressLint("MissingPermission")
+    private fun sendClearedProxyBroadcast(context: Context, intent: Intent) {
+        try {
+            val userAll = try {
+                UserHandle::class.java.getField("ALL").get(null) as? UserHandle
+            } catch (_: Throwable) {
+                null
+            }
+            if (userAll != null) {
+                context.sendStickyBroadcastAsUser(intent, userAll)
+            } else {
+                context.sendStickyBroadcast(intent)
+            }
+        } catch (error: SecurityException) {
+            HookErrorStore.w(SOURCE, "proxy broadcast was denied: ${error.message}", error)
+        }
     }
 
     private fun emptyProxyInfo(): ProxyInfo = ProxyInfo.buildDirectProxy("", 0)

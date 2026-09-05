@@ -49,6 +49,8 @@
     <string name="tarn_servers_add_hint">Paste a server link or a subscription URL. vless, trojan, ss, vmess, hysteria2, tuic and anytls are understood. Each server in a subscription becomes its own entry.</string>
     <string name="tarn_servers_add_placeholder">vless://… trojan://… ss://… or https://…</string>
     <string name="tarn_servers_add_action">Add</string>
+    <string name="tarn_servers_import_partial">Processed %1$d server(s); skipped %2$d unsupported or invalid link(s).</string>
+    <string name="tarn_subscriptions_refresh_partial">Subscription refreshed with %1$d server(s); skipped %2$d unsupported or invalid link(s).</string>
 
     <string name="tarn_shield_section_general">General</string>
     <string name="tarn_shield_kill_switch">Prevent VPN bypass</string>

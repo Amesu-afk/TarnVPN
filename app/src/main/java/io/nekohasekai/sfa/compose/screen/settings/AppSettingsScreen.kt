@@ -142,6 +142,18 @@ fun AppSettingsScreen(
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val packageInstallerNotAvailable = stringResource(R.string.package_installer_not_available)
+    val shizukuNotAvailable = stringResource(R.string.shizuku_not_available)
+    // Keep a formatted resource template available to callbacks, which cannot call composable
+    // resource APIs themselves.
+    val silentInstallVerifyFailedTemplate = stringResource(R.string.silent_install_verify_failed, "%1\$s")
+    val noUpdatesAvailable = stringResource(R.string.no_updates_available)
+    val updateTrackNotSupported = stringResource(R.string.update_track_not_supported)
+    fun silentInstallFailureFor(method: String): String = when (method) {
+        "PACKAGE_INSTALLER" -> packageInstallerNotAvailable
+        "SHIZUKU" -> shizukuNotAvailable
+        else -> String.format(Locale.getDefault(), silentInstallVerifyFailedTemplate, method)
+    }
     val hasUpdate by UpdateState.hasUpdate
     val updateInfo by UpdateState.updateInfo
     val isChecking by UpdateState.isChecking
@@ -225,11 +237,7 @@ fun AppSettingsScreen(
                 silentInstallError = if (success) {
                     null
                 } else {
-                    when (silentInstallMethod) {
-                        "PACKAGE_INSTALLER" -> context.getString(R.string.package_installer_not_available)
-                        "SHIZUKU" -> context.getString(R.string.shizuku_not_available)
-                        else -> context.getString(R.string.silent_install_verify_failed, silentInstallMethod)
-                    }
+                    silentInstallFailureFor(silentInstallMethod)
                 }
             }
         }
@@ -359,11 +367,7 @@ fun AppSettingsScreen(
                     silentInstallError = if (success) {
                         null
                     } else {
-                        when (method) {
-                            "PACKAGE_INSTALLER" -> context.getString(R.string.package_installer_not_available)
-                            "SHIZUKU" -> context.getString(R.string.shizuku_not_available)
-                            else -> context.getString(R.string.silent_install_verify_failed, method)
-                        }
+                        silentInstallFailureFor(method)
                     }
                 }
             },
@@ -1074,11 +1078,7 @@ fun AppSettingsScreen(
                                                 silentInstallError = if (success) {
                                                     null
                                                 } else {
-                                                    when (silentInstallMethod) {
-                                                        "PACKAGE_INSTALLER" -> context.getString(R.string.package_installer_not_available)
-                                                        "SHIZUKU" -> context.getString(R.string.shizuku_not_available)
-                                                        else -> context.getString(R.string.silent_install_verify_failed, silentInstallMethod)
-                                                    }
+                                                    silentInstallFailureFor(silentInstallMethod)
                                                 }
                                             }
                                         } else {
@@ -1316,13 +1316,13 @@ fun AppSettingsScreen(
                                         Settings.lastUpdateCheckAt = System.currentTimeMillis()
                                         UpdateState.setUpdate(result)
                                         if (result == null) {
-                                            showErrorDialog = context.getString(R.string.no_updates_available)
+                                            showErrorDialog = noUpdatesAvailable
                                         } else {
                                             showUpdateAvailableDialog = true
                                         }
                                     } catch (_: UpdateCheckException.TrackNotSupported) {
                                         UpdateState.setUpdate(null)
-                                        showErrorDialog = context.getString(R.string.update_track_not_supported)
+                                        showErrorDialog = updateTrackNotSupported
                                     } catch (e: Exception) {
                                         Log.e("AppSettingsScreen", "checkUpdateAsync failed", e)
                                         UpdateState.setUpdate(null)

@@ -59,6 +59,5 @@ object TarnDns {
     }
 
     /** TCP connect time to the resolver's DoH port (443), or null when it does not answer. */
-    suspend fun probe(option: DnsOption, timeoutMs: Int = 3000): Int? =
-        tcpConnectLatencyMs(option.server, 443, timeoutMs)
+    suspend fun probe(option: DnsOption, timeoutMs: Int = 3000): Int? = tcpConnectLatencyMs(option.server, 443, timeoutMs)
 }

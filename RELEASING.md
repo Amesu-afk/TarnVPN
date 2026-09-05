@@ -19,6 +19,14 @@ track, anything else on stable. Stable-track builds ignore prereleases entirely.
 
 ## 2. Build
 
+Initialize submodules recursively. TarnVPN uses `Amesu-afk/termux-view` to pin the
+AGP 9 and explicit-NDK build fixes used in release builds:
+
+```bash
+git submodule sync --recursive
+git submodule update --init --recursive
+```
+
 ```bash
 cd clients/android
 ./gradlew assembleOtherRelease          # Android 6+
@@ -42,8 +50,12 @@ cd clients/android
 CODE=$(grep '^VERSION_CODE=' version.properties | cut -d= -f2)
 NAME=$(grep '^VERSION_NAME=' version.properties | cut -d= -f2)
 printf '{"version_code": %s, "version_name": "%s"}\n' "$CODE" "$NAME" \
-  > app/build/outputs/apk/other/release/tarn-version-metadata.json
+  > app/build/outputs/tarn-apk/otherRelease/tarn-version-metadata.json
 ```
+
+Release-ready APK copies are in `app/build/outputs/tarn-apk/otherRelease/` and
+`app/build/outputs/tarn-apk/otherLegacyRelease/`. These keep the public names expected by the
+updater and release workflow.
 
 ## 4. The GitHub release
 

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TarnVPN translations for upstream USB/IP controls. -->
+<resources>
+    <string name="title_usbip">USB/IP</string>
+    <string name="usbip_with_tag">USB/IP: %1$s</string>
+    <string name="usbip_no_server">Сервер usbip не найден.</string>
+    <string name="usbip_no_devices">Выберите USB-устройство, чтобы открыть к нему доступ через этот сервер usbip.</string>
+    <string name="usbip_no_usb_devices">Подключённых USB-устройств нет.</string>
+    <string name="usbip_connect_device">Подключить USB-устройство</string>
+    <string name="usbip_detach">Отключить</string>
+    <string name="usbip_state_attaching">Подключение…</string>
+    <string name="usbip_state_ready">Готово</string>
+    <string name="usbip_state_error">Ошибка</string>
+    <string name="usbip_state_idle">Ожидание</string>
+    <string name="usbip_state_attached">Подключено</string>
+    <string name="usbip_state_unavailable">Недоступно</string>
+    <string name="usbip_identity">Идентификатор</string>
+    <string name="usbip_connection">Подключение</string>
+    <string name="usbip_class_interfaces">Класс и интерфейсы</string>
+    <string name="usbip_product">Устройство</string>
+    <string name="usbip_serial">Серийный номер</string>
+    <string name="usbip_version">Версия</string>
+    <string name="usbip_bus_id">ID шины</string>
+    <string name="usbip_backend">Серверная часть</string>
+    <string name="usbip_speed">Скорость</string>
+    <string name="usbip_bus_device">Шина / устройство</string>
+    <string name="usbip_device_class">Класс устройства</string>
+    <string name="usbip_configuration">Конфигурация</string>
+    <string name="usbip_interface">Интерфейс %1$d</string>
+    <string name="usbip_notification_title">Общий доступ USB/IP</string>
+    <plurals name="usbip_notification_text">
+        <item quantity="one">Общий доступ к %1$d USB-устройству</item>
+        <item quantity="few">Общий доступ к %1$d USB-устройствам</item>
+        <item quantity="many">Общий доступ к %1$d USB-устройствам</item>
+        <item quantity="other">Общий доступ к %1$d USB-устройству</item>
+    </plurals>
+</resources>

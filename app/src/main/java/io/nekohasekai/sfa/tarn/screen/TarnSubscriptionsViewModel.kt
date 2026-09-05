@@ -14,12 +14,18 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+data class TarnSubscriptionRefreshNotice(
+    val serverCount: Int,
+    val rejectedCount: Int,
+)
+
 data class TarnSubscriptionsUiState(
     val subscriptions: List<SubscriptionView> = emptyList(),
     val loading: Boolean = false,
     /** Ids currently being re-fetched, so each row can show its own spinner. */
     val refreshing: Set<String> = emptySet(),
     val error: String? = null,
+    val notice: TarnSubscriptionRefreshNotice? = null,
 )
 
 class TarnSubscriptionsViewModel : ViewModel() {
@@ -77,17 +83,21 @@ class TarnSubscriptionsViewModel : ViewModel() {
 
     fun refresh(id: String) {
         if (_uiState.value.refreshing.contains(id)) return
-        _uiState.update { it.copy(refreshing = it.refreshing + id, error = null) }
+        _uiState.update { it.copy(refreshing = it.refreshing + id, error = null, notice = null) }
         viewModelScope.launch {
             val result = runCatching {
                 TarnServerRepository.refreshSubscription(id) { url ->
                     HTTPClient().use { it.getString(url) }
                 }
             }
+            val outcome = result.getOrNull()
             _uiState.update {
                 it.copy(
                     refreshing = it.refreshing - id,
                     error = result.exceptionOrNull()?.message,
+                    notice = outcome?.takeIf { it.rejectedCount > 0 }?.let {
+                        TarnSubscriptionRefreshNotice(it.serverCount, it.rejectedCount)
+                    },
                 )
             }
             // The profiles callback reloads counts on add/remove, but a no-change refresh still
@@ -121,5 +131,5 @@ class TarnSubscriptionsViewModel : ViewModel() {
         }
     }
 
-    fun dismissError() = _uiState.update { it.copy(error = null) }
+    fun dismissError() = _uiState.update { it.copy(error = null, notice = null) }
 }

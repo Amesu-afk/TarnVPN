@@ -9,6 +9,10 @@ build/
 .externalNativeBuild
 .cxx
 local.properties
+local.properties.*
+/gradle_*.log
+local.properties.*
+/gradle_*.log
 /app/libs/
 /service-account-credentials.json
 # Release signing material. Losing it means never being able to update an installed app,

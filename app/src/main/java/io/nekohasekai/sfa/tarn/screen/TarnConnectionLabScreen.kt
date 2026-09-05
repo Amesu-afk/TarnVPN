@@ -42,13 +42,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import io.nekohasekai.sfa.R
+import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.tarn.component.TarnDialogTextButton
 import io.nekohasekai.sfa.tarn.component.TarnNavRow
 import io.nekohasekai.sfa.tarn.component.TarnPanel
 import io.nekohasekai.sfa.tarn.component.TarnRowDivider
 import io.nekohasekai.sfa.tarn.component.TarnSectionLabel
 import io.nekohasekai.sfa.tarn.component.TarnToggleRow
-import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.tarn.component.hairlineBorder
 import io.nekohasekai.sfa.tarn.theme.TarnColors
 import io.nekohasekai.sfa.tarn.theme.TarnLabelStyle

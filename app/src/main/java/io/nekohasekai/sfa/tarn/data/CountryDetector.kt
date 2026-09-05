@@ -96,13 +96,12 @@ object CountryDetector {
      * thing space-padded — so `" key "` tests for a whole word, and a two-word key still
      * matches across whatever separated it ("Hong, Kong" and "Hong-Kong" alike).
      */
-    private fun normalize(raw: String): String =
-        raw.lowercase()
-            .map { if (it.isLetterOrDigit()) it else ' ' }
-            .joinToString("")
-            .split(' ')
-            .filter { it.isNotEmpty() }
-            .joinToString(separator = " ", prefix = " ", postfix = " ")
+    private fun normalize(raw: String): String = raw.lowercase()
+        .map { if (it.isLetterOrDigit()) it else ' ' }
+        .joinToString("")
+        .split(' ')
+        .filter { it.isNotEmpty() }
+        .joinToString(separator = " ", prefix = " ", postfix = " ")
 
     /**
      * Reads a country code out of a structured tag like `de-ber-01` or `vpn-us-nyc`.

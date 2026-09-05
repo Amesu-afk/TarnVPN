@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TarnVPN strings kept separate from upstream sing-box resources. -->
+<resources>
+    <string name="tarn_state_offline">آفلاین</string>
+    <string name="tarn_state_connected">متصل</string>
+    <string name="tarn_state_connecting">در حال اتصال</string>
+    <string name="tarn_state_disconnecting">در حال توقف</string>
+
+    <string name="tarn_status_disconnected">قطع شده</string>
+    <string name="tarn_status_connected">متصل</string>
+    <string name="tarn_status_connecting">در حال اتصال</string>
+    <string name="tarn_status_disconnecting">در حال قطع اتصال</string>
+
+    <string name="tarn_label_status">وضعیت</string>
+    <string name="tarn_label_uptime">مدت اتصال</string>
+    <string name="tarn_label_server">سرور</string>
+    <string name="tarn_server_none">سروری انتخاب نشده است</string>
+    <string name="tarn_latency_ms">%1$d میلی‌ثانیه</string>
+    <string name="tarn_latency_unreachable">ناموجود</string>
+
+    <string name="tarn_action_connect">اتصال</string>
+    <string name="tarn_action_disconnect">قطع اتصال</string>
+    <string name="tarn_action_back">بازگشت</string>
+    <string name="tarn_action_cancel">لغو</string>
+    <string name="tarn_action_save">ذخیره</string>
+    <string name="tarn_action_delete">حذف</string>
+    <string name="tarn_action_dismiss">بستن</string>
+
+    <string name="tarn_title_servers">سرورها</string>
+    <string name="tarn_title_shield">محافظت</string>
+    <string name="tarn_servers_tab_recommended">پیشنهادی</string>
+    <string name="tarn_servers_tab_all">همه کشورها</string>
+    <string name="tarn_servers_country_all">همه</string>
+    <string name="tarn_servers_search_hint">جست‌وجوی سرورها</string>
+    <string name="tarn_servers_empty">هنوز سروری نیست.</string>
+    <string name="tarn_servers_favourite">موردعلاقه</string>
+    <string name="tarn_servers_fastest">اتصال به سریع‌ترین سرور</string>
+    <string name="tarn_servers_delete">حذف سرور</string>
+    <string name="tarn_servers_delete_confirm_title">سرور حذف شود؟</string>
+    <string name="tarn_servers_delete_confirm_message">%1$s از این دستگاه حذف می‌شود.</string>
+    <string name="tarn_servers_delete_confirm_action">حذف</string>
+
+    <string name="tarn_servers_add_title">افزودن سرور</string>
+    <string name="tarn_servers_add_hint">پیوند سرور یا نشانی اشتراک را جای‌گذاری کنید. vless، trojan، ss، vmess، hysteria2، tuic و anytls پشتیبانی می‌شوند. هر سرور در اشتراک یک ورودی جدا می‌شود.</string>
+    <string name="tarn_servers_add_placeholder">vless://… trojan://… ss://… یا https://…</string>
+    <string name="tarn_servers_add_action">افزودن</string>
+    <string name="tarn_servers_import_partial">%1$d سرور پردازش شد؛ %2$d پیوند پشتیبانی‌نشده یا نامعتبر رد شد.</string>
+    <string name="tarn_subscriptions_refresh_partial">اشتراک با %1$d سرور به‌روزرسانی شد؛ %2$d پیوند پشتیبانی‌نشده یا نامعتبر رد شد.</string>
+
+    <string name="tarn_shield_section_general">عمومی</string>
+    <string name="tarn_shield_kill_switch">جلوگیری از دور زدن VPN</string>
+    <string name="tarn_shield_kill_switch_desc">از دور زدن VPN فعال توسط برنامه‌ها جلوگیری کنید. برای مسدود کردن ترافیک پس از قطع اتصال، «VPN همیشه‌فعال» اندروید را همراه با «مسدود کردن اتصال‌های بدون VPN» فعال کنید.</string>
+    <string name="tarn_shield_dns">محافظت DNS</string>
+    <string name="tarn_shield_dns_desc">درخواست‌ها را از طریق DNS TarnVPN حل کن</string>
+    <string name="tarn_shield_autoconnect">اتصال خودکار</string>
+    <string name="tarn_shield_autoconnect_desc">هنگام شروع برنامه به VPN وصل شو</string>
+
+    <string name="tarn_dns_provider">حل‌کننده DNS</string>
+    <string name="tarn_dns_title">حل‌کننده DNS</string>
+    <string name="tarn_dns_hint">نام‌های دامنه از طریق HTTPS و IP صریح حل‌کننده انتخاب‌شده ارسال می‌شوند و برای راه‌اندازی، جست‌وجوی DNS بدون رمز ندارند.</string>
+    <string name="tarn_dns_section">یک حل‌کننده انتخاب کنید</string>
+    <string name="tarn_dns_custom_title">سفارشی</string>
+    <string name="tarn_dns_custom_unset">تنظیم نشده</string>
+    <string name="tarn_dns_custom_dialog_title">حل‌کننده سفارشی</string>
+    <string name="tarn_dns_custom_dialog_hint">نشانی IPv4 یک حل‌کننده DNS-over-HTTPS روی درگاه 443. گواهی آن باید برای این IP معتبر باشد.</string>
+    <string name="tarn_dns_custom_input_placeholder">203.0.113.5</string>
+    <string name="tarn_dns_custom_error">یک نشانی IPv4 معتبر وارد کنید</string>
+
+    <string name="tarn_shield_section_network">شبکه</string>
+    <string name="tarn_shield_ru_direct">سایت‌های روسی VPN را دور می‌زنند</string>
+    <string name="tarn_shield_ru_direct_desc">بانک‌ها، خدمات دولتی، بازارها و سایت‌های .ru مستقیم باز می‌شوند و از اینجا حل نام می‌شوند؛ با نشانی خارجی کند می‌شوند یا پاسخ نمی‌دهند. برای فرستادن همه‌چیز از خروجی VPN، آن را خاموش کنید.</string>
+    <string name="tarn_shield_direct_domains">سایت‌های مستقیم من</string>
+    <string name="tarn_shield_direct_domains_empty">چیزی اضافه نشده</string>
+    <plurals name="tarn_shield_direct_domains_count">
+        <item quantity="one">%1$d دامنه</item>
+        <item quantity="other">%1$d دامنه</item>
+    </plurals>
+    <string name="tarn_direct_domains_title">سایت‌های مستقیم</string>
+    <string name="tarn_direct_domains_hint">این‌ها همراه فهرست داخلی VPN را دور می‌زنند و با خاموش بودن آن نیز کار می‌کنند. یک دامنه همه زیردامنه‌هایش را پوشش می‌دهد: افزودن example.com، pay.example.com را هم پوشش می‌دهد.</string>
+    <string name="tarn_direct_domains_empty">هنوز چیزی اضافه نشده است. سایتی را اضافه کنید که از طریق VPN کار نمی‌کند؛ مثلاً بانک، پورتال کاری یا سرویس محلی.</string>
+    <string name="tarn_direct_domains_add">افزودن دامنه</string>
+    <string name="tarn_direct_domains_add_hint">دامنه یا پیوندی که کپی کرده‌اید؛ نشانی از آن استخراج می‌شود.</string>
+    <string name="tarn_direct_domains_add_action">افزودن</string>
+    <string name="tarn_direct_domains_placeholder">example.com</string>
+    <string name="tarn_direct_domains_invalid">دامنه‌ای پیدا نشد. چیزی مانند example.com وارد کنید.</string>
+    <string name="tarn_direct_domains_remove">برداشتن</string>
+    <string name="tarn_shield_dns_tunnel">DNS از طریق VPN</string>
+    <string name="tarn_shield_dns_tunnel_desc">روشن: DNS از تونل می‌گذرد، بنابراین آزمون نشت DNS منطقه خروجی را نشان می‌دهد، اما جست‌وجوها زیر بار کندترند. خاموش: DNS مستقیم و سریع (همچنان رمزگذاری‌شده)، اما آزمون منطقه واقعی شما را نشان می‌دهد.</string>
+    <string name="tarn_shield_ipv6">IPv6</string>
+    <string name="tarn_shield_ipv6_desc">ترافیک IPv6 را نیز از تونل عبور دهید؛ وگرنه برنامه‌های دارای IPv6 بومی می‌توانند کامل VPN را دور بزنند.</string>
+    <string name="tarn_shield_fragment">تکه‌تکه کردن TLS</string>
+    <string name="tarn_shield_fragment_desc">دست‌دادن TLS را میان بسته‌ها تقسیم می‌کند تا فیلترها کمتر به شکل آن تکیه کنند. با Reality نیز کار می‌کند. وقتی سرور روی Wi‑Fi وصل می‌شود ولی روی اینترنت موبایل نه، امتحانش کنید.</string>
+
+    <string name="tarn_connection_lab_entry">آزمایشگاه اتصال</string>
+    <string name="tarn_connection_lab_entry_desc">مسیریابی و پارامترهای آزمون کامل را تنظیم کنید</string>
+    <string name="tarn_connection_lab_title">آزمایشگاه اتصال</string>
+    <string name="tarn_connection_lab_intro">هر بار یک پارامتر را تغییر دهید و نتیجه را در همان شبکه مقایسه کنید. مقادیر خودکار امن‌ترین پیش‌فرض‌ها هستند.</string>
+    <string name="tarn_connection_lab_section_network">پارامترهای اتصال</string>
+    <string name="tarn_connection_lab_quic">سیاست QUIC</string>
+    <string name="tarn_connection_lab_mtu">MTU تونل</string>
+    <string name="tarn_connection_lab_ip_strategy">راهبرد IP</string>
+    <string name="tarn_connection_lab_dns_route">مسیر DNS رمزگذاری‌شده</string>
+    <string name="tarn_connection_lab_log_level">سطح گزارش</string>
+    <string name="tarn_connection_lab_auto">خودکار</string>
+    <string name="tarn_connection_lab_quic_allow">مجاز</string>
+    <string name="tarn_connection_lab_quic_block">مسدود</string>
+    <string name="tarn_connection_lab_ip_ipv4_only">فقط IPv4</string>
+    <string name="tarn_connection_lab_ip_prefer_ipv4">ترجیح IPv4</string>
+    <string name="tarn_connection_lab_ip_prefer_ipv6">ترجیح IPv6</string>
+    <string name="tarn_connection_lab_dns_direct">مستقیم</string>
+    <string name="tarn_connection_lab_dns_tunnel">از طریق VPN</string>
+    <string name="tarn_connection_lab_dns_route_disabled">محافظت DNS خاموش است، پس این مسیر تا روشن شدن محافظت غیرفعال است.</string>
+    <string name="tarn_connection_lab_log_warn">هشدارها</string>
+    <string name="tarn_connection_lab_log_info">اطلاعات</string>
+    <string name="tarn_connection_lab_log_debug">اشکال‌زدایی</string>
+    <string name="tarn_connection_lab_log_trace">ردیابی</string>
+    <string name="tarn_connection_lab_open_logs">باز کردن گزارش</string>
+    <string name="tarn_connection_lab_open_logs_hint">خروجی زنده هسته در سطح انتخاب‌شده بالا</string>
+    <string name="tarn_logs_title">گزارش</string>
+    <string name="tarn_servers_unmanaged">تنظیمات اعمال نمی‌شوند؛ حذف کنید و دوباره اضافه کنید.</string>
+    <string name="tarn_servers_insecure_tls">گواهی سرور بررسی نمی‌شود؛ این ترافیک قابل رهگیری است.</string>
+    <string name="tarn_shield_always_on">VPN همیشه‌فعال سیستم</string>
+    <string name="tarn_shield_always_on_desc">کلید بالا فقط تا وقتی سرویس زنده است کار می‌کند. اگر سرویس متوقف شود یا گوشی راه‌اندازی مجدد شود، ترافیک مستقیم می‌رود. فقط تنظیم سیستم این را می‌بندد: «VPN همیشه‌فعال» و «مسدود کردن اتصال‌های بدون VPN» را روشن کنید. تنظیمات اندروید را باز کنید.</string>
+    <string name="tarn_connection_lab_ipv4_only_warning">تمام ترافیک از IPv4 می‌گذرد و به برنامه‌ها گفته می‌شود نام هیچ IPv6 ندارد. «ارسال نام میزبان به سرور» را همراه آن روشن نگه دارید؛ وگرنه بعضی خدمات گوگل «در منطقه شما در دسترس نیست» پاسخ می‌دهند.</string>
+    <string name="tarn_connection_lab_tls_fingerprint">اثر انگشت TLS</string>
+    <string name="tarn_connection_lab_tls_fingerprint_auto">از پیوند</string>
+    <string name="tarn_connection_lab_tls_fingerprint_random">تصادفی</string>
+    <string name="tarn_connection_lab_record_fragment">تکه‌تکه کردن رکوردهای TLS</string>
+    <string name="tarn_connection_lab_record_fragment_desc">از تکه‌تکه‌سازی معمول قوی‌تر و پرخطرتر است: قالب دست‌دادن را تغییر می‌دهد و بعضی سرورهای Reality آن را دوباره نمی‌سازند. فقط وقتی کافی نبود روشن کنید؛ اگر سرور قطع شد، دلیلش همین است.</string>
+    <string name="tarn_connection_lab_send_hostname">ارسال نام میزبان به سرور</string>
+    <string name="tarn_connection_lab_send_hostname_desc">مانند Xray و v2rayNG: سرور نام را حل می‌کند و منطقه را انتخاب می‌کند؛ Gemini برای پرهیز از پیام «در منطقه شما در دسترس نیست» به آن نیاز دارد. YouTube استثناست و روی گوشی حل می‌شود، وگرنه Music منطقه‌ای مسدود می‌شود. فقط اگر سرور مقصدهای دامنه‌ای را رد می‌کند خاموش کنید.</string>
+    <string name="tarn_connection_lab_no_v6_warning">حالت تشخیصی. رکوردهای AAAA مثل همیشه داده می‌شوند، اما مقصدهای IPv6 در جدول مسیر رد می‌شوند، پس ترافیک روی IPv4 می‌رود و fast.com IPv4 را نشان می‌دهد. هدف جدا کردن «ترافیک روی IPv4» از «به کاربر گفته شده IPv6 ندارد» است. اگر Gemini اینجا کار کرد، علت دومی است.</string>
+    <string name="tarn_connection_lab_debug_warning">گزارش اشکال‌زدایی ممکن است دامنه‌های بازدیدشده را در گزارش محلی نشان دهد و باتری بیشتری مصرف کند. پس از آزمون خاموشش کنید.</string>
+
+    <string name="tarn_connection_lab_section_test">آزمون کامل سرور فعال</string>
+    <string name="tarn_connection_lab_test_url">نشانی آزمون HTTPS</string>
+    <string name="tarn_connection_lab_test_url_hint">برنامه این نشانی را از طریق سرور انتخاب‌شده‌ای که اکنون در VPN بار شده درخواست می‌کند.</string>
+    <string name="tarn_connection_lab_test_url_error">یک نشانی کامل https:// بدون اطلاعات ورود توکار وارد کنید.</string>
+    <string name="tarn_connection_lab_test_url_security_hint">نشانی اشتراک، توکن دسترسی یا پیوند خصوصی را اینجا وارد نکنید.</string>
+    <string name="tarn_connection_lab_timeout">مهلت زمانی</string>
+    <string name="tarn_connection_lab_timeout_value">%1$d ثانیه</string>
+    <string name="tarn_connection_lab_retries">تلاش‌ها</string>
+    <string name="tarn_connection_lab_retries_value">%1$d×</string>
+
+    <string name="tarn_connection_lab_section_recovery">بازیابی</string>
+    <string name="tarn_connection_lab_network_recovery">بازیابی پس از تغییر شبکه</string>
+    <string name="tarn_connection_lab_network_recovery_desc">پس از جابه‌جایی میان Wi‑Fi و داده همراه، VPN در حال اجرا را دوباره بارگذاری کن.</string>
+    <string name="tarn_connection_lab_failover">پیشنهاد سرور جایگزین</string>
+    <string name="tarn_connection_lab_failover_desc">اگر آزمون HTTP فعال ناموفق شود، سریع‌ترین سرور در دسترس از آزمون اولیه TCP را نشان بده.</string>
+    <string name="tarn_connection_lab_failover_warning">نامزد جایگزین هنوز آزمون HTTP را نگذرانده است. جابه‌جایی به تأیید شما نیاز دارد؛ پس از آن آزمون کامل را دوباره اجرا کنید.</string>
+    <string name="tarn_connection_lab_apply_hint">پارامترهای اتصال برای پروفایل‌های موجود TarnVPN اعمال می‌شوند. با تغییر مقدار، VPN فعال ممکن است دوباره بارگذاری شود.</string>
+
+    <string name="tarn_full_test_title">آزمون کامل</string>
+    <string name="tarn_full_test_requires_vpn">ابتدا VPN را شروع کنید. هنگام قطع اتصال فقط تأخیر مقدماتی TCP در دسترس است.</string>
+    <string name="tarn_full_test_select_running">پیش از آزمون کامل، پروفایل در حال اجرا را انتخاب کنید.</string>
+    <string name="tarn_full_test_active_only">آزمون کامل پروفایل انتخاب‌شده‌ای را بررسی می‌کند که اکنون در VPN بار شده است.</string>
+    <string name="tarn_full_test_running">در حال ارسال درخواست HTTP از طریق VPN…</string>
+    <string name="tarn_full_test_success">HTTP از طریق VPN: %1$d میلی‌ثانیه، تلاش‌ها: %2$d.</string>
+    <string name="tarn_full_test_failed">HTTP از طریق VPN در دسترس نیست: %1$s</string>
+    <string name="tarn_full_test_cancelled">آزمون کامل لغو شد.</string>
+    <string name="tarn_full_test_run">آزمون</string>
+    <string name="tarn_full_test_cancel">لغو</string>
+    <string name="tarn_full_test_clear">پاک کردن نتیجه</string>
+    <string name="tarn_full_test_tcp_fallback">جایگزین احتمالی TCP: %1$s. هنوز آزمون HTTP را نگذرانده است.</string>
+    <string name="tarn_full_test_select_tcp_fallback">انتخاب جایگزین TCP</string>
+
+    <string name="tarn_shield_section_appearance">ظاهر</string>
+    <string name="tarn_shield_theme_system">سیستم</string>
+    <string name="tarn_shield_theme_light">روشن</string>
+    <string name="tarn_shield_theme_dark">تیره</string>
+    <string name="tarn_shield_section_split">تونل‌سازی تفکیکی</string>
+    <string name="tarn_shield_split">تونل‌سازی تفکیکی</string>
+    <string name="tarn_shield_split_desc">فقط بعضی برنامه‌ها را از VPN عبور بده</string>
+    <string name="tarn_shield_split_mode_exclude">همه به‌جز انتخاب‌شده‌ها</string>
+    <string name="tarn_shield_split_mode_include">فقط انتخاب‌شده‌ها</string>
+    <string name="tarn_shield_split_apps">انتخاب برنامه‌ها</string>
+    <string name="tarn_shield_split_apps_none">چیزی انتخاب نشده</string>
+    <plurals name="tarn_shield_split_apps_count">
+        <item quantity="one">%1$d برنامه</item>
+        <item quantity="other">%1$d برنامه</item>
+    </plurals>
+    <string name="tarn_shield_section_protocol">پروتکل</string>
+    <string name="tarn_shield_protocol">پروتکل</string>
+    <string name="tarn_shield_version">نسخه برنامه</string>
+
+    <string name="tarn_subscriptions_title">اشتراک‌ها</string>
+    <string name="tarn_subscriptions_empty">هنوز اشتراکی نیست. با «+» در صفحه سرورها یک نشانی اشتراک جای‌گذاری کنید تا اینجا پیگیری شود.</string>
+    <string name="tarn_subscriptions_refresh">به‌روزرسانی</string>
+    <string name="tarn_subscriptions_auto_update">به‌روزرسانی خودکار</string>
+    <string name="tarn_subscriptions_never">هنوز به‌روزرسانی نشده</string>
+    <string name="tarn_subscriptions_just_now">همین حالا به‌روزرسانی شد</string>
+    <string name="tarn_subscriptions_delete_title">حذف اشتراک</string>
+    <string name="tarn_subscriptions_delete_message">«%1$s» و %2$d سروری که افزوده حذف شوند؟</string>
+    <string name="tarn_subscriptions_delete_action">حذف</string>
+    <plurals name="tarn_subscriptions_server_count">
+        <item quantity="one">%1$d سرور</item>
+        <item quantity="other">%1$d سرور</item>
+    </plurals>
+    <plurals name="tarn_subscriptions_minutes_ago">
+        <item quantity="one">%1$d دقیقه پیش به‌روزرسانی شد</item>
+        <item quantity="other">%1$d دقیقه پیش به‌روزرسانی شد</item>
+    </plurals>
+    <plurals name="tarn_subscriptions_hours_ago">
+        <item quantity="one">%1$d ساعت پیش به‌روزرسانی شد</item>
+        <item quantity="other">%1$d ساعت پیش به‌روزرسانی شد</item>
+    </plurals>
+    <plurals name="tarn_subscriptions_days_ago">
+        <item quantity="one">%1$d روز پیش به‌روزرسانی شد</item>
+        <item quantity="other">%1$d روز پیش به‌روزرسانی شد</item>
+    </plurals>
+    <string name="tarn_update_not_configured">بررسی به‌روزرسانی در این ساخت هنوز تنظیم نشده است.</string>
+    <string name="tarn_apply_failed">تغییر روی VPN در حال اجرا اعمال نشد.</string>
+
+    <string name="tarn_ru_direct_database_updated">پایگاه خدمات روسی به‌روزرسانی شد: %1$d دامنه</string>
+    <string name="profile_import_url_hint">پیوند vless:// یا نشانی HTTPS اشتراک را جای‌گذاری کنید</string>
+    <string name="profile_https_url">نشانی HTTPS</string>
+    <string name="profile_url_https_required">نشانی پروفایل باید از HTTPS استفاده کند.</string>
+
+    <string name="title_usbip">USB/IP</string>
+    <string name="usbip_with_tag">USB/IP (%1$s)</string>
+    <string name="usbip_no_server">سرور USB/IP تنظیم نشده است.</string>
+    <string name="usbip_no_devices">برای اشتراک‌گذاری از طریق این سرور USB/IP یک دستگاه USB انتخاب کنید.</string>
+    <string name="usbip_no_usb_devices">هیچ دستگاه USB پیدا نشد.</string>
+    <string name="usbip_connect_device">اتصال دستگاه</string>
+    <string name="usbip_detach">جدا کردن</string>
+    <string name="usbip_state_attaching">در حال اتصال</string>
+    <string name="usbip_state_ready">آماده</string>
+    <string name="usbip_state_error">خطا</string>
+    <string name="usbip_state_idle">آماده‌به‌کار</string>
+    <string name="usbip_state_attached">متصل</string>
+    <string name="usbip_state_unavailable">دردسترس نیست</string>
+    <string name="usbip_identity">شناسه</string>
+    <string name="usbip_connection">اتصال</string>
+    <string name="usbip_class_interfaces">کلاس / واسط‌ها</string>
+    <string name="usbip_product">محصول</string>
+    <string name="usbip_serial">شماره سریال</string>
+    <string name="usbip_version">نسخه</string>
+    <string name="usbip_bus_id">شناسه گذرگاه</string>
+    <string name="usbip_backend">پشتیبان</string>
+    <string name="usbip_speed">سرعت</string>
+    <string name="usbip_bus_device">دستگاه گذرگاه</string>
+    <string name="usbip_device_class">کلاس دستگاه</string>
+    <string name="usbip_configuration">پیکربندی</string>
+    <string name="usbip_interface">واسط %1$d</string>
+    <string name="usbip_notification_title">USB/IP فعال است</string>
+    <plurals name="usbip_notification_text">
+        <item quantity="one">اشتراک‌گذاری %1$d دستگاه USB</item>
+        <item quantity="other">اشتراک‌گذاری %1$d دستگاه USB</item>
+    </plurals>
+</resources>

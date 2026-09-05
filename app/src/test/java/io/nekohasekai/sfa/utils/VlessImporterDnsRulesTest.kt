@@ -50,6 +50,7 @@ class VlessImporterDnsRulesTest {
         ipv6Enabled: Boolean = true,
         dnsProtection: Boolean = true,
         ruDirect: Boolean = true,
+        remoteDirectDomains: Set<String> = emptySet(),
         directDomains: Set<String> = emptySet(),
         fragmentEnabled: Boolean = false,
         recordFragment: Boolean = false,
@@ -69,6 +70,7 @@ class VlessImporterDnsRulesTest {
             testUrl = Settings.DEFAULT_TARN_TEST_URL,
             sendHostname = true,
             ruDirect = ruDirect,
+            remoteDirectDomains = remoteDirectDomains,
             directDomains = directDomains,
             recordFragment = recordFragment,
             tlsFingerprint = tlsFingerprint,
@@ -79,30 +81,23 @@ class VlessImporterDnsRulesTest {
 
     private fun JSONArray.objects(): List<JSONObject> = (0 until length()).mapNotNull(::optJSONObject)
 
-    private fun dnsRules(config: JSONObject): List<JSONObject> =
-        config.getJSONObject("dns").optJSONArray("rules")?.objects() ?: emptyList()
+    private fun dnsRules(config: JSONObject): List<JSONObject> = config.getJSONObject("dns").optJSONArray("rules")?.objects() ?: emptyList()
 
-    private fun JSONObject.strings(key: String): List<String> =
-        optJSONArray(key)?.let { arr -> (0 until arr.length()).map(arr::optString) } ?: emptyList()
+    private fun JSONObject.strings(key: String): List<String> = optJSONArray(key)?.let { arr -> (0 until arr.length()).map(arr::optString) } ?: emptyList()
 
-    private fun aaaaRule(config: JSONObject) =
-        dnsRules(config).firstOrNull { it.strings("query_type") == listOf("AAAA") }
+    private fun aaaaRule(config: JSONObject) = dnsRules(config).firstOrNull { it.strings("query_type") == listOf("AAAA") }
 
-    private fun bootstrapRules(config: JSONObject) =
-        dnsRules(config).filter { it.optString("server") == "bootstrap" }
+    private fun bootstrapRules(config: JSONObject) = dnsRules(config).filter { it.optString("server") == "bootstrap" }
 
     // Both off-tunnel rules name the same server, so they are told apart by what they carry
     // rather than by position — otherwise adding one silently reassigns the other's assertions.
-    private fun mediaRule(config: JSONObject) =
-        bootstrapRules(config).firstOrNull { "googlevideo.com" in it.strings("domain_suffix") }
+    private fun mediaRule(config: JSONObject) = bootstrapRules(config).firstOrNull { "googlevideo.com" in it.strings("domain_suffix") }
 
     // The other off-tunnel rule: identified by not being the media one, so it is still found
     // when the Russian list is off and only the user's own domains are in it.
-    private fun directDnsRule(config: JSONObject) =
-        bootstrapRules(config).firstOrNull { "googlevideo.com" !in it.strings("domain_suffix") }
+    private fun directDnsRule(config: JSONObject) = bootstrapRules(config).firstOrNull { "googlevideo.com" !in it.strings("domain_suffix") }
 
-    private fun routeRules(config: JSONObject) =
-        config.getJSONObject("route").getJSONArray("rules").objects()
+    private fun routeRules(config: JSONObject) = config.getJSONObject("route").getJSONArray("rules").objects()
 
     private fun directRouteRule(config: JSONObject) = routeRules(config).firstOrNull {
         it.has("domain_suffix") && it.optString("outbound") == "direct"
@@ -214,10 +209,24 @@ class VlessImporterDnsRulesTest {
         assertNotNull(directDnsRule(patch(dnsRoute = Settings.DNS_ROUTE_TUNNEL)))
     }
 
+    @Test
+    fun `adds refreshed russian services to both direct halves`() {
+        val config = patch(remoteDirectDomains = setOf("gosuslugi.ru", "yandex.net"))
+        assertTrue(
+            directDnsRule(config)!!.strings("domain_suffix").containsAll(
+                listOf("gosuslugi.ru", "yandex.net"),
+            ),
+        )
+        assertTrue(
+            directRouteRule(config)!!.strings("domain_suffix").containsAll(
+                listOf("gosuslugi.ru", "yandex.net"),
+            ),
+        )
+    }
+
     private fun outbounds(config: JSONObject) = config.getJSONArray("outbounds").objects()
 
-    private fun proxyOutbound(config: JSONObject) =
-        outbounds(config).first { it.optString("type") == "vless" }
+    private fun proxyOutbound(config: JSONObject) = outbounds(config).first { it.optString("type") == "vless" }
 
     /**
      * The core probes only after 5 minutes idle, and carrier NAT commonly drops an idle mapping
@@ -310,7 +319,10 @@ class VlessImporterDnsRulesTest {
 
     @Test
     fun `emits neither russian rule when the toggle is off`() {
-        val config = patch(ruDirect = false)
+        val config = patch(
+            ruDirect = false,
+            remoteDirectDomains = setOf("gosuslugi.ru"),
+        )
         assertNull(directDnsRule(config))
         assertNull(directRouteRule(config))
         assertNotNull("unrelated rules must survive", mediaRule(config))

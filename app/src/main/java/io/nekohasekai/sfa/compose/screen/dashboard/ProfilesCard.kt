@@ -106,6 +106,8 @@ fun ProfilesCard(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val successProfileSaved = stringResource(R.string.success_profile_saved)
+    val failedSaveProfile = stringResource(R.string.failed_save_profile)
 
     val importHandler = remember { ProfileImportHandler(context) }
 
@@ -162,7 +164,7 @@ fun ProfilesCard(
                         withContext(Dispatchers.Main) {
                             Toast.makeText(
                                 context,
-                                context.getString(R.string.success_profile_saved),
+                                successProfileSaved,
                                 Toast.LENGTH_SHORT,
                             ).show()
                         }
@@ -170,7 +172,7 @@ fun ProfilesCard(
                         withContext(Dispatchers.Main) {
                             Toast.makeText(
                                 context,
-                                "${context.getString(R.string.failed_save_profile)}: ${e.message}",
+                                "$failedSaveProfile: ${e.message}",
                                 Toast.LENGTH_SHORT,
                             ).show()
                         }
@@ -195,7 +197,7 @@ fun ProfilesCard(
                         withContext(Dispatchers.Main) {
                             Toast.makeText(
                                 context,
-                                context.getString(R.string.success_profile_saved),
+                                successProfileSaved,
                                 Toast.LENGTH_SHORT,
                             ).show()
                         }
@@ -203,7 +205,7 @@ fun ProfilesCard(
                         withContext(Dispatchers.Main) {
                             Toast.makeText(
                                 context,
-                                "${context.getString(R.string.failed_save_profile)}: ${e.message}",
+                                "$failedSaveProfile: ${e.message}",
                                 Toast.LENGTH_SHORT,
                             ).show()
                         }

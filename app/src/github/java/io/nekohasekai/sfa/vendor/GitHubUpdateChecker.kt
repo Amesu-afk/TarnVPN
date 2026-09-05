@@ -4,7 +4,6 @@ import android.os.Build
 import androidx.annotation.VisibleForTesting
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.BuildConfig
-import io.nekohasekai.sfa.ktx.unwrap
 import io.nekohasekai.sfa.update.UpdateCheckException
 import io.nekohasekai.sfa.update.UpdateInfo
 import io.nekohasekai.sfa.update.UpdateTrack
@@ -100,14 +99,11 @@ class GitHubUpdateChecker : Closeable {
             }
 
             // No split for this device (or a release that ships only the universal build).
-            return candidates.find { it.name.endsWith("-universal.apk") } ?: candidates.first()
+            return candidates.find { it.name.endsWith("-universal.apk") }
         }
     }
 
-    private val client = Libbox.newHTTPClient().apply {
-        modernTLS()
-        keepAlive()
-    }
+    private val client = HTTPClient()
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -121,6 +117,9 @@ class GitHubUpdateChecker : Closeable {
 
         for (release in releases) {
             if (!isReleaseInTrack(release, track)) {
+                continue
+            }
+            if (pickApkAsset(release.assets, Build.SUPPORTED_ABIS.orEmpty().toList(), Build.VERSION.SDK_INT < Build.VERSION_CODES.M) == null) {
                 continue
             }
             val metadata = runCatching { downloadMetadata(release) }.getOrNull() ?: continue
@@ -140,31 +139,26 @@ class GitHubUpdateChecker : Closeable {
             assets = release.assets,
             deviceAbis = Build.SUPPORTED_ABIS.orEmpty().toList(),
             isLegacy = Build.VERSION.SDK_INT < Build.VERSION_CODES.M,
-        )
+        ) ?: return null
 
         return UpdateInfo(
             versionCode = metadata.versionCode,
             versionName = metadata.versionName,
-            downloadUrl = apkAsset?.browserDownloadUrl ?: release.htmlUrl,
+            downloadUrl = apkAsset.browserDownloadUrl,
             releaseUrl = release.htmlUrl,
             releaseNotes = release.body,
             isPrerelease = release.prerelease,
-            fileSize = apkAsset?.size ?: 0,
+            fileSize = apkAsset.size,
         )
     }
 
     private fun getReleases(githubToken: String): List<GitHubRelease> {
-        val request = client.newRequest()
-        request.setURL(RELEASES_URL)
-        request.setHeader("Accept", "application/vnd.github.v3+json")
+        val headers = mutableMapOf("Accept" to "application/vnd.github.v3+json")
         val token = githubToken.trim()
         if (token.isNotEmpty()) {
-            request.setHeader("Authorization", "Bearer $token")
+            headers["Authorization"] = "Bearer $token"
         }
-        request.setUserAgent(HTTPClient.userAgent)
-
-        val response = request.execute()
-        val content = response.content.unwrap
+        val content = client.getString(RELEASES_URL, headers)
 
         return json.decodeFromString(content)
     }
@@ -195,12 +189,8 @@ class GitHubUpdateChecker : Closeable {
         val metadataAsset = release.assets.find { it.name == METADATA_FILENAME }
             ?: return null
 
-        val request = client.newRequest()
-        request.setURL(metadataAsset.browserDownloadUrl)
-        request.setUserAgent(HTTPClient.userAgent)
-
-        val response = request.execute()
-        val content = response.content.unwrap
+        require(metadataAsset.browserDownloadUrl.startsWith("https://"))
+        val content = client.getString(metadataAsset.browserDownloadUrl)
 
         return json.decodeFromString<VersionMetadata>(content)
     }

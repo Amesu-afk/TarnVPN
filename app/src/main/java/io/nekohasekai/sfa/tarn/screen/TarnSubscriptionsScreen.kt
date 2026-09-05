@@ -126,6 +126,32 @@ fun TarnSubscriptionsScreen(
             }
         }
 
+        state.notice?.let { notice ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .hairlineBorder(color = TarnColors.Accent)
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(
+                        R.string.tarn_subscriptions_refresh_partial,
+                        notice.serverCount,
+                        notice.rejectedCount,
+                    ),
+                    style = TarnMetaStyle,
+                    color = TarnColors.TextSecondary,
+                    modifier = Modifier.weight(1f),
+                )
+                TarnDialogTextButton(
+                    text = stringResource(R.string.tarn_action_dismiss),
+                    onClick = onDismissError,
+                )
+            }
+        }
+
         if (state.subscriptions.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(

@@ -130,6 +130,15 @@ fun LogScreen(
     val remoteServer by RemoteControlManager.remoteServer.collectAsState()
     val remoteServers by rememberRemoteServers()
     val emptyStateMessage = emptyMessage ?: stringResource(R.string.privilege_settings_hook_logs_empty)
+    val copiedToClipboard = stringResource(R.string.copied_to_clipboard)
+    val successLogsSaved = stringResource(R.string.success_logs_saved)
+    val failedSaveLogsTemplate = stringResource(R.string.failed_save_logs, "%1\$s")
+    val logsCopiedToClipboard = stringResource(R.string.logs_copied_to_clipboard)
+    val noLogsToCopy = stringResource(R.string.no_logs_to_copy)
+    val shareLogsTitle = stringResource(R.string.intent_share_logs)
+    val failedShareLogsTemplate = stringResource(R.string.failed_share_logs, "%1\$s")
+    val noLogsToShare = stringResource(R.string.no_logs_to_share)
+    fun formatLogMessage(template: String, value: Any?): String = String.format(Locale.getDefault(), template, value)
 
     OverrideTopBar {
         TopAppBar(
@@ -322,7 +331,7 @@ fun LogScreen(
                                         Application.clipboard.setPrimaryClip(clip)
                                         Toast.makeText(
                                             context,
-                                            context.getString(R.string.copied_to_clipboard),
+                                            copiedToClipboard,
                                             Toast.LENGTH_SHORT,
                                         ).show()
                                         resolvedViewModel.clearSelection()
@@ -562,14 +571,14 @@ fun LogScreen(
                                     outputStream.flush()
                                     Toast.makeText(
                                         context,
-                                        context.getString(R.string.success_logs_saved),
+                                        successLogsSaved,
                                         Toast.LENGTH_SHORT,
                                     ).show()
                                 }
                             } catch (e: Exception) {
                                 Toast.makeText(
                                     context,
-                                    context.getString(R.string.failed_save_logs, e.message),
+                                    formatLogMessage(failedSaveLogsTemplate, e.message),
                                     Toast.LENGTH_SHORT,
                                 ).show()
                             }
@@ -700,13 +709,13 @@ fun LogScreen(
                                 Application.clipboard.setPrimaryClip(clip)
                                 Toast.makeText(
                                     context,
-                                    context.getString(R.string.logs_copied_to_clipboard),
+                                    logsCopiedToClipboard,
                                     Toast.LENGTH_SHORT,
                                 ).show()
                             } else {
                                 Toast.makeText(
                                     context,
-                                    context.getString(R.string.no_logs_to_copy),
+                                    noLogsToCopy,
                                     Toast.LENGTH_SHORT,
                                 ).show()
                             }
@@ -782,20 +791,20 @@ fun LogScreen(
                                     context.startActivity(
                                         Intent.createChooser(
                                             shareIntent,
-                                            context.getString(R.string.intent_share_logs),
+                                            shareLogsTitle,
                                         ),
                                     )
                                 } catch (e: Exception) {
                                     Toast.makeText(
                                         context,
-                                        context.getString(R.string.failed_share_logs, e.message),
+                                        formatLogMessage(failedShareLogsTemplate, e.message),
                                         Toast.LENGTH_SHORT,
                                     ).show()
                                 }
                             } else {
                                 Toast.makeText(
                                     context,
-                                    context.getString(R.string.no_logs_to_share),
+                                    noLogsToShare,
                                     Toast.LENGTH_SHORT,
                                 ).show()
                             }

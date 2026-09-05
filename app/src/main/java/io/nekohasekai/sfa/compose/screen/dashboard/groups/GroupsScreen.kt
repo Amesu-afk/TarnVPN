@@ -46,7 +46,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -67,7 +66,8 @@ fun GroupsScreen(
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
+    val closeConnectionsConfirm = stringResource(R.string.close_connections_confirm)
+    val closeActionLabel = stringResource(R.string.close)
 
     // Stable callbacks to prevent recomposition
     val onToggleExpanded =
@@ -90,12 +90,10 @@ fun GroupsScreen(
     // Show snackbar when needed
     LaunchedEffect(uiState.showCloseConnectionsSnackbar) {
         if (uiState.showCloseConnectionsSnackbar) {
-            val message = context.getString(R.string.close_connections_confirm)
-            val actionLabel = context.getString(R.string.close)
             val result =
                 snackbarHostState.showSnackbar(
-                    message = message,
-                    actionLabel = actionLabel,
+                    message = closeConnectionsConfirm,
+                    actionLabel = closeActionLabel,
                     duration = androidx.compose.material3.SnackbarDuration.Indefinite,
                     withDismissAction = true,
                 )

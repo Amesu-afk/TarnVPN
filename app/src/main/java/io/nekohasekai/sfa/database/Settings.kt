@@ -1,7 +1,7 @@
 package io.nekohasekai.sfa.database
 
-import android.os.Build
 import android.net.Uri
+import android.os.Build
 import androidx.room.Room
 import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.BuildConfig
@@ -44,6 +44,7 @@ object Settings {
     var startedByUser by dataStore.boolean(SettingsKey.STARTED_BY_USER)
 
     var updateSource by dataStore.string(SettingsKey.UPDATE_SOURCE) { "github" }
+
     // On by default, unlike upstream SFA. TarnVPN is handed to people who install it by
     // sideloading a signed APK: nothing else will ever tell them a fixed build exists, and a
     // stale VPN client is a security problem rather than a missing nicety. It stays a toggle in
@@ -127,6 +128,7 @@ object Settings {
     var activeRemoteServerId by dataStore.long(SettingsKey.ACTIVE_REMOTE_SERVER_ID) { 0L }
 
     // TarnVPN shell.
+
     /** Start the tunnel as soon as the app is opened. */
     var tarnAutoConnect by dataStore.boolean(SettingsKey.TARN_AUTO_CONNECT) { false }
 
@@ -289,11 +291,10 @@ object Settings {
         }
 
     /** Keeps pre-026 installs on their previous IPv6 behaviour while `auto` is selected. */
-    fun effectiveTarnIpStrategy(ipStrategy: String = tarnIpStrategy, legacyIpv6Enabled: Boolean = tarnIpv6Enabled): String =
-        when (ipStrategy) {
-            IP_STRATEGY_IPV4_ONLY, IP_STRATEGY_PREFER_IPV4, IP_STRATEGY_PREFER_IPV6 -> ipStrategy
-            else -> if (legacyIpv6Enabled) IP_STRATEGY_PREFER_IPV4 else IP_STRATEGY_IPV4_ONLY
-        }
+    fun effectiveTarnIpStrategy(ipStrategy: String = tarnIpStrategy, legacyIpv6Enabled: Boolean = tarnIpv6Enabled): String = when (ipStrategy) {
+        IP_STRATEGY_IPV4_ONLY, IP_STRATEGY_PREFER_IPV4, IP_STRATEGY_PREFER_IPV6 -> ipStrategy
+        else -> if (legacyIpv6Enabled) IP_STRATEGY_PREFER_IPV4 else IP_STRATEGY_IPV4_ONLY
+    }
 
     /**
      * Send the sniffed hostname to the proxy server instead of the address the phone already
@@ -327,6 +328,36 @@ object Settings {
      * exit turns this off.
      */
     var tarnRuDirect by dataStore.boolean(SettingsKey.TARN_RU_DIRECT) { true }
+
+    /**
+     * Last valid copy of the maintained Russian-services list. It is refreshed before a
+     * Tarn-managed VPN session starts, but this cached copy keeps the feature working when the
+     * list host is unreachable.
+     *
+     * Kept separate from [tarnDirectDomains]: this is provider data, not a list the user has
+     * chosen. Turning [tarnRuDirect] off excludes it together with the built-in Russian list.
+     */
+    var tarnRuDirectRemoteDomains by dataStore.stringSet(SettingsKey.TARN_RU_DIRECT_REMOTE_DOMAINS) { emptySet() }
+
+    /** ETag of [tarnRuDirectRemoteDomains], sent to revalidate the list when a refresh is due. */
+    var tarnRuDirectRemoteDomainsEtag by dataStore.string(SettingsKey.TARN_RU_DIRECT_REMOTE_DOMAINS_ETAG) { "" }
+
+    /**
+     * When the maintained Russian-services list was last *attempted* (not last changed), so the
+     * refresh can be skipped on connects inside its window. Marked on every attempt, success or
+     * failure: the source (raw.githubusercontent.com) is a routine block/throttle target in the
+     * very region this list serves, and a failing fetch left ungated would time out on the connect
+     * path every single time. The cached list is applied on every start regardless, so a skipped
+     * refresh costs nothing.
+     */
+    var tarnRuDirectRemoteDomainsLastRefresh by dataStore.long(SettingsKey.TARN_RU_DIRECT_REMOTE_DOMAINS_LAST_REFRESH) { 0L }
+
+    /**
+     * Last successful HTTP 200/304 validation of the maintained Russian-services list.
+     * Kept separately from [tarnRuDirectRemoteDomainsLastRefresh] so a transient outage can
+     * retry soon without turning every VPN connection into a network wait.
+     */
+    var tarnRuDirectRemoteDomainsLastSuccess by dataStore.long(SettingsKey.TARN_RU_DIRECT_REMOTE_DOMAINS_LAST_SUCCESS) { 0L }
 
     /**
      * Domains the user has added to the direct list themselves, on top of [tarnRuDirect].
@@ -464,8 +495,7 @@ object Settings {
             allowBypass = !value
         }
 
-    private fun normalizeChoice(value: String, allowed: Set<String>, fallback: String): String =
-        value.takeIf(allowed::contains) ?: fallback
+    private fun normalizeChoice(value: String, allowed: Set<String>, fallback: String): String = value.takeIf(allowed::contains) ?: fallback
 
     // Tailscale SSH
     var tailscaleSSHRememberedUsernames by dataStore.map(SettingsKey.TAILSCALE_SSH_REMEMBERED_USERNAMES)

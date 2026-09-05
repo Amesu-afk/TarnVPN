@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TarnVPN strings kept separate from upstream sing-box resources. -->
+<resources>
+    <string name="tarn_state_offline">离线</string>
+    <string name="tarn_state_connected">已连接</string>
+    <string name="tarn_state_connecting">正在连接</string>
+    <string name="tarn_state_disconnecting">正在停止</string>
+
+    <string name="tarn_status_disconnected">未连接</string>
+    <string name="tarn_status_connected">已连接</string>
+    <string name="tarn_status_connecting">正在连接</string>
+    <string name="tarn_status_disconnecting">正在断开</string>
+
+    <string name="tarn_label_status">状态</string>
+    <string name="tarn_label_uptime">已连接时长</string>
+    <string name="tarn_label_server">服务器</string>
+    <string name="tarn_server_none">未选择服务器</string>
+    <string name="tarn_latency_ms">%1$d 毫秒</string>
+    <string name="tarn_latency_unreachable">不可用</string>
+
+    <string name="tarn_action_connect">连接</string>
+    <string name="tarn_action_disconnect">断开连接</string>
+    <string name="tarn_action_back">返回</string>
+    <string name="tarn_action_cancel">取消</string>
+    <string name="tarn_action_save">保存</string>
+    <string name="tarn_action_delete">删除</string>
+    <string name="tarn_action_dismiss">关闭</string>
+
+    <string name="tarn_title_servers">服务器</string>
+    <string name="tarn_title_shield">保护</string>
+    <string name="tarn_servers_tab_recommended">推荐</string>
+    <string name="tarn_servers_tab_all">所有国家/地区</string>
+    <string name="tarn_servers_country_all">全部</string>
+    <string name="tarn_servers_search_hint">搜索服务器</string>
+    <string name="tarn_servers_empty">尚无服务器。</string>
+    <string name="tarn_servers_favourite">收藏</string>
+    <string name="tarn_servers_fastest">连接最快的服务器</string>
+    <string name="tarn_servers_delete">删除服务器</string>
+    <string name="tarn_servers_delete_confirm_title">删除服务器？</string>
+    <string name="tarn_servers_delete_confirm_message">%1$s 将从此设备移除。</string>
+    <string name="tarn_servers_delete_confirm_action">删除</string>
+
+    <string name="tarn_servers_add_title">添加服务器</string>
+    <string name="tarn_servers_add_hint">粘贴服务器链接或订阅 URL。支持 vless、trojan、ss、vmess、hysteria2、tuic 和 anytls。订阅中的每个服务器都会成为单独的条目。</string>
+    <string name="tarn_servers_add_placeholder">vless://… trojan://… ss://… 或 https://…</string>
+    <string name="tarn_servers_add_action">添加</string>
+    <string name="tarn_servers_import_partial">已处理 %1$d 个服务器；跳过 %2$d 个不支持或无效的链接。</string>
+    <string name="tarn_subscriptions_refresh_partial">订阅已刷新，含 %1$d 个服务器；跳过 %2$d 个不支持或无效的链接。</string>
+
+    <string name="tarn_shield_section_general">常规</string>
+    <string name="tarn_shield_kill_switch">防止绕过 VPN</string>
+    <string name="tarn_shield_kill_switch_desc">防止应用绕过正在运行的 VPN。要在断开后阻止流量，请启用 Android 的“始终开启 VPN”和“阻止未使用 VPN 的连接”。</string>
+    <string name="tarn_shield_dns">DNS 保护</string>
+    <string name="tarn_shield_dns_desc">通过 TarnVPN DNS 解析查询</string>
+    <string name="tarn_shield_autoconnect">自动连接</string>
+    <string name="tarn_shield_autoconnect_desc">应用启动时连接 VPN</string>
+
+    <string name="tarn_dns_provider">DNS 解析器</string>
+    <string name="tarn_dns_title">DNS 解析器</string>
+    <string name="tarn_dns_hint">域名会通过 HTTPS 发送到所选解析器的固定 IP，不会为引导解析发送明文 DNS 查询。</string>
+    <string name="tarn_dns_section">选择解析器</string>
+    <string name="tarn_dns_custom_title">自定义</string>
+    <string name="tarn_dns_custom_unset">未设置</string>
+    <string name="tarn_dns_custom_dialog_title">自定义解析器</string>
+    <string name="tarn_dns_custom_dialog_hint">端口 443 上 DNS-over-HTTPS 解析器的 IPv4 地址。其证书必须对此 IP 地址有效。</string>
+    <string name="tarn_dns_custom_input_placeholder">203.0.113.5</string>
+    <string name="tarn_dns_custom_error">请输入有效的 IPv4 地址</string>
+
+    <string name="tarn_shield_section_network">网络</string>
+    <string name="tarn_shield_ru_direct">俄罗斯网站绕过 VPN</string>
+    <string name="tarn_shield_ru_direct_desc">银行、政务服务、商城和 .ru 网站将直接访问并在本地解析；使用境外地址时可能拒绝服务或变慢。关闭此项可让所有流量通过出口服务器。</string>
+    <string name="tarn_shield_direct_domains">我的直连网站</string>
+    <string name="tarn_shield_direct_domains_empty">未添加</string>
+    <plurals name="tarn_shield_direct_domains_count">
+        <item quantity="other">%1$d 个域名</item>
+    </plurals>
+    <string name="tarn_direct_domains_title">直连网站</string>
+    <string name="tarn_direct_domains_hint">这些网站会与内置列表一起绕过 VPN，并在关闭该列表时继续生效。一个域名覆盖其所有子域名：添加 example.com 也会覆盖 pay.example.com。</string>
+    <string name="tarn_direct_domains_empty">尚未添加内容。添加一个拒绝通过 VPN 工作的网站，例如银行、工作门户或本地服务。</string>
+    <string name="tarn_direct_domains_add">添加域名</string>
+    <string name="tarn_direct_domains_add_hint">输入域名或复制的链接；应用会从中提取地址。</string>
+    <string name="tarn_direct_domains_add_action">添加</string>
+    <string name="tarn_direct_domains_placeholder">example.com</string>
+    <string name="tarn_direct_domains_invalid">其中没有域名。请输入类似 example.com 的内容。</string>
+    <string name="tarn_direct_domains_remove">移除</string>
+    <string name="tarn_shield_dns_tunnel">DNS 通过 VPN</string>
+    <string name="tarn_shield_dns_tunnel_desc">开启：DNS 经由隧道，DNS 泄漏测试会显示出口地区，但高负载下解析更慢。关闭：快速直连 DNS（仍加密），但测试会显示你的真实地区。</string>
+    <string name="tarn_shield_ipv6">IPv6</string>
+    <string name="tarn_shield_ipv6_desc">也让 IPv6 流量通过隧道；否则具有原生 IPv6 的应用可能完全绕过 VPN。</string>
+    <string name="tarn_shield_fragment">TLS 分片</string>
+    <string name="tarn_shield_fragment_desc">将 TLS 握手拆分到多个数据包，使依赖其形状的过滤更难匹配。也适用于 Reality。当服务器在 Wi‑Fi 可连接但在移动网络不可连接时可尝试。</string>
+
+    <string name="tarn_connection_lab_entry">连接实验室</string>
+    <string name="tarn_connection_lab_entry_desc">调整路由和完整测试参数</string>
+    <string name="tarn_connection_lab_title">连接实验室</string>
+    <string name="tarn_connection_lab_intro">每次只更改一个参数，并在同一网络中比较结果。自动值是最安全的默认选项。</string>
+    <string name="tarn_connection_lab_section_network">连接参数</string>
+    <string name="tarn_connection_lab_quic">QUIC 策略</string>
+    <string name="tarn_connection_lab_mtu">隧道 MTU</string>
+    <string name="tarn_connection_lab_ip_strategy">IP 策略</string>
+    <string name="tarn_connection_lab_dns_route">加密 DNS 路由</string>
+    <string name="tarn_connection_lab_log_level">日志级别</string>
+    <string name="tarn_connection_lab_auto">自动</string>
+    <string name="tarn_connection_lab_quic_allow">允许</string>
+    <string name="tarn_connection_lab_quic_block">阻止</string>
+    <string name="tarn_connection_lab_ip_ipv4_only">仅 IPv4</string>
+    <string name="tarn_connection_lab_ip_prefer_ipv4">优先 IPv4</string>
+    <string name="tarn_connection_lab_ip_prefer_ipv6">优先 IPv6</string>
+    <string name="tarn_connection_lab_dns_direct">直连</string>
+    <string name="tarn_connection_lab_dns_tunnel">通过 VPN</string>
+    <string name="tarn_connection_lab_dns_route_disabled">DNS 保护已关闭，因此此路由会在启用保护前保持无效。</string>
+    <string name="tarn_connection_lab_log_warn">警告</string>
+    <string name="tarn_connection_lab_log_info">信息</string>
+    <string name="tarn_connection_lab_log_debug">调试</string>
+    <string name="tarn_connection_lab_log_trace">跟踪</string>
+    <string name="tarn_connection_lab_open_logs">打开日志</string>
+    <string name="tarn_connection_lab_open_logs_hint">以上方所选级别显示核心的实时输出</string>
+    <string name="tarn_logs_title">日志</string>
+    <string name="tarn_servers_unmanaged">设置不会应用；请删除后重新添加。</string>
+    <string name="tarn_servers_insecure_tls">未验证服务器证书；此流量可能被拦截。</string>
+    <string name="tarn_shield_always_on">系统始终开启 VPN</string>
+    <string name="tarn_shield_always_on_desc">上方开关只在服务存活时有效。若服务崩溃或手机重启，流量会直接发出。只有系统设置能阻止它：开启“始终开启 VPN”和“阻止未使用 VPN 的连接”。打开 Android 设置。</string>
+    <string name="tarn_connection_lab_ipv4_only_warning">所有流量都会走 IPv4，并且应用会被告知该名称完全没有 IPv6。请同时保持“将主机名发送到服务器”开启，否则某些 Google 服务会回复“在你所在地区不可用”。</string>
+    <string name="tarn_connection_lab_tls_fingerprint">TLS 指纹</string>
+    <string name="tarn_connection_lab_tls_fingerprint_auto">来自链接</string>
+    <string name="tarn_connection_lab_tls_fingerprint_random">随机</string>
+    <string name="tarn_connection_lab_record_fragment">分片 TLS 记录</string>
+    <string name="tarn_connection_lab_record_fragment_desc">比普通分片更强也更有风险：它会改变握手封装方式，某些 Reality 服务器无法重新组装。仅在普通分片不够时启用；若服务器不再连接，原因就在这里。</string>
+    <string name="tarn_connection_lab_send_hostname">将主机名发送到服务器</string>
+    <string name="tarn_connection_lab_send_hostname_desc">与 Xray 和 v2rayNG 一样：服务器解析名称并选择地区，Gemini 需要这样才能避免“在你所在地区不可用”。YouTube 例外，应在手机上解析，否则 Music 会按地区限制。仅当服务器拒绝域名目标时关闭。</string>
+    <string name="tarn_connection_lab_no_v6_warning">诊断模式。AAAA 记录照常返回，但 IPv6 目标会被路由表拒绝，因此流量走 IPv4，fast.com 会显示 IPv4。目的在于区分“流量走 IPv4”和“客户端被告知没有 IPv6”。若 Gemini 在此模式下可用，后者就是原因。</string>
+    <string name="tarn_connection_lab_debug_warning">调试日志可能在本地日志中暴露访问过的域名，并增加耗电。测试后请关闭。</string>
+
+    <string name="tarn_connection_lab_section_test">活动服务器完整测试</string>
+    <string name="tarn_connection_lab_test_url">HTTPS 测试地址</string>
+    <string name="tarn_connection_lab_test_url_hint">应用会通过当前已加载到 VPN 的所选服务器请求此地址。</string>
+    <string name="tarn_connection_lab_test_url_error">请输入不含嵌入式凭据的完整 https:// 地址。</string>
+    <string name="tarn_connection_lab_test_url_security_hint">请勿在此使用订阅 URL、访问令牌或私人链接。</string>
+    <string name="tarn_connection_lab_timeout">超时</string>
+    <string name="tarn_connection_lab_timeout_value">%1$d 秒</string>
+    <string name="tarn_connection_lab_retries">尝试次数</string>
+    <string name="tarn_connection_lab_retries_value">%1$d 次</string>
+
+    <string name="tarn_connection_lab_section_recovery">恢复</string>
+    <string name="tarn_connection_lab_network_recovery">网络切换后恢复</string>
+    <string name="tarn_connection_lab_network_recovery_desc">在 Wi‑Fi 和移动数据之间切换后重新加载正在运行的 VPN。</string>
+    <string name="tarn_connection_lab_failover">建议备用服务器</string>
+    <string name="tarn_connection_lab_failover_desc">如果活动 HTTP 测试失败，显示通过初步 TCP 测试可达的最快服务器。</string>
+    <string name="tarn_connection_lab_failover_warning">备用候选尚未通过 HTTP 测试。切换需要你的确认；之后请再次运行完整测试。</string>
+    <string name="tarn_connection_lab_apply_hint">连接参数会应用到现有 TarnVPN 配置。值变更时，活动 VPN 可能会重新加载。</string>
+
+    <string name="tarn_full_test_title">完整测试</string>
+    <string name="tarn_full_test_requires_vpn">请先启动 VPN。断开连接时只能使用初步 TCP 延迟测试。</string>
+    <string name="tarn_full_test_select_running">完整测试前请选择正在运行的配置。</string>
+    <string name="tarn_full_test_active_only">完整测试检查当前已加载到 VPN 的所选配置。</string>
+    <string name="tarn_full_test_running">正在通过 VPN 发送 HTTP 请求…</string>
+    <string name="tarn_full_test_success">通过 VPN 的 HTTP：%1$d 毫秒，尝试：%2$d 次。</string>
+    <string name="tarn_full_test_failed">通过 VPN 的 HTTP 不可用：%1$s</string>
+    <string name="tarn_full_test_cancelled">完整测试已取消。</string>
+    <string name="tarn_full_test_run">测试</string>
+    <string name="tarn_full_test_cancel">取消</string>
+    <string name="tarn_full_test_clear">清除结果</string>
+    <string name="tarn_full_test_tcp_fallback">可能的 TCP 备用服务器：%1$s。它尚未通过 HTTP 测试。</string>
+    <string name="tarn_full_test_select_tcp_fallback">选择 TCP 备用服务器</string>
+
+    <string name="tarn_shield_section_appearance">外观</string>
+    <string name="tarn_shield_theme_system">系统</string>
+    <string name="tarn_shield_theme_light">浅色</string>
+    <string name="tarn_shield_theme_dark">深色</string>
+    <string name="tarn_shield_section_split">分流</string>
+    <string name="tarn_shield_split">分流</string>
+    <string name="tarn_shield_split_desc">仅让部分应用通过 VPN</string>
+    <string name="tarn_shield_split_mode_exclude">除所选应用外全部</string>
+    <string name="tarn_shield_split_mode_include">仅所选应用</string>
+    <string name="tarn_shield_split_apps">选择应用</string>
+    <string name="tarn_shield_split_apps_none">未选择内容</string>
+    <plurals name="tarn_shield_split_apps_count">
+        <item quantity="other">%1$d 个应用</item>
+    </plurals>
+    <string name="tarn_shield_section_protocol">协议</string>
+    <string name="tarn_shield_protocol">协议</string>
+    <string name="tarn_shield_version">应用版本</string>
+
+    <string name="tarn_subscriptions_title">订阅</string>
+    <string name="tarn_subscriptions_empty">尚无订阅。在“服务器”页面使用“+”粘贴订阅 URL，它会在此处被跟踪。</string>
+    <string name="tarn_subscriptions_refresh">更新</string>
+    <string name="tarn_subscriptions_auto_update">自动更新</string>
+    <string name="tarn_subscriptions_never">尚未更新</string>
+    <string name="tarn_subscriptions_just_now">刚刚更新</string>
+    <string name="tarn_subscriptions_delete_title">删除订阅</string>
+    <string name="tarn_subscriptions_delete_message">移除“%1$s”及它添加的 %2$d 个服务器？</string>
+    <string name="tarn_subscriptions_delete_action">删除</string>
+    <plurals name="tarn_subscriptions_server_count">
+        <item quantity="other">%1$d 个服务器</item>
+    </plurals>
+    <plurals name="tarn_subscriptions_minutes_ago">
+        <item quantity="other">%1$d 分钟前更新</item>
+    </plurals>
+    <plurals name="tarn_subscriptions_hours_ago">
+        <item quantity="other">%1$d 小时前更新</item>
+    </plurals>
+    <plurals name="tarn_subscriptions_days_ago">
+        <item quantity="other">%1$d 天前更新</item>
+    </plurals>
+    <string name="tarn_update_not_configured">此构建尚未配置更新检查。</string>
+    <string name="tarn_apply_failed">无法将更改应用到正在运行的 VPN。</string>
+
+    <string name="tarn_ru_direct_database_updated">俄罗斯服务数据库已更新：%1$d 个域名</string>
+    <string name="profile_import_url_hint">粘贴 vless:// 链接或 HTTPS 订阅 URL</string>
+    <string name="profile_https_url">HTTPS URL</string>
+    <string name="profile_url_https_required">配置 URL 必须使用 HTTPS。</string>
+
+    <string name="title_usbip">USB/IP</string>
+    <string name="usbip_with_tag">USB/IP（%1$s）</string>
+    <string name="usbip_no_server">未配置 USB/IP 服务器。</string>
+    <string name="usbip_no_devices">请选择一个 USB 设备以通过此 USB/IP 服务器共享。</string>
+    <string name="usbip_no_usb_devices">未找到 USB 设备。</string>
+    <string name="usbip_connect_device">连接设备</string>
+    <string name="usbip_detach">断开</string>
+    <string name="usbip_state_attaching">正在连接</string>
+    <string name="usbip_state_ready">就绪</string>
+    <string name="usbip_state_error">错误</string>
+    <string name="usbip_state_idle">空闲</string>
+    <string name="usbip_state_attached">已连接</string>
+    <string name="usbip_state_unavailable">不可用</string>
+    <string name="usbip_identity">标识</string>
+    <string name="usbip_connection">连接</string>
+    <string name="usbip_class_interfaces">类别 / 接口</string>
+    <string name="usbip_product">产品</string>
+    <string name="usbip_serial">序列号</string>
+    <string name="usbip_version">版本</string>
+    <string name="usbip_bus_id">总线 ID</string>
+    <string name="usbip_backend">后端</string>
+    <string name="usbip_speed">速度</string>
+    <string name="usbip_bus_device">总线设备</string>
+    <string name="usbip_device_class">设备类别</string>
+    <string name="usbip_configuration">配置</string>
+    <string name="usbip_interface">接口 %1$d</string>
+    <string name="usbip_notification_title">USB/IP 正在运行</string>
+    <plurals name="usbip_notification_text">
+        <item quantity="other">正在共享 %1$d 个 USB 设备</item>
+    </plurals>
+</resources>

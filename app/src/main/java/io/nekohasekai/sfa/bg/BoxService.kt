@@ -15,6 +15,7 @@ import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.os.PowerManager
 import android.util.Log
+import android.widget.Toast
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -36,6 +37,8 @@ import io.nekohasekai.sfa.constant.Status
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.ktx.hasPermission
+import io.nekohasekai.sfa.utils.RuDirectDomainUpdater
+import io.nekohasekai.sfa.utils.VlessImporter
 import io.nekohasekai.sfa.vendor.Vendor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -164,14 +167,32 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 return
             }
 
-            val content = File(profile.typed.path).readText()
+            var content = File(profile.typed.path).readText()
             if (content.isBlank()) {
                 stopAndAlert(Alert.EmptyConfiguration)
                 return
             }
 
+            // Profiles are stored as the generator output from the time they were imported.
+            // Revalidate the maintained direct list before the tunnel exists, then apply the
+            // cached/current settings in memory so this connection receives it immediately.
+            val updatedRuDirectDomainCount =
+                if (Settings.tarnRuDirect && VlessImporter.isManagedConfig(content)) {
+                    RuDirectDomainUpdater.refresh()
+                } else {
+                    null
+                }
+            content = VlessImporter.applyCurrentSettings(content) ?: content
+
             lastProfileName = profile.name
             withContext(Dispatchers.Main) {
+                updatedRuDirectDomainCount?.let { domainCount ->
+                    Toast.makeText(
+                        service,
+                        service.getString(R.string.tarn_ru_direct_database_updated, domainCount),
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
                 notification.show(lastProfileName, R.string.status_starting)
             }
 
@@ -264,11 +285,13 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             return
         }
 
-        val content = File(profile.typed.path).readText()
+        var content = File(profile.typed.path).readText()
         if (content.isBlank()) {
             stopAndAlert(Alert.EmptyConfiguration)
             return
         }
+        // A recovery reload must retain the cached list that was applied at connection time.
+        content = VlessImporter.applyCurrentSettings(content) ?: content
         lastProfileName = profile.name
         try {
             commandServer.startOrReloadService(
