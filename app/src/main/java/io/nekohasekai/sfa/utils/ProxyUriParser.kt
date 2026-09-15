@@ -72,10 +72,16 @@ object ProxyUriParser {
         val q = parseQuery(uri.query.orEmpty())
 
         val transportType = queryValue(q, "type", "transport", "net") ?: "tcp"
-        // xtls-rprx-vision flow is only valid over raw TCP+Reality. With a stream transport
-        // (xhttp/ws/grpc) it must be empty, otherwise the tunnel connects but silently passes
-        // no data.
-        val hasTransport = transportType.lowercase() !in setOf("", "tcp", "raw", "none")
+        val normalizedTransport = transportType.lowercase()
+        val hasTransport = normalizedTransport !in setOf("", "tcp", "raw", "none")
+        val encryption = queryValue(q, "encryption")
+            ?.takeIf { it.isNotBlank() && !it.equals("none", ignoreCase = true) }
+        // Vision normally requires a raw TCP transport. Xray also permits it over XHTTP when
+        // the post-quantum VLESS encryption layer is enabled; 3x-ui now exports exactly that
+        // combination. Keep clearing it for ordinary stream transports, but do not silently
+        // break the valid XHTTP + encryption form after import.
+        val supportsVision = !hasTransport ||
+            (normalizedTransport in setOf("xhttp", "splithttp") && encryption != null)
 
         val outbound = JSONObject().apply {
             put("type", "vless")
@@ -83,13 +89,11 @@ object ProxyUriParser {
             put("server", host)
             put("server_port", port)
             put("uuid", Uri.decode(userInfo))
-            put("flow", if (hasTransport) "" else queryValue(q, "flow").orEmpty())
+            put("flow", if (supportsVision) queryValue(q, "flow").orEmpty() else "")
             // `none` is the core default, but a real post-quantum VLESS spec must survive
             // import exactly: dropping it makes the profile look valid and then fail only
             // after the transport has connected.
-            queryValue(q, "encryption")
-                ?.takeIf { it.isNotBlank() && !it.equals("none", ignoreCase = true) }
-                ?.let { put("encryption", it) }
+            encryption?.let { put("encryption", it) }
             queryValue(q, "packet_encoding", "packetEncoding")
                 ?.takeIf { it.isNotBlank() }
                 ?.let { put("packet_encoding", it) }
@@ -422,6 +426,7 @@ object ProxyUriParser {
      */
     private val XHTTP_STRING_KEYS = listOf(
         "session_placement", "session_key", "seq_placement", "seq_key",
+        "session_id_table", "session_id_length",
         "uplink_data_placement", "uplink_data_key", "uplink_chunk_size", "uplink_http_method",
         "x_padding_bytes", "x_padding_key", "x_padding_header", "x_padding_placement", "x_padding_method",
         "sc_max_each_post_bytes", "sc_min_posts_interval_ms",
@@ -430,6 +435,7 @@ object ProxyUriParser {
     private val XHTTP_BOOL_KEYS = listOf("x_padding_obfs_mode", "no_grpc_header")
 
     private val XHTTP_RANGE_KEYS = setOf(
+        "session_id_length",
         "uplink_chunk_size",
         "x_padding_bytes",
         "sc_max_each_post_bytes",
@@ -451,7 +457,18 @@ object ProxyUriParser {
         }
         // An explicit query parameter beats the same key inside `extra`.
         q.forEach { (key, value) -> flat[foldKey(key)] = value }
+        // xray-core #6258 renamed sessionPlacement/sessionKey and added two generation knobs.
+        // Keep our stable snake_case config surface while accepting the canonical 3x-ui names.
+        aliasFoldedField(flat, "sessionIDPlacement", "sessionPlacement")
+        aliasFoldedField(flat, "sessionIDKey", "sessionKey")
         return flat
+    }
+
+    private fun aliasFoldedField(fields: MutableMap<String, Any?>, source: String, target: String) {
+        val targetKey = foldKey(target)
+        if (!fields.containsKey(targetKey)) {
+            fields[foldKey(source)]?.let { fields[targetKey] = it }
+        }
     }
 
     private fun applyXhttpExtras(transport: JSONObject, fields: Map<String, Any?>) {

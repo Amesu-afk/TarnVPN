@@ -111,14 +111,19 @@ class ProxyUriParserTest {
         parse("vless://uuid@example.com:443?security=reality")
     }
 
-    /**
-     * xtls-rprx-vision is only valid over raw TCP. Left set alongside a stream transport the
-     * tunnel connects and then silently carries nothing, which is why it is cleared here.
-     */
+    /** Ordinary stream transports must clear Vision, while Xray's encrypted-XHTTP extension
+     * requires it to survive import together with the VLESS encryption spec. */
     @Test
-    fun `drops the vision flow when a stream transport is used`() {
+    fun `keeps vision only for transports that support it`() {
         val withTransport = parse("vless://uuid@example.com:443?type=xhttp&flow=xtls-rprx-vision")
         assertEquals("", withTransport.optString("flow"))
+
+        val encryption = "mlkem768x25519plus.native.0rtt.PUBLIC_KEY"
+        val encryptedXhttp = parse(
+            "vless://uuid@example.com:443?type=xhttp&flow=xtls-rprx-vision&encryption=$encryption",
+        )
+        assertEquals("xtls-rprx-vision", encryptedXhttp.optString("flow"))
+        assertEquals(encryption, encryptedXhttp.optString("encryption"))
 
         val rawTcp = parse("vless://uuid@example.com:443?type=tcp&flow=xtls-rprx-vision&security=reality&pbk=K")
         assertEquals("xtls-rprx-vision", rawTcp.optString("flow"))
@@ -189,6 +194,20 @@ class ProxyUriParserTest {
         assertTrue(transport.has("no_grpc_header"))
         assertFalse(transport.optBoolean("no_grpc_header"))
         assertEquals("value", transport.getJSONObject("headers").optString("X-Test"))
+    }
+
+    @Test
+    fun `maps canonical xray session id fields from xhttp extra`() {
+        val extra = Uri.encode(
+            """{"sessionIDPlacement":"header","sessionIDKey":"X-New-Session","sessionIDTable":"Base62","sessionIDLength":12.0}""",
+        )
+        val transport = parse(
+            "vless://uuid@example.com:443?type=xhttp&mode=packet-up&extra=$extra",
+        ).getJSONObject("transport")
+        assertEquals("header", transport.optString("session_placement"))
+        assertEquals("X-New-Session", transport.optString("session_key"))
+        assertEquals("Base62", transport.optString("session_id_table"))
+        assertEquals("12-12", transport.optString("session_id_length"))
     }
 
     @Test(expected = IllegalArgumentException::class)

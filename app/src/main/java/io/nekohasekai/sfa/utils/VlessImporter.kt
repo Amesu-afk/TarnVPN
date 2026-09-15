@@ -35,8 +35,10 @@ object VlessImporter {
      *     copy is refreshed before a Tarn-managed VPN session starts and is safely cached.
      * 8 — imported links preserve their protocol-specific fields (including VLESS encryption,
      *     XHTTP extras and HTTP/h2 transport); source-backed profiles are regenerated once.
+     * 9 — XHTTP + VLESS encryption keeps its valid Vision flow, and canonical Xray
+     *     sessionID* fields from current 3x-ui links survive import.
      */
-    const val CONFIG_GENERATION = 8
+    const val CONFIG_GENERATION = 9
 
     private data class ConnectionConfigSettings(
         val dnsOption: DnsOption,
