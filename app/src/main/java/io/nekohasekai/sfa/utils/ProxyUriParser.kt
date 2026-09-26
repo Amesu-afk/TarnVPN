@@ -21,7 +21,7 @@ object ProxyUriParser {
 
     data class ParsedOutbound(val tag: String, val json: JSONObject, val sourceUri: String)
 
-    private val SCHEMES = setOf("vless", "trojan", "ss", "vmess", "hysteria2", "hy2", "tuic", "anytls")
+    private val SCHEMES = setOf("vless", "trojan", "ss", "vmess", "hysteria2", "hy2", "tuic", "anytls", "olcrtc")
 
     fun isSupportedUri(input: String): Boolean {
         val scheme = normalizedInput(input).substringBefore("://", "").lowercase()
@@ -41,6 +41,7 @@ object ProxyUriParser {
             "hysteria2", "hy2" -> parseHysteria2(trimmed)
             "tuic" -> parseTuic(trimmed)
             "anytls" -> parseAnyTLS(trimmed)
+            "olcrtc" -> OlcRtcUri.parse(trimmed).outbound()
             else -> throw IllegalArgumentException("Unsupported scheme in: ${trimmed.take(24)}…")
         }
     }

@@ -32,4 +32,20 @@ class TarnLinkIdentityTest {
             TarnLinkIdentity.connectionKey(second),
         )
     }
+
+    @Test
+    fun `keeps distinct olcrtc rooms and ignores only their display names`() {
+        val first = "olcrtc://jitsi?datachannel@https://meet.example/alpha#${"a".repeat(64)}\$Alpha"
+        val renamed = "olcrtc://jitsi?datachannel@https://meet.example/alpha#${"a".repeat(64)}\$Renamed"
+        val second = "olcrtc://jitsi?datachannel@https://meet.example/bravo#${"b".repeat(64)}\$Bravo"
+
+        assertEquals(
+            TarnLinkIdentity.connectionKey(first),
+            TarnLinkIdentity.connectionKey(renamed),
+        )
+        assertNotEquals(
+            TarnLinkIdentity.connectionKey(first),
+            TarnLinkIdentity.connectionKey(second),
+        )
+    }
 }

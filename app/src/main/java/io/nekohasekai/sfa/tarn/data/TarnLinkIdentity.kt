@@ -1,5 +1,6 @@
 package io.nekohasekai.sfa.tarn.data
 
+import io.nekohasekai.sfa.utils.OlcRtcUri
 import io.nekohasekai.sfa.utils.ProxyUriParser
 import org.json.JSONArray
 import org.json.JSONObject
@@ -16,6 +17,22 @@ import org.json.JSONObject
 internal object TarnLinkIdentity {
 
     fun connectionKey(sourceUri: String): String {
+        // olcRTC materialises to the same local SOCKS outbound for every provider. Using that
+        // outbound as identity therefore merged distinct rooms during subscription refresh.
+        runCatching { OlcRtcUri.parse(sourceUri) }.getOrNull()?.let { profile ->
+            return canonicalJson(
+                JSONObject()
+                    .put("type", "olcrtc")
+                    .put("provider", profile.provider)
+                    .put("transport", profile.transport)
+                    .put("room", profile.room)
+                    .put("key", profile.key)
+                    .put("client_id", profile.clientId)
+                    .put("dns", profile.dnsServer)
+                    .put("keepalive", profile.keepaliveSeconds)
+                    .put("options", JSONObject(profile.options)),
+            )
+        }
         val parsed = runCatching { ProxyUriParser.parse(sourceUri, fragmentEnabled = false).json }.getOrNull()
             ?: return sourceUri.substringBefore('#').trim()
         parsed.remove("tag")

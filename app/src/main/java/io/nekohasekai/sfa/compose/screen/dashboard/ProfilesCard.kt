@@ -562,6 +562,11 @@ fun ProfilesCard(
             onScanResult = { result ->
                 showQRScanSheet = false
                 when (result) {
+                    is QRScanResult.RawText -> {
+                        context.errorDialogBuilder(
+                            Exception("Not a valid sing-box remote profile URI"),
+                        ).show()
+                    }
                     is QRScanResult.QRSData -> {
                         coroutineScope.launch {
                             when (val parseResult = importHandler.parseQRSData(result.data)) {

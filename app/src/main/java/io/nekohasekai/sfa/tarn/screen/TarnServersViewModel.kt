@@ -2,6 +2,7 @@ package io.nekohasekai.sfa.tarn.screen
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.nekohasekai.mobile.Mobile
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.tarn.data.Latency
@@ -167,10 +168,16 @@ class TarnServersViewModel : ViewModel() {
             return
         }
         _uiState.update { state ->
-            state.copy(latencies = servers.associate { it.profileId to Latency.Probing })
+            state.copy(
+                latencies = servers.associate {
+                    it.profileId to if (it.protocol == "olcrtc") Latency.Unknown else Latency.Probing
+                },
+            )
         }
         probeJob = viewModelScope.launch {
             servers.forEach { server ->
+                // WebRTC has no fixed remote TCP endpoint. Its live control RTT is read below.
+                if (server.protocol == "olcrtc") return@forEach
                 launch {
                     val millis = TarnServerRepository.probe(server)
                     val latency = millis?.let { Latency.Ok(it) } ?: Latency.Unreachable
@@ -178,6 +185,18 @@ class TarnServersViewModel : ViewModel() {
                 }
             }
         }
+    }
+
+    /** Shows only the selected, connected olcRTC carrier's real control-stream RTT. */
+    fun updateOlcRtcLatency(profileId: Long, connected: Boolean) {
+        if (_uiState.value.servers.none { it.profileId == profileId && it.protocol == "olcrtc" }) return
+        val rtt = if (connected) Mobile.getControlRTTMillis() else -1
+        val latency = when {
+            !connected -> Latency.Unknown
+            rtt < 0 -> Latency.Probing
+            else -> Latency.Ok(rtt.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
+        }
+        _uiState.update { it.copy(latencies = it.latencies + (profileId to latency)) }
     }
 
     /**

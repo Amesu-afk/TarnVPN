@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 sealed class QRScanResult {
     data class RemoteProfile(val uri: Uri) : QRScanResult()
+    data class RawText(val value: String) : QRScanResult()
     data class QRSData(val data: ByteArray) : QRScanResult() {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
@@ -381,9 +382,8 @@ class QRScanViewModel(application: Application) : AndroidViewModel(application) 
         try {
             val uri = Uri.parse(value)
             if (uri.scheme != "sing-box" || uri.host != "import-remote-profile") {
-                _uiState.update { it.copy(errorMessage = "Not a valid sing-box remote profile URI") }
-                imageAnalysis?.setAnalyzer(analysisExecutor, imageAnalyzer!!)
-                return false
+                _uiState.update { it.copy(result = QRScanResult.RawText(value.trim())) }
+                return true
             }
             Libbox.parseRemoteProfileImportLink(uri.toString())
             _uiState.update { it.copy(result = QRScanResult.RemoteProfile(uri)) }

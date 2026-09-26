@@ -50,6 +50,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -70,6 +71,10 @@ class BoxService(private val service: Service, private val platformInterface: Pl
          * staring at a dead button.
          */
         private const val STOP_GRACE_PERIOD_MS = 5_000L
+
+        private const val OLCRTC_WATCHDOG_INTERVAL_MS = 3_000L
+        private const val OLCRTC_RETRY_MIN_MS = 5_000L
+        private const val OLCRTC_RETRY_MAX_MS = 60_000L
 
         fun start() {
             val intent =
@@ -95,6 +100,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     private val status = MutableLiveData(Status.Stopped)
     private val binder = ServiceBinder(status)
     private val notification = ServiceNotification(status, service)
+    private val olcRtcRuntime = OlcRtcRuntimeController(service)
     private lateinit var commandServer: CommandServer
     private val serviceReloadMutex = Mutex()
 
@@ -121,6 +127,9 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     private var recoveryNetwork: Network? = null
     private var recoveryJob: Job? = null
     private var idleWakeJob: Job? = null
+
+    @Volatile
+    private var olcRtcWatchdogJob: Job? = null
 
     private var receiverRegistered = false
     private val receiver =
@@ -199,8 +208,9 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             DefaultNetworkMonitor.start()
 
             try {
+                val olcRtcEndpoint = olcRtcRuntime.startForProfile(File(profile.typed.path))
                 commandServer.startOrReloadService(
-                    content,
+                    OlcRtcRuntimeController.applyLocalEndpoint(content, olcRtcEndpoint),
                     OverrideOptions().apply {
                         autoRedirect = Settings.autoRedirect
                         if (Vendor.isPerAppProxyAvailable() && Settings.perAppProxyEnabled) {
@@ -235,6 +245,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
 
             status.postValue(Status.Started)
             syncNetworkRecovery()
+            syncOlcRtcWatchdog()
             withContext(Dispatchers.Main) {
                 notification.show(lastProfileName, R.string.status_started)
             }
@@ -294,8 +305,9 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         content = VlessImporter.applyCurrentSettings(content) ?: content
         lastProfileName = profile.name
         try {
+            val olcRtcEndpoint = olcRtcRuntime.startForProfile(File(profile.typed.path))
             commandServer.startOrReloadService(
-                content,
+                OlcRtcRuntimeController.applyLocalEndpoint(content, olcRtcEndpoint),
                 OverrideOptions().apply {
                     autoRedirect = Settings.autoRedirect
                     if (Vendor.isPerAppProxyAvailable() && Settings.perAppProxyEnabled) {
@@ -326,6 +338,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             }
         }
         syncNetworkRecovery()
+        syncOlcRtcWatchdog()
     }
 
     @OptIn(DelicateCoroutinesApi::class)
@@ -436,6 +449,54 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         }
     }
 
+    // An olcRTC carrier can exit on its own: the conference ends, or the carrier runs out of
+    // reconnect attempts. Its local SOCKS listener goes with it, and sing-box keeps routing
+    // into a closed port — the VPN shows Connected with no internet, and nothing but a network
+    // change used to bring it back. Polling is enough here: the check is a mutex read, and the
+    // carrier's own reconnects already cover everything short of a full exit.
+    private fun syncOlcRtcWatchdog() {
+        if (!olcRtcRuntime.hasSession) {
+            // Not an olcRTC profile: no timer waking the device every few seconds for nothing.
+            olcRtcWatchdogJob?.cancel()
+            olcRtcWatchdogJob = null
+            return
+        }
+        if (olcRtcWatchdogJob?.isActive == true) return
+        olcRtcWatchdogJob = recoveryScope.launch {
+            var retryDelay = OLCRTC_RETRY_MIN_MS
+            while (isActive) {
+                delay(OLCRTC_WATCHDOG_INTERVAL_MS)
+                if (destroyed || shuttingDown || status.value != Status.Started) continue
+                if (!olcRtcRuntime.needsRestart()) {
+                    retryDelay = OLCRTC_RETRY_MIN_MS
+                    continue
+                }
+                Log.w(TAG, "olcRTC carrier exited, restarting it")
+                // The reload mutex keeps this from racing a reload or the orderly stop, which
+                // both start or stop the same process-wide runtime.
+                val result = runCatching {
+                    serviceReloadMutex.withLock {
+                        if (!shuttingDown) olcRtcRuntime.restartIfDead()
+                    }
+                }
+                result.exceptionOrNull()?.let {
+                    // The server side may still be coming back (a systemd restart, a new
+                    // conference). Keep the tunnel up and retry, backing off.
+                    Log.w(TAG, "olcRTC restart failed, retrying in ${retryDelay}ms", it)
+                    delay(retryDelay)
+                    retryDelay = (retryDelay * 2).coerceAtMost(OLCRTC_RETRY_MAX_MS)
+                }
+            }
+        }
+    }
+
+    private fun stopOlcRtc(failureMessage: String) {
+        olcRtcWatchdogJob?.cancel()
+        olcRtcWatchdogJob = null
+        runCatching { olcRtcRuntime.stop() }
+            .onFailure { Log.w(TAG, failureMessage, it) }
+    }
+
     @OptIn(DelicateCoroutinesApi::class)
     private fun stopService() {
         // Anything but Stopped, on purpose. This used to insist on Started, which made every
@@ -474,6 +535,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                     stopNetworkRecovery()
                     DefaultNetworkMonitor.stop()
                     closeService()
+                    stopOlcRtc("olcRTC stop failed")
                     if (::commandServer.isInitialized) {
                         commandServer.close()
                     }
@@ -509,6 +571,9 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         }
         status.value = Status.Stopped
         service.stopSelf()
+        recoveryScope.launch {
+            stopOlcRtc("forced olcRTC stop failed")
+        }
         // Off the main thread: this is a Room write, and it is only read at boot.
         GlobalScope.launch(Dispatchers.IO) {
             runCatching { Settings.startedByUser = false }
@@ -533,6 +598,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         }
         stopNetworkRecovery()
         DefaultNetworkMonitor.stop()
+        stopOlcRtc("olcRTC stop after start failure failed")
         if (::commandServer.isInitialized) {
             closeService()
             commandServer.close()
@@ -595,6 +661,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             stopNetworkRecovery()
             runCatching { DefaultNetworkMonitor.stop() }
                 .onFailure { Log.w(TAG, "default network monitor stop failed", it) }
+            stopOlcRtc("olcRTC destroy stop failed")
         }
         recoveryScope.cancel()
         binder.close()

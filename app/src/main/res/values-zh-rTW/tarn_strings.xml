@@ -41,10 +41,11 @@
     <string name="tarn_servers_delete_confirm_action">刪除</string>
 
     <string name="tarn_servers_add_title">新增伺服器</string>
-    <string name="tarn_servers_add_hint">貼上伺服器連結或訂閱 URL。支援 vless、trojan、ss、vmess、hysteria2、tuic 和 anytls。訂閱中的每部伺服器都會成為獨立項目。</string>
+    <string name="tarn_servers_add_hint">貼上伺服器連結或訂閱 URL。支援 vless、trojan、ss、vmess、hysteria2、tuic、anytls 及 olcRTC。訂閱中的每部伺服器都會成為獨立項目。</string>
     <string name="tarn_servers_add_placeholder">vless://… trojan://… ss://… 或 https://…</string>
     <string name="tarn_servers_add_action">新增</string>
     <string name="tarn_servers_import_partial">已處理 %1$d 部伺服器；已略過 %2$d 個不支援或無效的連結。</string>
+    <string name="tarn_servers_qr_unsupported">此 QR 碼不包含伺服器連結或訂閱 URL。</string>
     <string name="tarn_subscriptions_refresh_partial">訂閱已更新，包含 %1$d 部伺服器；已略過 %2$d 個不支援或無效的連結。</string>
 
     <string name="tarn_shield_section_general">一般</string>

@@ -41,10 +41,11 @@
     <string name="tarn_servers_delete_confirm_action">حذف</string>
 
     <string name="tarn_servers_add_title">افزودن سرور</string>
-    <string name="tarn_servers_add_hint">پیوند سرور یا نشانی اشتراک را جای‌گذاری کنید. vless، trojan، ss، vmess، hysteria2، tuic و anytls پشتیبانی می‌شوند. هر سرور در اشتراک یک ورودی جدا می‌شود.</string>
+    <string name="tarn_servers_add_hint">پیوند سرور یا نشانی اشتراک را جای‌گذاری کنید. vless، trojan، ss، vmess، hysteria2، tuic، anytls و olcRTC پشتیبانی می‌شوند. هر سرور در اشتراک یک ورودی جدا می‌شود.</string>
     <string name="tarn_servers_add_placeholder">vless://… trojan://… ss://… یا https://…</string>
     <string name="tarn_servers_add_action">افزودن</string>
     <string name="tarn_servers_import_partial">%1$d سرور پردازش شد؛ %2$d پیوند پشتیبانی‌نشده یا نامعتبر رد شد.</string>
+    <string name="tarn_servers_qr_unsupported">این کد QR حاوی پیوند سرور یا نشانی اشتراک نیست.</string>
     <string name="tarn_subscriptions_refresh_partial">اشتراک با %1$d سرور به‌روزرسانی شد؛ %2$d پیوند پشتیبانی‌نشده یا نامعتبر رد شد.</string>
 
     <string name="tarn_shield_section_general">عمومی</string>

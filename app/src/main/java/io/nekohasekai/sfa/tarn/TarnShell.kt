@@ -63,6 +63,7 @@ import io.nekohasekai.sfa.tarn.theme.TarnColors
 import io.nekohasekai.sfa.update.UpdateChecks
 import io.nekohasekai.sfa.utils.VlessImporter
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -294,6 +295,18 @@ fun TarnShell(
 
     val selectedProfileId = dashboardState.selectedProfileId
     val selectedServer = serversState.servers.firstOrNull { it.profileId == selectedProfileId }
+
+    // olcRTC has no fixed endpoint to TCP-probe. Its native liveness loop already measures
+    // the encrypted carrier RTT, so read that snapshot without opening another connection.
+    LaunchedEffect(serviceStatus, selectedProfileId, selectedServer?.protocol) {
+        if (selectedServer?.protocol != "olcrtc") return@LaunchedEffect
+        val connected = serviceStatus == Status.Started
+        do {
+            serversViewModel.updateOlcRtcLatency(selectedProfileId, connected)
+            if (!connected) break
+            delay(2_000L)
+        } while (true)
+    }
 
     // Re-measure whenever the tunnel comes up or goes down: the numbers shown before and
     // after a connection are not comparable otherwise.

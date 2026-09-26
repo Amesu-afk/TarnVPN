@@ -7,6 +7,7 @@ import io.nekohasekai.sfa.database.Profile
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.database.TypedProfile
+import io.nekohasekai.sfa.utils.OlcRtcUri
 import io.nekohasekai.sfa.utils.VlessImporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -512,7 +513,7 @@ object TarnServerRepository {
     }
 
     private fun toEntry(profile: Profile): ServerEntry {
-        val endpoint = readEndpoint(profile)
+        val endpoint = readOlcRtcEndpoint(profile) ?: readEndpoint(profile)
         val tag = endpoint?.tag?.takeIf { it.isNotBlank() }
             ?: endpoint?.host
             ?: profile.name.lowercase().replace(' ', '-')
@@ -549,6 +550,15 @@ object TarnServerRepository {
     }
 
     private data class Endpoint(val tag: String?, val host: String?, val port: Int, val type: String?)
+
+    /** olcRTC's real endpoint is negotiated by WebRTC, so a localhost TCP probe is misleading. */
+    private fun readOlcRtcEndpoint(profile: Profile): Endpoint? = runCatching {
+        val file = File(profile.typed.path)
+        val source = sidecarFile(file).takeIf(File::isFile)?.readText()?.trim() ?: return null
+        if (!OlcRtcUri.isUri(source)) return null
+        val olcRtc = OlcRtcUri.parse(source)
+        Endpoint(tag = olcRtc.name, host = null, port = 0, type = "olcrtc")
+    }.getOrNull()
 
     /**
      * Pulls the first real outbound out of the profile's sing-box config. Profiles that

@@ -43,10 +43,11 @@
     <string name="tarn_servers_delete_confirm_action">Удалить</string>
 
     <string name="tarn_servers_add_title">Добавить сервер</string>
-    <string name="tarn_servers_add_hint">Вставьте ссылку сервера или адрес подписки. Понимаем vless, trojan, ss, vmess, hysteria2, tuic и anytls. Каждый сервер из подписки станет отдельной записью.</string>
+    <string name="tarn_servers_add_hint">Вставьте ссылку сервера или адрес подписки. Понимаем vless, trojan, ss, vmess, hysteria2, tuic, anytls и olcRTC. Каждый сервер из подписки станет отдельной записью.</string>
     <string name="tarn_servers_add_placeholder">vless://… trojan://… ss://… или https://…</string>
     <string name="tarn_servers_add_action">Добавить</string>
     <string name="tarn_servers_import_partial">Обработано серверов: %1$d. Пропущено неподдерживаемых или ошибочных ссылок: %2$d.</string>
+    <string name="tarn_servers_qr_unsupported">В QR-коде нет ссылки сервера или адреса подписки.</string>
     <string name="tarn_subscriptions_refresh_partial">Подписка обновлена: серверов %1$d; пропущено неподдерживаемых или ошибочных ссылок: %2$d.</string>
 
     <string name="tarn_shield_section_general">Основные настройки</string>

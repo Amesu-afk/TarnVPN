@@ -54,12 +54,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import io.nekohasekai.sfa.R
+import io.nekohasekai.sfa.compose.component.qr.QRScanSheet
+import io.nekohasekai.sfa.compose.screen.qrscan.QRScanResult
 import io.nekohasekai.sfa.tarn.component.TarnDialogTextButton
 import io.nekohasekai.sfa.tarn.component.TarnImportDialog
 import io.nekohasekai.sfa.tarn.component.TarnLabelTab
 import io.nekohasekai.sfa.tarn.component.TarnLatencyReadout
 import io.nekohasekai.sfa.tarn.component.cornerBrackets
 import io.nekohasekai.sfa.tarn.component.hairlineBorder
+import io.nekohasekai.sfa.tarn.component.tarnImportText
 import io.nekohasekai.sfa.tarn.data.Latency
 import io.nekohasekai.sfa.tarn.data.ServerEntry
 import io.nekohasekai.sfa.tarn.data.TarnFullTestResult
@@ -90,7 +93,9 @@ fun TarnServersScreen(
 ) {
     var searching by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
+    var showQrScanner by remember { mutableStateOf(false) }
     var importInput by remember { mutableStateOf("") }
+    var qrImportError by remember { mutableStateOf<String?>(null) }
     var pendingDelete by remember { mutableStateOf<ServerEntry?>(null) }
     val currentCancelFullTest by rememberUpdatedState(onCancelFullTest)
 
@@ -116,16 +121,47 @@ fun TarnServersScreen(
         }
         TarnImportDialog(
             value = importInput,
-            onValueChange = { importInput = it },
+            onValueChange = {
+                importInput = it
+                qrImportError = null
+            },
             onImport = { onImport(importInput) },
+            onScanQr = {
+                showImportDialog = false
+                showQrScanner = true
+                qrImportError = null
+            },
             onDismiss = {
                 showImportDialog = false
                 importInput = ""
+                qrImportError = null
                 onDismissImportError()
             },
             importing = state.importing,
-            errorMessage = state.importError,
+            errorMessage = qrImportError ?: state.importError,
             noticeMessage = importNotice,
+        )
+    }
+    if (showQrScanner) {
+        val unsupportedMessage = stringResource(R.string.tarn_servers_qr_unsupported)
+        QRScanSheet(
+            onDismiss = {
+                showQrScanner = false
+                showImportDialog = true
+            },
+            onScanResult = { result ->
+                showQrScanner = false
+                showImportDialog = true
+                val scanned = result.tarnImportText()
+                if (scanned == null) {
+                    qrImportError = unsupportedMessage
+                } else {
+                    importInput = scanned
+                    qrImportError = null
+                    onDismissImportError()
+                    onImport(scanned)
+                }
+            },
         )
     }
     LaunchedEffect(state.importing, state.importError, state.importNotice) {

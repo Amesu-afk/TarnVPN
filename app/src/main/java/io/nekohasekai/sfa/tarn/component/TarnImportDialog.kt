@@ -11,13 +11,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
@@ -32,13 +38,15 @@ import io.nekohasekai.sfa.tarn.theme.TarnMetaStyle
 /**
  * Paste-a-link dialog used to add servers from the servers screen. Deliberately narrow: it
  * accepts share links handled by [io.nekohasekai.sfa.utils.ProxyUriParser] and HTTPS
- * subscriptions, while QR, file import and raw JSON stay behind "Advanced".
+ * subscriptions. QR uses the same import callback; file import and raw JSON stay behind
+ * "Advanced".
  */
 @Composable
 fun TarnImportDialog(
     value: String,
     onValueChange: (String) -> Unit,
     onImport: () -> Unit,
+    onScanQr: () -> Unit,
     onDismiss: () -> Unit,
     importing: Boolean,
     errorMessage: String?,
@@ -112,8 +120,22 @@ fun TarnImportDialog(
             Spacer(Modifier.height(20.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
+                horizontalArrangement = Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                IconButton(
+                    onClick = onScanQr,
+                    enabled = !importing,
+                    modifier = Modifier.size(36.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.QrCodeScanner,
+                        contentDescription = stringResource(R.string.profile_add_scan_qr_code),
+                        tint = if (importing) TarnColors.TextDim else TarnColors.Accent,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                Spacer(Modifier.weight(1f))
                 if (importing) {
                     CircularProgressIndicator(
                         color = TarnColors.Accent,

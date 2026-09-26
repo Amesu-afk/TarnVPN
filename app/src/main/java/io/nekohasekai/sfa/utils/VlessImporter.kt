@@ -207,7 +207,7 @@ object VlessImporter {
                 parseSubscriptionBody(body, fragmentEnabled)
             }
             else -> throw IllegalArgumentException(
-                "Unsupported input: paste a vless/trojan/ss/vmess/hysteria2/tuic/anytls link, " +
+                "Unsupported input: paste a vless/trojan/ss/vmess/hysteria2/tuic/anytls/olcrtc link, " +
                     "or an https:// subscription",
             )
         }
@@ -740,7 +740,7 @@ object VlessImporter {
 
     /** The outbound types [ProxyUriParser] can emit for a server — everything except `direct`. */
     private val SERVER_OUTBOUND_TYPES =
-        setOf("vless", "trojan", "shadowsocks", "vmess", "hysteria2", "tuic", "anytls")
+        setOf("vless", "trojan", "shadowsocks", "vmess", "hysteria2", "tuic", "anytls", "socks")
 
     /** Sends [directSuffixes] out the real interface instead of through the proxy. */
     private fun directRule(suffixes: List<String>): JSONObject = JSONObject()
