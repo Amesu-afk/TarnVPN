@@ -4,8 +4,9 @@
 
 # TarnVPN
 
-Android VPN client for censored networks: **VLESS + REALITY**, **XHTTP**, and the rest of the
-sing-box protocol set, wrapped in a purpose-built interface instead of a config editor.
+Android VPN client for censored networks: **VLESS + REALITY**, **XHTTP**, other sing-box protocols,
+and a separate **olcRTC** WebRTC tunnel, wrapped in a purpose-built interface instead of a
+config editor.
 
 > **Whose work is what.** The interface, the share-link importer and a set of client-side fixes are
 > this project's. Everything they stand on is other people's:
@@ -16,19 +17,35 @@ sing-box protocol set, wrapped in a purpose-built interface instead of a config 
 >   [Leadaxe](https://github.com/Leadaxe/sing-box-lx)'s work, not ours.** XHTTP is the transport
 >   this app leans on hardest, and it exists here because of that project.
 >
-> Our own core patches (XHTTP transport pool carried onto lx.15, TLS fragmentation over REALITY,
-> `override_destination` on the sniff action, the stream-one path fix) sit in a downstream copy at
-> [Amesu-afk/sing-box-lx](https://github.com/Amesu-afk/sing-box-lx), which is what the shipped
-> `libbox.aar` is built from.
+> Our own core patches (the XHTTP transport pool, TLS fragmentation over REALITY,
+> `override_destination` on the sniff action, the stream-one path fix, and the mobile olcRTC
+> integration) sit in a downstream copy at [Amesu-afk/sing-box-lx](https://github.com/Amesu-afk/sing-box-lx).
+> Alpha.63 uses a core based on `v1.14.0-lx.24`; its bundled `libbox.aar` is built from that copy.
+> The olcRTC client code is adapted from [Oleglog/OlConnect_manager](https://github.com/Oleglog/OlConnect_manager/tree/c267dd30b0bc).
 >
 > **None of the projects above endorse this one or are affiliated with it.**
+
+## No bundled VPN servers
+
+This is a client, with no bundled VPN servers, accounts, or payments. It may contact a supplied
+server or subscription URL, the selected DNS resolver, and (for olcRTC) the selected WebRTC
+provider's infrastructure (Jitsi or Telemost). It also contacts GitHub for update checks, which
+can be turned off.
 
 ## What it does
 
 - **A server is a row, not a config file.** Paste a `vless://` (or `trojan`, `ss`, `vmess`,
-  `hysteria2`, `tuic`, `anytls`) link or a subscription URL, and every server becomes its own
-  entry with its own latency reading, measured by TCP handshake outside the tunnel — so the
-  numbers exist before you connect to anything.
+  `hysteria2`, `tuic`, `anytls`) link, a supported `olcrtc://` link, or an HTTPS subscription
+  URL. Each server becomes its own entry. Manager v1 QR codes for olcRTC are supported too.
+- **Latency depends on the connection type.** Ordinary servers get a TCP handshake measurement
+  outside the tunnel before connection. olcRTC has no pre-connect TCP measurement: only the
+  connected, active profile shows RTT from its encrypted control channel. The “connect to fastest”
+  action uses available measurements, so an olcRTC profile without one is not selected.
+- **olcRTC is a separate WebRTC runtime exposing local SOCKS5 to sing-box**, not a sing-box
+  protocol. Alpha.63 supports Jitsi with `datachannel` and Telemost with `vp8channel`.
+  WB Stream, `seichannel`, and `videochannel` are unavailable in this Android build. A normal
+  config reload keeps the active WebRTC session; if its client fully exits, the app attempts to
+  reconnect it. The local SOCKS5 port and credentials are created anew for each session.
 - **Subscriptions** are first-class: refresh diffs by link, keeps your selection, de-duplicates.
 - **Split tunnelling** per application, with include/exclude modes.
 - **Kill switch** — applications cannot route around a live tunnel.
@@ -45,6 +62,11 @@ sing-box protocol set, wrapped in a purpose-built interface instead of a config 
 
 Grab the **universal** APK from [Releases](https://github.com/Amesu-afk/TarnVPN/releases).
 
+[Alpha.63](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.63) is a prerelease.
+The in-app updater skips prereleases on the Stable track; select the Beta track to receive alpha
+versions. olcRTC, recovery after interruption, and updating this APK over a previous one still
+need testing on a physical phone.
+
 | Build | Android |
 |---|---|
 | `TarnVPN-<version>-universal.apk` | 6.0+ (API 23) |
@@ -55,27 +77,32 @@ Releases are signed with this project's own key, which is **not** the key in ups
 could be produced by anyone). A build signed with a different key will not install as an update —
 uninstall first, and expect to lose stored profiles.
 
-The app checks its own releases here and can install updates in place; nothing is sent anywhere
-else, and update checking can be turned off.
+The app checks its releases on GitHub and offers installation of available updates. Update checks
+can be turned off in settings.
 
 ## Build from source
 
-Requirements — the versions matter, and two of them are not negotiable:
+To reproduce the alpha.63 build:
 
-- **JDK 17** exactly (gomobile fails on newer JDKs).
+- **OpenJDK 17 or 21**.
 - Android SDK with **NDK 28.0.13004108**.
-- **Go 1.25+** with `gomobile`, only if you rebuild the core (`make lib_install` in the core repo).
+- **Go 1.25.5+** with `gomobile`, only if you rebuild the core; alpha.63 used Go 1.26.5.
 
 ```bash
-# 1. the core, if you want your own libbox instead of the committed one
+# Core and app source for alpha.63
 git clone https://github.com/Amesu-afk/sing-box-lx
 cd sing-box-lx
-go run ./cmd/internal/build_libbox -target android   # emits libbox.aar + libbox-legacy.aar
+git checkout 674668c30b89f579f77cb7a7139cded7b12e1601
+git submodule sync --recursive
+git submodule update --init --recursive
 
-# 2. the app
+# Optional: rebuild the core instead of using the committed AARs
+go run ./cmd/internal/build_libbox -target android   # emits libbox.aar + libbox-legacy.aar
 cp libbox*.aar clients/android/app/libs/
+
+# App: signed release builds for Android 6+ and Android 5
 cd clients/android
-./gradlew assembleOtherRelease        # signed release, needs a keystore (below)
+./gradlew assembleOtherRelease assembleOtherLegacyRelease --rerun-tasks
 ./gradlew assembleOtherDebug          # unsigned-ish debug build, no keystore needed
 ```
 
@@ -98,6 +125,10 @@ seen to emit a 40% larger, wrong APK from a stale cache.
 - **[nekohasekai / SagerNet](https://github.com/SagerNet)** — sing-box and SFA, which this is a fork of.
 - **[Leadaxe](https://github.com/Leadaxe/sing-box-lx)** — the `lx` core layer: XHTTP, AmneziaWG 2.0,
   MASQUE, the CommandClient observability extensions. Without it this app would have no XHTTP at all.
+- **[Oleglog/OlConnect_manager](https://github.com/Oleglog/OlConnect_manager/tree/c267dd30b0bc)** —
+  the original olcRTC client code. An
+  [adapted client subset](https://github.com/Amesu-afk/sing-box-lx/tree/tarnvpn-lx24-integration/third_party/olcrtc_legacy)
+  is included in the core for Android with its license preserved.
 - This project — the TarnVPN interface, the importer, and the patches listed at the top.
 
 ## License
