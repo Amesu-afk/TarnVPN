@@ -150,8 +150,8 @@
     <string name="tarn_connection_lab_retries_value">%1$d×</string>
 
     <string name="tarn_connection_lab_section_recovery">Recovery</string>
-    <string name="tarn_connection_lab_network_recovery">Recover after network change</string>
-    <string name="tarn_connection_lab_network_recovery_desc">Reload a running VPN after switching between Wi-Fi and mobile data</string>
+    <string name="tarn_connection_lab_network_recovery">Recover after sleep and network changes</string>
+    <string name="tarn_connection_lab_network_recovery_desc">Refresh connections and DNS after sleep or a switch between Wi-Fi and mobile data</string>
     <string name="tarn_connection_lab_failover">Suggest a fallback server</string>
     <string name="tarn_connection_lab_failover_desc">If the active HTTP test fails, show the fastest server reachable by the preliminary TCP test</string>
     <string name="tarn_connection_lab_failover_warning">A fallback candidate has not passed the HTTP test. Switching requires your confirmation; run the full test again afterwards.</string>

@@ -14,9 +14,9 @@ import android.os.Build
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.os.PowerManager
+import android.os.SystemClock
 import android.util.Log
 import android.widget.Toast
-import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.MutableLiveData
@@ -48,7 +48,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -104,10 +103,8 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     private lateinit var commandServer: CommandServer
     private val serviceReloadMutex = Mutex()
 
-    // A network handover is normally handled in-place by sing-box's interface monitor.
-    // Some heavily filtered mobile networks keep the old transport half-open, though, so
-    // TarnVPN can optionally perform one debounced reload after the default network really
-    // changes. Capability updates for the same Network object are deliberately ignored.
+    // Reap stale transports without rebuilding the VPN interface. Screen and idle
+    // events also cover a lost NAT mapping on an unchanged default Wi-Fi network.
     private val recoveryListenerKey = Any()
     private val recoveryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -125,8 +122,10 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     private var recoveryListenerRegistered = false
     private var recoveryListenerInitialized = false
     private var recoveryNetwork: Network? = null
-    private var recoveryJob: Job? = null
-    private var idleWakeJob: Job? = null
+    private val wakeRecoveryPolicy = WakeRecoveryPolicy()
+    private val networkRecovery = NetworkRecoveryScheduler(recoveryScope, SystemClock::elapsedRealtime) { reason ->
+        recoverNetwork(reason)
+    }
 
     @Volatile
     private var olcRtcWatchdogJob: Job? = null
@@ -140,10 +139,11 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                         stopService()
                     }
 
-                    PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED -> {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                            serviceUpdateIdleMode()
-                        }
+                    Intent.ACTION_SCREEN_OFF, Intent.ACTION_SCREEN_ON,
+                    PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED,
+                    PowerManager.ACTION_DEVICE_LIGHT_IDLE_MODE_CHANGED,
+                    -> {
+                        serviceUpdateIdleMode()
                     }
                 }
             }
@@ -362,19 +362,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 }
                 if (network == null || network == previous) return@listener
 
-                recoveryJob?.cancel()
-                recoveryJob = recoveryScope.launch {
-                    // Collapse fast Wi-Fi -> no-network -> mobile transitions into one reload.
-                    delay(1200L)
-                    if (
-                        destroyed || shuttingDown || !Settings.tarnNetworkRecovery ||
-                        status.value != Status.Started
-                    ) {
-                        return@launch
-                    }
-                    runCatching { serviceReload0() }
-                        .onFailure { Log.w(TAG, "network recovery reload failed", it) }
-                }
+                networkRecovery.request("network:$network", 1200L)
             }
         } catch (e: Exception) {
             recoveryListenerRegistered = false
@@ -383,9 +371,8 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     }
 
     private suspend fun stopNetworkRecovery() {
-        val activeRecovery = recoveryJob
-        recoveryJob = null
-        if (activeRecovery != currentCoroutineContext()[Job]) activeRecovery?.cancel()
+        networkRecovery.cancel()
+        wakeRecoveryPolicy.reset(Application.powerManager.isInteractive, SystemClock.elapsedRealtime())
         recoveryListenerInitialized = false
         recoveryNetwork = null
         if (!recoveryListenerRegistered) return
@@ -409,43 +396,41 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         serviceReload()
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
     private fun serviceUpdateIdleMode() {
-        if (Application.powerManager.isDeviceIdleMode) {
-            idleWakeJob?.cancel()
-            idleWakeJob = null
-            commandServer.pause()
-        } else {
-            commandServer.wake()
-            scheduleIdleWakeReload()
+        val power = Application.powerManager
+        val deepIdle = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && power.isDeviceIdleMode
+        val lightIdle = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && power.isDeviceLightIdleMode
+        val needsRecovery = wakeRecoveryPolicy.update(power.isInteractive, deepIdle, lightIdle, SystemClock.elapsedRealtime())
+        if (!::commandServer.isInitialized || destroyed || shuttingDown || status.value != Status.Started) return
+        if (deepIdle) commandServer.pause() else commandServer.wake()
+        if (needsRecovery && Settings.tarnNetworkRecovery) {
+            // Closing stale sockets needs no radio reassociation delay. Applications
+            // can immediately establish fresh streams when the screen becomes active.
+            networkRecovery.request("idle-wake", 0L, wake = true)
         }
     }
 
-    // While the device sits in Doze the radio sleeps and NAT drops the tunnel's
-    // idle TCP connections; wake() only lifts the pause gate, it does not close
-    // anything, and syncNetworkRecovery stays silent because the default Network
-    // object is unchanged (same Wi-Fi/cell). The pooled XHTTP http2 conns are then
-    // zombies — locally ESTABLISHED, actually dead — so the first request after
-    // wake reuses one and hangs until the kernel gives up on the dead socket
-    // (tens of seconds). Reload here rebuilds the outbound, i.e. a fresh transport
-    // pool, the same recovery a network handover performs. Debounced so a quick
-    // idle -> wake -> idle flap collapses into at most one reload, and gated on the
-    // same "network recovery" switch so the user can turn it off.
-    private fun scheduleIdleWakeReload() {
-        if (destroyed || shuttingDown || !Settings.tarnNetworkRecovery) return
-        if (status.value != Status.Started) return
-        idleWakeJob?.cancel()
-        idleWakeJob = recoveryScope.launch {
-            // Give the radio a moment to reassociate before we redial the tunnel.
-            delay(1200L)
-            if (
-                destroyed || shuttingDown || !Settings.tarnNetworkRecovery ||
-                status.value != Status.Started
-            ) {
-                return@launch
+    private suspend fun recoverNetwork(reason: String): Boolean = serviceReloadMutex.withLock {
+        if (
+            destroyed || shuttingDown || !Settings.tarnNetworkRecovery ||
+            status.value != Status.Started || !::commandServer.isInitialized
+        ) {
+            return@withLock false
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Application.powerManager.isDeviceIdleMode) return@withLock false
+        val startedAt = SystemClock.elapsedRealtime()
+        try {
+            // An exited external carrier needs reconstruction; ordinary transports
+            // and DNS can recover through the existing native network-reset path.
+            if (olcRtcRuntime.needsRestart()) {
+                olcRtcRuntime.restartIfDead()
             }
-            runCatching { serviceReload0() }
-                .onFailure { Log.w(TAG, "idle wake reload failed", it) }
+            commandServer.resetNetwork()
+            Log.i(TAG, "network recovery cause=$reason elapsed=${SystemClock.elapsedRealtime() - startedAt}ms")
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "network recovery cause=$reason failed after ${SystemClock.elapsedRealtime() - startedAt}ms", e)
+            false
         }
     }
 
@@ -623,6 +608,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         if (status.value != Status.Stopped) return Service.START_NOT_STICKY
         status.value = Status.Starting
         stopRequested = false
+        wakeRecoveryPolicy.reset(Application.powerManager.isInteractive, SystemClock.elapsedRealtime())
 
         if (!receiverRegistered) {
             ContextCompat.registerReceiver(
@@ -630,8 +616,13 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 receiver,
                 IntentFilter().apply {
                     addAction(Action.SERVICE_CLOSE)
+                    addAction(Intent.ACTION_SCREEN_OFF)
+                    addAction(Intent.ACTION_SCREEN_ON)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         addAction(PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED)
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        addAction(PowerManager.ACTION_DEVICE_LIGHT_IDLE_MODE_CHANGED)
                     }
                 },
                 ContextCompat.RECEIVER_NOT_EXPORTED,

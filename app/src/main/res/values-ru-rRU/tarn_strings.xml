@@ -172,8 +172,8 @@
     <string name="tarn_connection_lab_retries_value">%1$d×</string>
 
     <string name="tarn_connection_lab_section_recovery">Восстановление</string>
-    <string name="tarn_connection_lab_network_recovery">Восстанавливать при смене сети</string>
-    <string name="tarn_connection_lab_network_recovery_desc">Перезагружать работающий VPN при переходе между Wi-Fi и мобильной сетью</string>
+    <string name="tarn_connection_lab_network_recovery">Восстанавливать после сна и смены сети</string>
+    <string name="tarn_connection_lab_network_recovery_desc">Обновлять соединения и DNS после сна или перехода между Wi-Fi и мобильной сетью</string>
     <string name="tarn_connection_lab_failover">Предлагать резервный сервер</string>
     <string name="tarn_connection_lab_failover_desc">Если активный HTTP-тест не прошёл, показать самый быстрый сервер по предварительной TCP-проверке</string>
     <string name="tarn_connection_lab_failover_warning">Резерв ещё не прошёл HTTP-тест. Переключение выполняется только после вашего подтверждения; затем запустите полный тест снова.</string>
