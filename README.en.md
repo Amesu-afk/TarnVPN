@@ -20,7 +20,7 @@ config editor.
 > Our own core patches (the XHTTP transport pool, TLS fragmentation over REALITY,
 > `override_destination` on the sniff action, the stream-one path fix, and the mobile olcRTC
 > integration) sit in a downstream copy at [Amesu-afk/sing-box-lx](https://github.com/Amesu-afk/sing-box-lx).
-> Alpha.63 uses a core based on `v1.14.0-lx.24`; its bundled `libbox.aar` is built from that copy.
+> Alpha.64 uses a core based on `v1.14.0-lx.24`; its bundled `libbox.aar` is built from that copy.
 > The olcRTC client code is adapted from [Oleglog/OlConnect_manager](https://github.com/Oleglog/OlConnect_manager/tree/c267dd30b0bc).
 >
 > **None of the projects above endorse this one or are affiliated with it.**
@@ -42,7 +42,7 @@ can be turned off.
   connected, active profile shows RTT from its encrypted control channel. The “connect to fastest”
   action uses available measurements, so an olcRTC profile without one is not selected.
 - **olcRTC is a separate WebRTC runtime exposing local SOCKS5 to sing-box**, not a sing-box
-  protocol. Alpha.63 supports Jitsi with `datachannel` and Telemost with `vp8channel`.
+  protocol. Alpha.64 supports Jitsi with `datachannel` and Telemost with `vp8channel`.
   WB Stream, `seichannel`, and `videochannel` are unavailable in this Android build. A normal
   config reload keeps the active WebRTC session; if its client fully exits, the app attempts to
   reconnect it. The local SOCKS5 port and credentials are created anew for each session.
@@ -58,11 +58,19 @@ can be turned off.
 - Light and dark themes, in-app log viewer, and the full upstream sing-box interface still
   reachable underneath for anything the shell does not cover.
 
+## Recovery after sleep
+
+In alpha.64, the enabled sleep/network recovery setting also handles waking after 60 seconds
+with the screen off and deep/light idle on the same Wi-Fi. It resets core network/DNS
+connections while retaining the VPN interface. XHTTP closes stale sockets and upload pipes;
+DoH retries once only across an observed transport reset within its original deadline.
+These client fixes still need verification after sleep on a physical phone.
+
 ## Install
 
 Grab the **universal** APK from [Releases](https://github.com/Amesu-afk/TarnVPN/releases).
 
-[Alpha.63](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.63) is a prerelease.
+[Alpha.64](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.64) is a prerelease.
 The in-app updater skips prereleases on the Stable track; select the Beta track to receive alpha
 versions. olcRTC, recovery after interruption, and updating this APK over a previous one still
 need testing on a physical phone.
@@ -82,21 +90,22 @@ can be turned off in settings.
 
 ## Build from source
 
-To reproduce the alpha.63 build:
+To reproduce the alpha.64 build:
 
 - **OpenJDK 17 or 21**.
 - Android SDK with **NDK 28.0.13004108**.
-- **Go 1.25.5+** with `gomobile`, only if you rebuild the core; alpha.63 used Go 1.26.5.
+- **Go 1.25.5+** with `gomobile`, only if you rebuild the core; alpha.64 used Go 1.26.5.
 
 ```bash
-# Core and app source for alpha.63
+# Core and app source for alpha.64
 git clone https://github.com/Amesu-afk/sing-box-lx
 cd sing-box-lx
-git checkout 674668c30b89f579f77cb7a7139cded7b12e1601
+git checkout 038a715fe1bc5b9a553cdea62000ffa2777da978
 git submodule sync --recursive
 git submodule update --init --recursive
+git -C clients/android checkout v1.14.0-alpha.64
 
-# Optional: rebuild the core instead of using the committed AARs
+# Build the core: AARs are not stored in this repository
 go run ./cmd/internal/build_libbox -target android   # emits libbox.aar + libbox-legacy.aar
 cp libbox*.aar clients/android/app/libs/
 
