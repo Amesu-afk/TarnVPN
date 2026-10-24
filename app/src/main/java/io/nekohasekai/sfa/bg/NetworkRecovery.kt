@@ -2,7 +2,9 @@ package io.nekohasekai.sfa.bg
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 
 // Screen broadcasts cover sleep on the same Wi-Fi, including pre-API-33 devices
@@ -35,8 +37,9 @@ internal class WakeRecoveryPolicy(private val minimumSleepMs: Long = 60_000L) {
 }
 
 // All recovery causes share one job. A wake can expedite a queued handover;
-// events arriving during the reset are covered by that reset, rather than
-// queuing a second full reload. Failed attempts do not enter the cooldown.
+// overlapping wakes are covered by the running reset. A later network change
+// must run afterwards: the current reset may still belong to the old network.
+// Failed attempts do not enter the cooldown.
 internal class NetworkRecoveryScheduler(
     private val scope: CoroutineScope,
     private val now: () -> Long,
@@ -54,33 +57,40 @@ internal class NetworkRecoveryScheduler(
 
     fun request(reason: String, delayMs: Long, wake: Boolean = false) {
         synchronized(lock) {
-            if (running) return
+            if (running && wake && job?.isActive == true) return
             if (wake && lastSuccess?.let { now() - it < cooldownMs } == true) return
             reasons.add(reason)
             wakePending = wakePending || wake
             val requestedDeadline = now() + delayMs
             // A radio handover keeps its debounce unless an immediate wake is pending.
             deadline = if (wakePending) minOf(deadline ?: requestedDeadline, requestedDeadline) else requestedDeadline
-            job?.cancel()
-            val ticket = ++generation
-            val waitMs = ((deadline ?: requestedDeadline) - now()).coerceAtLeast(0)
-            job = scope.launch {
-                delay(waitMs)
-                val cause = synchronized(lock) {
-                    if (ticket != generation) return@launch
-                    running = true
-                    deadline = null
-                    wakePending = false
-                    reasons.joinToString("+").also { reasons.clear() }
-                }
-                var success = false
-                try {
-                    success = recover(cause)
-                } finally {
-                    synchronized(lock) {
-                        running = false
-                        if (success && ticket == generation) lastSuccess = now()
-                    }
+            if (!running) scheduleLocked()
+        }
+    }
+
+    private fun scheduleLocked() {
+        job?.cancel()
+        val ticket = ++generation
+        val waitMs = ((deadline ?: now()) - now()).coerceAtLeast(0)
+        job = scope.launch {
+            delay(waitMs)
+            val cause = synchronized(lock) {
+                if (ticket != generation) return@launch
+                running = true
+                deadline = null
+                wakePending = false
+                reasons.joinToString("+").also { reasons.clear() }
+            }
+            var success = false
+            try {
+                currentCoroutineContext().ensureActive()
+                success = recover(cause)
+            } finally {
+                synchronized(lock) {
+                    running = false
+                    job = null
+                    if (success && ticket == generation) lastSuccess = now()
+                    if (reasons.isNotEmpty()) scheduleLocked()
                 }
             }
         }

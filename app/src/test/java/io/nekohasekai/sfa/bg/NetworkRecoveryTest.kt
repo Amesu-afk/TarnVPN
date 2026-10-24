@@ -147,4 +147,152 @@ class NetworkRecoveryTest {
         assertEquals(1, calls)
         scheduler.cancel()
     }
+
+    @Test
+    fun handoverDuringWakeIsRecoveredAfterWake() = runBlocking {
+        val entered = CompletableDeferred<Unit>()
+        val finish = CompletableDeferred<Unit>()
+        val handover = CompletableDeferred<String>()
+        val causes = mutableListOf<String>()
+        val scheduler = NetworkRecoveryScheduler(this, { 0L }) { cause ->
+            causes.add(cause)
+            if (causes.size == 1) {
+                entered.complete(Unit)
+                finish.await()
+            } else {
+                handover.complete(cause)
+            }
+            true
+        }
+        scheduler.request("idle-wake", 0, wake = true)
+        withTimeout(1_000) { entered.await() }
+        scheduler.request("network:mobile", 0)
+        finish.complete(Unit)
+        assertEquals("network:mobile", withTimeout(1_000) { handover.await() })
+        assertEquals(listOf("idle-wake", "network:mobile"), causes)
+        scheduler.cancel()
+    }
+
+    @Test
+    fun repeatedHandoversDuringResetShareOneFollowUp() = runBlocking {
+        val entered = CompletableDeferred<Unit>()
+        val finish = CompletableDeferred<Unit>()
+        val handover = CompletableDeferred<String>()
+        var calls = 0
+        val scheduler = NetworkRecoveryScheduler(this, { 0L }) { cause ->
+            calls++
+            if (calls == 1) {
+                entered.complete(Unit)
+                finish.await()
+            } else {
+                handover.complete(cause)
+            }
+            true
+        }
+        scheduler.request("network:wifi", 0)
+        withTimeout(1_000) { entered.await() }
+        scheduler.request("network:mobile", 0)
+        scheduler.request("network:mobile", 0)
+        scheduler.request("network:new-wifi", 0)
+        finish.complete(Unit)
+        assertEquals("network:mobile+network:new-wifi", withTimeout(1_000) { handover.await() })
+        yield()
+        assertEquals(2, calls)
+        scheduler.cancel()
+    }
+
+    @Test
+    fun failedResetDoesNotDiscardQueuedHandover() = runBlocking {
+        val entered = CompletableDeferred<Unit>()
+        val finish = CompletableDeferred<Unit>()
+        val handover = CompletableDeferred<String>()
+        var calls = 0
+        val scheduler = NetworkRecoveryScheduler(this, { 0L }) { cause ->
+            calls++
+            if (calls == 1) {
+                entered.complete(Unit)
+                finish.await()
+                false
+            } else {
+                handover.complete(cause)
+                true
+            }
+        }
+        scheduler.request("idle-wake", 0, wake = true)
+        withTimeout(1_000) { entered.await() }
+        scheduler.request("network:mobile", 0)
+        finish.complete(Unit)
+        assertEquals("network:mobile", withTimeout(1_000) { handover.await() })
+        assertEquals(2, calls)
+        scheduler.cancel()
+    }
+
+    @Test
+    fun cancellationDropsHandoverQueuedDuringReset() = runBlocking {
+        val entered = CompletableDeferred<Unit>()
+        val finish = CompletableDeferred<Unit>()
+        var calls = 0
+        val scheduler = NetworkRecoveryScheduler(this, { 0L }) {
+            calls++
+            entered.complete(Unit)
+            finish.await()
+            true
+        }
+        scheduler.request("network:wifi", 0)
+        withTimeout(1_000) { entered.await() }
+        scheduler.request("network:mobile", 0)
+        scheduler.cancel()
+        yield()
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun requestAfterCancelledRunningResetIsNotLost() = runBlocking {
+        val entered = CompletableDeferred<Unit>()
+        val finish = CompletableDeferred<Unit>()
+        val handover = CompletableDeferred<String>()
+        var calls = 0
+        val scheduler = NetworkRecoveryScheduler(this, { 0L }) { cause ->
+            calls++
+            if (calls == 1) {
+                entered.complete(Unit)
+                finish.await()
+            } else {
+                handover.complete(cause)
+            }
+            true
+        }
+        scheduler.request("network:wifi", 0)
+        withTimeout(1_000) { entered.await() }
+        scheduler.cancel()
+        scheduler.request("network:mobile", 0)
+        assertEquals("network:mobile", withTimeout(1_000) { handover.await() })
+        assertEquals(2, calls)
+        scheduler.cancel()
+    }
+
+    @Test
+    fun wakeAfterCancelledRunningResetIsNotLost() = runBlocking {
+        val entered = CompletableDeferred<Unit>()
+        val finish = CompletableDeferred<Unit>()
+        val wake = CompletableDeferred<String>()
+        var calls = 0
+        val scheduler = NetworkRecoveryScheduler(this, { 0L }) { cause ->
+            calls++
+            if (calls == 1) {
+                entered.complete(Unit)
+                finish.await()
+            } else {
+                wake.complete(cause)
+            }
+            true
+        }
+        scheduler.request("network:wifi", 0)
+        withTimeout(1_000) { entered.await() }
+        scheduler.cancel()
+        scheduler.request("idle-wake", 0, wake = true)
+        assertEquals("idle-wake", withTimeout(1_000) { wake.await() })
+        assertEquals(2, calls)
+        scheduler.cancel()
+    }
 }

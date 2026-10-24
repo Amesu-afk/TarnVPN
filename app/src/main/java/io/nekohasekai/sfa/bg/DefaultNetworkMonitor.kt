@@ -8,6 +8,7 @@ import java.net.NetworkInterface
 
 object DefaultNetworkMonitor {
 
+    @Volatile
     var defaultNetwork: Network? = null
     private var listener: InterfaceUpdateListener? = null
 
@@ -56,6 +57,8 @@ object DefaultNetworkMonitor {
                     Thread.sleep(100)
                     continue
                 }
+                // The native callback has no acknowledgement and can log an
+                // unresolved interface without throwing. Preserve its retries.
                 listener.updateDefaultInterface(linkProperties.interfaceName, interfaceIndex, false, false)
             }
         } else {
