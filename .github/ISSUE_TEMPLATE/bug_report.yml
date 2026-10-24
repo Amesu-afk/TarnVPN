@@ -1,0 +1,36 @@
+name: Bug report / Ошибка
+description: Report a reproducible TarnVPN issue / Сообщить об ошибке TarnVPN
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: "English or Russian is welcome. Remove server links, subscription URLs, IP addresses and credentials from logs before posting. / Удалите из журнала ссылки серверов, подписки, IP и учётные данные."
+  - type: input
+    id: version
+    attributes:
+      label: TarnVPN version / Версия TarnVPN
+      placeholder: 1.14.0-alpha.68, universal or legacy
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Android version and device / Android и устройство
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps, expected and actual result / Шаги, ожидаемый и фактический результат
+    validations:
+      required: true
+  - type: textarea
+    id: network
+    attributes:
+      label: Connection context / Условия подключения
+      description: Protocol, Wi-Fi or mobile, sleep or network change. Do not paste server or subscription links.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs / Обезличенный журнал
+      render: text

@@ -1,27 +1,41 @@
 **Русский** · [English](README.en.md)
 
+<p align="center">
+  <img src="docs/assets/tarnvpn-icon.png" width="96" alt="TarnVPN">
+</p>
+
 # TarnVPN
 
-VPN-клиент для Android под заблокированные сети: **VLESS + REALITY**, **XHTTP** и другие
-протоколы sing-box, а также отдельный WebRTC-туннель **olcRTC** — с интерфейсом под задачу,
-а не с редактором конфигов.
+**VPN-клиент для Android: VLESS + REALITY, XHTTP и WebRTC-туннель olcRTC.**
+Добавляйте серверы по ссылке или подписке, выбирайте приложения для VPN и управляйте DNS
+в одном интерфейсе на русском и английском. Нужен свой сервер или подписка.
 
-> **Чья тут чья работа.** Оболочка, импортёр share-ссылок и набор клиентских правок — этого
-> проекта. Всё, на чём они стоят, — чужое:
->
-> - приложение — форк [SagerNet/sing-box-for-android](https://github.com/SagerNet/sing-box-for-android) (SFA);
-> - ядро — [sing-box](https://github.com/SagerNet/sing-box), и то и другое **nekohasekai / SagerNet**;
-> - **слой `lx` — XHTTP, AmneziaWG 2.0, MASQUE, расширения наблюдаемости — работа
->   [Leadaxe](https://github.com/Leadaxe/sing-box-lx), а не наша.** XHTTP — транспорт, на котором
->   это приложение держится сильнее всего, и он здесь есть благодаря тому проекту.
->
-> Наши собственные правки ядра (пул транспортов XHTTP, фрагментация TLS поверх REALITY,
-> `override_destination` у действия sniff, путь для stream-one и мобильная интеграция olcRTC)
-> лежат в downstream-копии [Amesu-afk/sing-box-lx](https://github.com/Amesu-afk/sing-box-lx).
-> Ядро для alpha.64 основано на `v1.14.0-lx.24`; из этой копии собран вшитый `libbox.aar`.
-> Клиентский код olcRTC адаптирован из [Oleglog/OlConnect_manager](https://github.com/Oleglog/OlConnect_manager/tree/c267dd30b0bc).
->
-> **Ни один из перечисленных проектов этот не поддерживает и к нему отношения не имеет.**
+[![Android 6+](https://img.shields.io/badge/Android-6.0%2B-3ddc84?logo=android&logoColor=white)](#установка)
+[![Prerelease](https://img.shields.io/badge/release-1.14.0--alpha.68-8b5cf6)](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.68)
+[![License GPLv3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
+
+**[Скачать APK для Android 6+](https://github.com/Amesu-afk/TarnVPN/releases/download/v1.14.0-alpha.68/TarnVPN-1.14.0-alpha.68-universal.apk)** ·
+[Android 5](https://github.com/Amesu-afk/TarnVPN/releases/download/v1.14.0-alpha.68/TarnVPN-1.14.0-alpha.68-legacy-android-5-universal.apk) ·
+[Что нового](releases/v1.14.0-alpha.68.md) ·
+[Сообщить об ошибке](https://github.com/Amesu-afk/TarnVPN/issues/new/choose)
+
+## Быстрый старт
+
+1. Установите APK для своей версии Android.
+2. Нажмите **«+»** и добавьте ссылку сервера или URL HTTPS-подписки.
+3. Выберите сервер, подключитесь и подтвердите системный запрос Android на создание VPN.
+
+## Что нового в alpha.68
+
+- **Восстановление при смене сети:** переход Wi-Fi ↔ мобильная сеть во время сброса
+  сохраняется и обрабатывается после него.
+- **Точечное восстановление XHTTP:** таймаут одного участника пула сохраняет здоровые
+  соседние соединения.
+- **Исправления ожидания и завершения XHTTP:** ограничено открытие HTTP/2, исправлена
+  очистка upload/download и добавлена диагностика этапа задержки.
+
+Это предварительный выпуск. Локальные тесты и проверка подписанных APK пройдены;
+исчезновение задержек и обновление поверх прежней версии ещё требуют проверки на телефоне.
 
 ## Сразу о главном: серверов внутри нет
 
@@ -55,7 +69,7 @@ DNS-резолверу и, при использовании olcRTC, к инфр
 ### olcRTC
 
 Это отдельный WebRTC-туннель с локальным SOCKS5: sing-box направляет трафик в этот SOCKS5,
-а olcRTC передаёт его через WebRTC. В alpha.64 поддержаны Jitsi с `datachannel` и Телемост с
+а olcRTC передаёт его через WebRTC. В alpha.68 поддержаны Jitsi с `datachannel` и Телемост с
 `vp8channel`; WB Stream, `seichannel` и `videochannel` в мобильной сборке не работают.
 Поддерживаются HTTPS-подписки с `olcrtc://` ссылками и QR-коды manager с рукопожатием v1.
 Порт и учётные данные локального SOCKS5 создаются заново на время сеанса.
@@ -113,7 +127,7 @@ DNS-резолверу и, при использовании olcRTC, к инфр
 
 ## Восстановление после сна
 
-В alpha.64 включённая настройка «Восстанавливать после сна и смены сети» учитывает
+В alpha.68 включённая настройка «Восстанавливать после сна и смены сети» учитывает
 пробуждение после 60 секунд с выключенным экраном и deep/light idle, в том числе на той же
 Wi-Fi сети. Приложение сбрасывает сетевые соединения и DNS ядра, сохраняя VPN-интерфейс.
 XHTTP закрывает зависшие сокеты и upload pipe; DoH получает одну повторную попытку только
@@ -124,7 +138,7 @@ XHTTP закрывает зависшие сокеты и upload pipe; DoH по�
 
 Берите **universal** APK из [релизов](https://github.com/Amesu-afk/TarnVPN/releases).
 
-[Alpha.64](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.64) — предварительный
+[Alpha.68](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.68) — предварительный
 выпуск. Встроенный апдейтер на сборках с каналом «Стабильный» пропускает такие выпуски; для
 получения alpha-версий нужен канал «Бета». Работу olcRTC, восстановление после обрыва и
 установку этой версии поверх предыдущего APK ещё нужно проверить на физическом телефоне.
@@ -144,20 +158,20 @@ XHTTP закрывает зависшие сокеты и upload pipe; DoH по�
 
 ## Сборка из исходников
 
-Для повторения сборки alpha.64 нужны:
+Для повторения сборки alpha.68 нужны:
 
 - **OpenJDK 17 или 21**;
 - Android SDK с **NDK 28.0.13004108**;
-- **Go 1.25.5+** с `gomobile` — только если пересобираете ядро; для alpha.64 использован Go 1.26.5.
+- **Go 1.26.5** с `gomobile` — только если пересобираете ядро; для alpha.68 использован Go 1.26.5.
 
 ```bash
-# Исходники ядра и приложения для alpha.64
+# Исходники ядра и приложения для alpha.68
 git clone https://github.com/Amesu-afk/sing-box-lx
 cd sing-box-lx
-git checkout 038a715fe1bc5b9a553cdea62000ffa2777da978
+git checkout tarnvpn-v1.14.0-alpha.68
 git submodule sync --recursive
 git submodule update --init --recursive
-git -C clients/android checkout v1.14.0-alpha.64
+git -C clients/android checkout v1.14.0-alpha.68
 
 # Собрать ядро: AAR не хранятся в репозитории
 go run ./cmd/internal/build_libbox -target android   # даёт libbox.aar + libbox-legacy.aar
@@ -203,6 +217,29 @@ ALIAS_PASS=…
   целиком (тап по строке версии на экране «Защита») — так проще подтягивать обновления SFA.
 - Юнит-тесты — в `app/src/test` (Robolectric нужен потому, что парсер ссылок стоит на
   `android.net.Uri`/`Base64`/`org.json`).
+
+<details>
+<summary>Происхождение проекта и исходники ядра</summary>
+
+> **Чья тут чья работа.** Оболочка, импортёр share-ссылок и набор клиентских правок — этого
+> проекта. Всё, на чём они стоят, — чужое:
+>
+> - приложение — форк [SagerNet/sing-box-for-android](https://github.com/SagerNet/sing-box-for-android) (SFA);
+> - ядро — [sing-box](https://github.com/SagerNet/sing-box), и то и другое **nekohasekai / SagerNet**;
+> - **слой `lx` — XHTTP, AmneziaWG 2.0, MASQUE, расширения наблюдаемости — работа
+>   [Leadaxe](https://github.com/Leadaxe/sing-box-lx), а не наша.** XHTTP — транспорт, на котором
+>   это приложение держится сильнее всего, и он здесь есть благодаря тому проекту.
+>
+> Наши собственные правки ядра (пул транспортов XHTTP, фрагментация TLS поверх REALITY,
+> `override_destination` у действия sniff, путь для stream-one и мобильная интеграция olcRTC)
+> лежат в downstream-копии [Amesu-afk/sing-box-lx](https://github.com/Amesu-afk/sing-box-lx).
+> Ядро для alpha.68 основано на `v1.14.0-lx.24`; из этой копии собран вшитый `libbox.aar`.
+> Клиентский код olcRTC адаптирован из [Oleglog/OlConnect_manager](https://github.com/Oleglog/OlConnect_manager/tree/c267dd30b0bc).
+>
+> **Ни один из перечисленных проектов этот не поддерживает и к нему отношения не имеет.**
+
+
+</details>
 
 ## Благодарности
 
