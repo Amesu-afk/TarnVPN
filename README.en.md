@@ -1,7 +1,7 @@
 [Русский](README.md) · **English**
 
 <p align="center">
-  <img src="docs/assets/tarnvpn-icon.png" width="96" alt="TarnVPN">
+  <img src="docs/assets/tarnvpn-icon-green.png" width="96" alt="TarnVPN">
 </p>
 
 # TarnVPN

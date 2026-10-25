@@ -2,7 +2,7 @@
 
 `tarnvpn-social-preview.jpg` is the GitHub repository social preview cover. Upload it in Repository Settings -> General -> Social preview.
 
-The green mascot reference is the app's current `app/src/main/res/mipmap-xxxhdpi/ic_launcher.png`. `tarnvpn-icon.png` is an unchanged copy of that app resource for the README.
+The green mascot reference is the app's current `app/src/main/res/mipmap-xxxhdpi/ic_launcher.png`. `tarnvpn-icon-green.png` is an unchanged copy of that app resource for the README.
 
 Generation: built-in imagegen, followed by JPEG export to meet GitHub's image-size limit. No application screenshots are simulated.
 
