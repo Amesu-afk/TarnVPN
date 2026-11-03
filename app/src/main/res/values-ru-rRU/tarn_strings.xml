@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Строки оболочки TarnVPN (io.nekohasekai.sfa.tarn). Тексты взяты из макета. -->
 <resources>
+    <string name="tarn_subscription_format_unsupported">Провайдер вернул конфигурацию sing-box вместо ссылок на серверы и не предоставил совместимый список. Проверьте формат подписки у провайдера.</string>
     <string name="tarn_state_offline">Offline</string>
     <string name="tarn_state_connected">Connected</string>
     <string name="tarn_state_connecting">Connecting</string>
@@ -193,6 +194,7 @@
     <string name="tarn_full_test_select_tcp_fallback">ВЫБРАТЬ РЕЗЕРВ ПО TCP</string>
 
     <string name="tarn_subscriptions_title">Подписки</string>
+    <string name="tarn_subscriptions_manage_hint">Обновить или удалить подписку вместе с серверами</string>
     <string name="tarn_subscriptions_empty">Пока нет подписок. Вставьте URL подписки через «+» на экране «Серверы» — она появится здесь и будет обновляться.</string>
     <string name="tarn_subscriptions_refresh">Обновить</string>
     <string name="tarn_subscriptions_auto_update">Автообновление</string>

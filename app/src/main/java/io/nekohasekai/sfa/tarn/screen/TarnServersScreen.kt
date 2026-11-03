@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CloudSync
@@ -62,6 +63,7 @@ import io.nekohasekai.sfa.tarn.component.TarnDialogTextButton
 import io.nekohasekai.sfa.tarn.component.TarnImportDialog
 import io.nekohasekai.sfa.tarn.component.TarnLabelTab
 import io.nekohasekai.sfa.tarn.component.TarnLatencyReadout
+import io.nekohasekai.sfa.tarn.component.TarnNavRow
 import io.nekohasekai.sfa.tarn.component.cornerBrackets
 import io.nekohasekai.sfa.tarn.component.hairlineBorder
 import io.nekohasekai.sfa.tarn.component.tarnImportText
@@ -294,6 +296,14 @@ fun TarnServersScreen(
                 )
             }
         }
+
+        TarnNavRow(
+            title = stringResource(R.string.tarn_subscriptions_title),
+            value = stringResource(R.string.tarn_subscriptions_manage_hint),
+            onClick = onOpenSubscriptions,
+            chevron = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
 
         // ---- Tabs -------------------------------------------------------------
         Row(

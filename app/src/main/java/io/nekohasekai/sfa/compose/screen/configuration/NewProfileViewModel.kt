@@ -11,6 +11,8 @@ import io.nekohasekai.sfa.database.Profile
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.TypedProfile
 import io.nekohasekai.sfa.utils.HTTPClient
+import io.nekohasekai.sfa.utils.SubscriptionFetcher
+import io.nekohasekai.sfa.utils.UnsupportedSubscriptionFormatException
 import io.nekohasekai.sfa.utils.VlessImporter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -289,8 +291,15 @@ class NewProfileViewModel(application: Application) : AndroidViewModel(applicati
                             ) {
                                 context.getString(R.string.profile_url_https_required)
                             }
-                            VlessImporter.toSingBoxJson(state.pastedUri) { url ->
-                                HTTPClient().use { it.getString(url) }
+                            try {
+                                VlessImporter.toSingBoxJson(state.pastedUri) { url ->
+                                    SubscriptionFetcher.fetch(url)
+                                }
+                            } catch (error: UnsupportedSubscriptionFormatException) {
+                                throw IllegalArgumentException(
+                                    context.getString(R.string.tarn_subscription_format_unsupported),
+                                    error,
+                                )
                             }
                         }
                         state.qrsData != null -> {

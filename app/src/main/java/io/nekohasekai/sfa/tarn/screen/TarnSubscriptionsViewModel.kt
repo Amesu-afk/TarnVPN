@@ -2,11 +2,12 @@ package io.nekohasekai.sfa.tarn.screen
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.tarn.data.SubscriptionView
 import io.nekohasekai.sfa.tarn.data.TarnServerRepository
 import io.nekohasekai.sfa.utils.AppLifecycleObserver
-import io.nekohasekai.sfa.utils.HTTPClient
+import io.nekohasekai.sfa.utils.SubscriptionFetcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -66,7 +67,7 @@ class TarnSubscriptionsViewModel : ViewModel() {
         viewModelScope.launch {
             val refreshed = runCatching {
                 TarnServerRepository.refreshDueSubscriptions { url ->
-                    HTTPClient().use { it.getString(url) }
+                    SubscriptionFetcher.fetch(url)
                 }
             }.getOrDefault(0)
             if (refreshed > 0) reload()
@@ -88,14 +89,16 @@ class TarnSubscriptionsViewModel : ViewModel() {
         viewModelScope.launch {
             val result = runCatching {
                 TarnServerRepository.refreshSubscription(id) { url ->
-                    HTTPClient().use { it.getString(url) }
+                    SubscriptionFetcher.fetch(url)
                 }
             }
             val outcome = result.getOrNull()
             _uiState.update {
                 it.copy(
                     refreshing = it.refreshing - id,
-                    error = result.exceptionOrNull()?.message,
+                    error = result.exceptionOrNull()?.let { error ->
+                        SubscriptionFetcher.errorMessage(Application.application, error)
+                    },
                     notice = outcome?.takeIf { it.rejectedCount > 0 }?.let {
                         TarnSubscriptionRefreshNotice(it.serverCount, it.rejectedCount)
                     },

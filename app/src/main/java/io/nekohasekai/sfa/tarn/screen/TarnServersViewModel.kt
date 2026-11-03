@@ -3,6 +3,7 @@ package io.nekohasekai.sfa.tarn.screen
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.nekohasekai.mobile.Mobile
+import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.tarn.data.Latency
@@ -11,7 +12,7 @@ import io.nekohasekai.sfa.tarn.data.TarnFullTestResult
 import io.nekohasekai.sfa.tarn.data.TarnFullTestSession
 import io.nekohasekai.sfa.tarn.data.TarnServerRepository
 import io.nekohasekai.sfa.tarn.data.regionalFlag
-import io.nekohasekai.sfa.utils.HTTPClient
+import io.nekohasekai.sfa.utils.SubscriptionFetcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
@@ -214,14 +215,16 @@ class TarnServersViewModel : ViewModel() {
         viewModelScope.launch {
             val result = runCatching {
                 TarnServerRepository.import(input) { url ->
-                    HTTPClient().use { it.getString(url) }
+                    SubscriptionFetcher.fetch(url)
                 }
             }
             val outcome = result.getOrNull()
             _uiState.update {
                 it.copy(
                     importing = false,
-                    importError = result.exceptionOrNull()?.message,
+                    importError = result.exceptionOrNull()?.let { error ->
+                        SubscriptionFetcher.errorMessage(Application.application, error)
+                    },
                     importNotice = outcome?.takeIf { it.rejectedCount > 0 }?.let {
                         TarnImportNotice(it.serverCount, it.rejectedCount)
                     },

@@ -317,9 +317,13 @@ object TarnServerRepository {
     /** Removes a subscription together with every server it brought in. */
     suspend fun deleteSubscription(id: String): Unit = withContext(Dispatchers.IO) {
         mutex.withLock {
-            val owned = ProfileManager.list().filter { subscriptionIdOf(File(it.typed.path)) == id }
-            if (owned.isNotEmpty()) deleteProfilesLocked(owned)
-            TarnSubscriptionStore.remove(id)
+            // Once deletion starts, finish removing the subscription metadata even if the
+            // screen is closed while its profiles are being removed.
+            withContext(NonCancellable) {
+                val owned = profilesOwnedBySubscription(ProfileManager.list(), id)
+                if (owned.isNotEmpty()) deleteProfilesLocked(owned)
+                TarnSubscriptionStore.remove(id)
+            }
         }
     }
 
@@ -442,6 +446,9 @@ object TarnServerRepository {
     private fun subscriptionIdOf(configFile: File): String? = runCatching { subscriptionSidecarFile(configFile).takeIf { it.isFile }?.readText()?.trim() }
         .getOrNull()
         ?.takeIf { it.isNotBlank() }
+
+    internal fun profilesOwnedBySubscription(profiles: List<Profile>, id: String): List<Profile> =
+        profiles.filter { subscriptionIdOf(File(it.typed.path)) == id }
 
     /**
      * The `<id>.vless` file sitting next to a `<id>.json` config, holding the original

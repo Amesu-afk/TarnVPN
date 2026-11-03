@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -232,15 +231,6 @@ private fun SubscriptionRow(
                     )
                 }
             }
-            Spacer(Modifier.width(4.dp))
-            IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = stringResource(R.string.tarn_action_delete),
-                    tint = TarnColors.TextDim,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
         }
 
         Spacer(Modifier.height(10.dp))
@@ -267,6 +257,12 @@ private fun SubscriptionRow(
                 onCheckedChange = onToggleAutoUpdate,
             )
         }
+        Spacer(Modifier.height(6.dp))
+        TarnDialogTextButton(
+            text = stringResource(R.string.tarn_subscriptions_delete_title),
+            onClick = onDelete,
+            modifier = Modifier.align(Alignment.End),
+        )
     }
 }
 

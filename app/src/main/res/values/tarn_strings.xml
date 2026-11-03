@@ -2,6 +2,7 @@
 <!-- Strings for the TarnVPN shell (io.nekohasekai.sfa.tarn). Kept apart from the
      upstream sing-box strings so pulling upstream never conflicts here. -->
 <resources>
+    <string name="tarn_subscription_format_unsupported">The provider returned a sing-box configuration instead of server links and did not provide a compatible link list. Check the subscription format with your provider.</string>
     <!-- Connection state, shown as a chip beside the wordmark -->
     <string name="tarn_state_offline">Offline</string>
     <string name="tarn_state_connected">Connected</string>
@@ -194,6 +195,7 @@
     <string name="tarn_shield_version">App version</string>
 
     <string name="tarn_subscriptions_title">Subscriptions</string>
+    <string name="tarn_subscriptions_manage_hint">Update or delete a subscription with all its servers</string>
     <string name="tarn_subscriptions_empty">No subscriptions yet. Paste a subscription URL with "+" on the Servers screen and it will be tracked here.</string>
     <string name="tarn_subscriptions_refresh">Update</string>
     <string name="tarn_subscriptions_auto_update">Auto-update</string>

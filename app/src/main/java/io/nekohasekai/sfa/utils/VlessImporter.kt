@@ -245,6 +245,9 @@ object VlessImporter {
                     }
             }
         }
+        if (servers.isEmpty() && SubscriptionFetcher.isSingBoxConfig(body)) {
+            throw UnsupportedSubscriptionFormatException()
+        }
         if (servers.isEmpty()) {
             throw IllegalArgumentException(
                 "Subscription contained no server links we could read. " +
@@ -1077,6 +1080,9 @@ object VlessImporter {
      * current app cannot parse yet, so a subscription refresh can report it and preserve the
      * previously working list instead of silently interpreting it as a removed server.
      */
+    internal fun hasSubscriptionEntries(body: String): Boolean =
+        body.length <= MAX_SUBSCRIPTION_CHARS && expandSubscriptionBody(body).isNotEmpty()
+
     private fun expandSubscriptionBody(body: String): List<String> {
         val trimmed = body.trim().removePrefix("\uFEFF")
         fun linesOf(text: String) = text.split('\n', '\r')
