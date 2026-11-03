@@ -155,9 +155,11 @@ class DashboardViewModel :
         )
     }
 
+    private val profilesChanged: () -> Unit = { onProfilesChanged() }
+
     init {
         loadProfiles()
-        ProfileManager.registerCallback(::onProfilesChanged)
+        ProfileManager.registerCallback(profilesChanged)
 
         viewModelScope.launch {
             combine(
@@ -185,7 +187,7 @@ class DashboardViewModel :
 
     override fun onCleared() {
         super.onCleared()
-        ProfileManager.unregisterCallback(::onProfilesChanged)
+        ProfileManager.unregisterCallback(profilesChanged)
         commandClient.disconnect()
     }
 

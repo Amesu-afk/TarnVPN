@@ -31,7 +31,9 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -140,6 +142,17 @@ fun TarnServersScreen(
             importing = state.importing,
             errorMessage = qrImportError ?: state.importError,
             noticeMessage = importNotice,
+        )
+    }
+    if (!showImportDialog && state.importError != null) {
+        AlertDialog(
+            onDismissRequest = onDismissImportError,
+            text = { Text(state.importError) },
+            confirmButton = {
+                TextButton(onClick = onDismissImportError) {
+                    Text(stringResource(R.string.tarn_action_dismiss))
+                }
+            },
         )
     }
     if (showQrScanner) {

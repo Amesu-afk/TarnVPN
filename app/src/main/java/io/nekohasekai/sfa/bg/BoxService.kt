@@ -296,7 +296,12 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             return
         }
 
-        var content = File(profile.typed.path).readText()
+        var content = try {
+            File(profile.typed.path).readText()
+        } catch (e: java.io.IOException) {
+            stopAndAlert(Alert.CreateService, e.message)
+            return
+        }
         if (content.isBlank()) {
             stopAndAlert(Alert.EmptyConfiguration)
             return

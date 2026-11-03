@@ -13,6 +13,11 @@ import io.nekohasekai.sfa.tarn.data.TarnServerRepository
 import io.nekohasekai.sfa.tarn.data.regionalFlag
 import io.nekohasekai.sfa.utils.HTTPClient
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -120,7 +125,7 @@ class TarnServersViewModel : ViewModel() {
         probeJob?.cancel()
         fullTestGeneration++
         fullTestJob?.cancel()
-        fullTestSession?.cancel()
+        fullTestSession?.let { session -> CoroutineScope(Dispatchers.IO).launch { session.cancel() } }
         fullTestJob = null
         fullTestSession = null
         ProfileManager.unregisterCallback(profilesChanged)
@@ -151,8 +156,7 @@ class TarnServersViewModel : ViewModel() {
     }
 
     /**
-     * Probes every server concurrently, publishing each reading the moment it lands so a
-     * slow endpoint never holds up the rest of the list.
+     * Probes up to 12 servers at once and publishes the results together to keep sorting stable.
      *
      * A new probe supersedes any still in flight: without that, a slow reading from an earlier
      * call could land after a fresh one and overwrite it with a stale value. Cancelling the
@@ -175,15 +179,16 @@ class TarnServersViewModel : ViewModel() {
             )
         }
         probeJob = viewModelScope.launch {
-            servers.forEach { server ->
-                // WebRTC has no fixed remote TCP endpoint. Its live control RTT is read below.
-                if (server.protocol == "olcrtc") return@forEach
-                launch {
-                    val millis = TarnServerRepository.probe(server)
-                    val latency = millis?.let { Latency.Ok(it) } ?: Latency.Unreachable
-                    _uiState.update { it.copy(latencies = it.latencies + (server.profileId to latency)) }
+            val semaphore = Semaphore(12)
+            val results = servers.filter { it.protocol != "olcrtc" }.map { server ->
+                async {
+                    semaphore.withPermit {
+                        val millis = TarnServerRepository.probe(server)
+                        server.profileId to (millis?.let { Latency.Ok(it) } ?: Latency.Unreachable)
+                    }
                 }
-            }
+            }.awaitAll().toMap()
+            _uiState.update { it.copy(latencies = it.latencies + results) }
         }
     }
 
@@ -233,7 +238,13 @@ class TarnServersViewModel : ViewModel() {
      */
     fun deleteServer(profileId: Long) {
         viewModelScope.launch {
-            runCatching { TarnServerRepository.delete(profileId) }
+            try {
+                TarnServerRepository.delete(profileId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update { it.copy(importError = e.message ?: e.javaClass.simpleName) }
+            }
         }
     }
 

@@ -265,6 +265,10 @@ fun TarnShell(
     fun onFragmentChange(enabled: Boolean) {
         fragmentEnabled = enabled
         Settings.tarnFragmentEnabled = enabled
+        if (!enabled) {
+            recordFragment = false
+            Settings.tarnRecordFragment = false
+        }
         repatchSettingsAndReload()
     }
 
@@ -451,7 +455,7 @@ fun TarnShell(
                         splitMode = splitMode,
                         splitAppCount = splitAppCount,
                         dnsProviderName = TarnDns.byId(dnsProvider).title,
-                        dnsThroughVpn = dnsRoute == Settings.DNS_ROUTE_TUNNEL,
+                        dnsThroughVpn = dnsRoute != Settings.DNS_ROUTE_DIRECT,
                         ruDirect = ruDirect,
                         directDomainCount = directDomains.size,
                         ipv6Enabled = ipv6Enabled,

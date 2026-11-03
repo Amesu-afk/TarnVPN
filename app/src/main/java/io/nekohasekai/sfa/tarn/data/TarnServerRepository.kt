@@ -3,12 +3,15 @@ package io.nekohasekai.sfa.tarn.data
 import android.util.AtomicFile
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.Application
+import io.nekohasekai.sfa.R
+import io.nekohasekai.sfa.bg.BoxService
 import io.nekohasekai.sfa.database.Profile
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.database.TypedProfile
 import io.nekohasekai.sfa.utils.OlcRtcUri
 import io.nekohasekai.sfa.utils.VlessImporter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
@@ -180,6 +183,9 @@ object TarnServerRepository {
 
         val toAdd = newByKey.filterKeys { it !in existingByKey }.values.toList()
         val toRemove = existingByKey.filterKeys { it !in newByKey }.values.toList()
+        if (toRemove.any { it.id == Settings.selectedProfile }) {
+            throw IllegalStateException(Application.application.getString(R.string.tarn_subscription_selected_removed))
+        }
 
         // A provider can briefly send a partial response or start including a link type this
         // build does not support. Those links used to disappear in mapNotNull(), making their
@@ -296,7 +302,14 @@ object TarnServerRepository {
         }
         var refreshed = 0
         due.forEach { subscription ->
-            if (runCatching { refreshSubscription(subscription.id, fetch) }.isSuccess) refreshed++
+            try {
+                refreshSubscription(subscription.id, fetch)
+                refreshed++
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // A failed subscription must not stop the other refreshes.
+            }
         }
         refreshed
     }
@@ -379,9 +392,21 @@ object TarnServerRepository {
      * A later cleanup failure can at worst leave an unreachable orphan for a future cleanup; it
      * cannot turn a failed refresh into lost server credentials.
      */
-    private suspend fun deleteProfilesLocked(profiles: List<Profile>) {
-        if (profiles.isEmpty()) return
-        ProfileManager.delete(profiles)
+    private suspend fun deleteProfilesLocked(profiles: List<Profile>): Unit = withContext(NonCancellable) {
+        if (profiles.isEmpty()) return@withContext
+        val selectedId = Settings.selectedProfile
+        val removesSelected = profiles.any { it.id == selectedId }
+        if (removesSelected) {
+            // Do not silently keep a deleted profile connected or switch to another server.
+            BoxService.stop()
+            Settings.selectedProfile = -1L
+        }
+        try {
+            ProfileManager.delete(profiles)
+        } catch (error: Throwable) {
+            if (removesSelected && Settings.selectedProfile == -1L) Settings.selectedProfile = selectedId
+            throw error
+        }
         try {
             pruneFavourites(profiles.map { it.id })
         } finally {

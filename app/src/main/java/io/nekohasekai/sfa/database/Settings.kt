@@ -438,7 +438,7 @@ object Settings {
         set(value) {
             tarnLogLevelStored = normalizeChoice(
                 value,
-                setOf(LOG_LEVEL_WARN, LOG_LEVEL_INFO, LOG_LEVEL_DEBUG),
+                setOf(LOG_LEVEL_WARN, LOG_LEVEL_INFO, LOG_LEVEL_DEBUG, LOG_LEVEL_TRACE),
                 LOG_LEVEL_WARN,
             )
         }

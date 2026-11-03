@@ -7,6 +7,7 @@ import io.nekohasekai.sfa.tarn.data.SubscriptionView
 import io.nekohasekai.sfa.tarn.data.TarnServerRepository
 import io.nekohasekai.sfa.utils.AppLifecycleObserver
 import io.nekohasekai.sfa.utils.HTTPClient
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -108,8 +109,14 @@ class TarnSubscriptionsViewModel : ViewModel() {
 
     fun delete(id: String) {
         viewModelScope.launch {
-            runCatching { TarnServerRepository.deleteSubscription(id) }
-            reload()
+            try {
+                TarnServerRepository.deleteSubscription(id)
+                reload()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message ?: e.javaClass.simpleName) }
+            }
         }
     }
 

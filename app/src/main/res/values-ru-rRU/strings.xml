@@ -633,4 +633,5 @@
     <string name="remote_checking">Проверка…</string>
     <string name="remote_available">Доступно</string>
     <string name="remote_unavailable">Недоступно</string>
+    <string name="tarn_subscription_selected_removed">Выбранный сервер отсутствует в обновлении подписки. Выберите другой сервер перед обновлением.</string>
 </resources>

@@ -666,4 +666,5 @@
         <item quantity="one">Sharing %1$d USB device</item>
         <item quantity="other">Sharing %1$d USB devices</item>
     </plurals>
+    <string name="tarn_subscription_selected_removed">The selected server is missing from this subscription update. Select another server before refreshing.</string>
 </resources>

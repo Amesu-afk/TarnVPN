@@ -7,11 +7,12 @@ import io.nekohasekai.sfa.constant.Path
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import java.util.concurrent.CopyOnWriteArrayList
 
 @Suppress("RedundantSuspendModifier")
 object ProfileManager {
     private const val TAG = "ProfileManager"
-    private val callbacks = mutableListOf<() -> Unit>()
+    private val callbacks = CopyOnWriteArrayList<() -> Unit>()
 
     fun registerCallback(callback: () -> Unit) {
         callbacks.add(callback)

@@ -26,6 +26,17 @@ class ProxyUriParserTest {
 
     private fun parse(uri: String, fragment: Boolean = false): JSONObject = ProxyUriParser.parse(uri, fragment).json
 
+    @Test
+    fun `record fragmentation requires the main fragmentation switch`() {
+        val tls = JSONObject()
+        ProxyUriParser.applyFragment(tls, enabled = true, recordFragment = true)
+        assertTrue(tls.optBoolean("fragment"))
+        assertTrue(tls.optBoolean("record_fragment"))
+        ProxyUriParser.applyFragment(tls, enabled = false, recordFragment = true)
+        assertFalse(tls.has("fragment"))
+        assertFalse(tls.has("record_fragment"))
+    }
+
     // ---- scheme recognition -----------------------------------------------------------
 
     @Test

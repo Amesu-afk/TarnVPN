@@ -39,7 +39,7 @@
     <string name="tarn_servers_fastest">Подключиться к самому быстрому серверу</string>
     <string name="tarn_servers_delete">Удалить сервер</string>
     <string name="tarn_servers_delete_confirm_title">Удалить сервер?</string>
-    <string name="tarn_servers_delete_confirm_message">%1$s будет удалён с этого устройства.</string>
+    <string name="tarn_servers_delete_confirm_message">%1$s будет удалён с этого устройства. Если он выбран, VPN отключится.</string>
     <string name="tarn_servers_delete_confirm_action">Удалить</string>
 
     <string name="tarn_servers_add_title">Добавить сервер</string>
@@ -199,7 +199,7 @@
     <string name="tarn_subscriptions_never">ещё не обновлялась</string>
     <string name="tarn_subscriptions_just_now">обновлено только что</string>
     <string name="tarn_subscriptions_delete_title">Удалить подписку</string>
-    <string name="tarn_subscriptions_delete_message">Удалить «%1$s» и %2$d добавленных ею серверов?</string>
+    <string name="tarn_subscriptions_delete_message">Удалить «%1$s» и %2$d добавленных ею серверов? Если среди них выбранный сервер, VPN отключится.</string>
     <string name="tarn_subscriptions_delete_action">Удалить</string>
     <plurals name="tarn_subscriptions_server_count">
         <item quantity="one">%1$d сервер</item>

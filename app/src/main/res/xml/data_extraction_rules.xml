@@ -2,6 +2,14 @@
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="file" path="subscriptions.json" />
+        <exclude domain="file" path="subscriptions.json.bak" />
+        <exclude domain="file" path="subscriptions.json.new" />
+        <exclude domain="file" path="crash_reports" />
+        <exclude domain="file" path="oom_reports" />
+        <exclude domain="file" path="oom_draft" />
+        <exclude domain="external" path="crash_reports" />
+        <exclude domain="external" path="oom_reports" />
+        <exclude domain="external" path="oom_draft" />
         <!-- Profiles, settings and generated configs can contain VPN credentials. -->
         <exclude
             domain="database"
@@ -15,6 +23,14 @@
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="subscriptions.json" />
+        <exclude domain="file" path="subscriptions.json.bak" />
+        <exclude domain="file" path="subscriptions.json.new" />
+        <exclude domain="file" path="crash_reports" />
+        <exclude domain="file" path="oom_reports" />
+        <exclude domain="file" path="oom_draft" />
+        <exclude domain="external" path="crash_reports" />
+        <exclude domain="external" path="oom_reports" />
+        <exclude domain="external" path="oom_draft" />
         <!-- Profiles, settings and generated configs can contain VPN credentials. -->
         <exclude
             domain="database"

@@ -210,7 +210,7 @@ internal class OlcRtcRuntimeController(private val service: Service) {
         const val DEFAULT_LIVENESS_TIMEOUT_MS = 15_000L
         const val DEFAULT_LIVENESS_FAILURES = 4L
         const val READY_TIMEOUT_MS = 20_000L
-        const val SLOW_PROVIDER_READY_TIMEOUT_MS = 45_000L
+        const val SLOW_PROVIDER_READY_TIMEOUT_MS = 60_000L
         const val REDACTED_VALUE = "<redacted>"
 
         fun shouldReuseRunningProfile(activeSource: String?, source: String, running: Boolean): Boolean = running && activeSource == source

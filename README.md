@@ -11,12 +11,12 @@
 в одном интерфейсе на русском и английском. Нужен свой сервер или подписка.
 
 [![Android 6+](https://img.shields.io/badge/Android-6.0%2B-3ddc84?logo=android&logoColor=white)](#установка)
-[![Prerelease](https://img.shields.io/badge/release-1.14.0--alpha.68-8b5cf6)](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.68)
+[![Prerelease](https://img.shields.io/badge/release-1.14.0--alpha.70-8b5cf6)](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.70)
 [![License GPLv3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
-**[Скачать APK для Android 6+](https://github.com/Amesu-afk/TarnVPN/releases/download/v1.14.0-alpha.68/TarnVPN-1.14.0-alpha.68-universal.apk)** ·
-[Android 5](https://github.com/Amesu-afk/TarnVPN/releases/download/v1.14.0-alpha.68/TarnVPN-1.14.0-alpha.68-legacy-android-5-universal.apk) ·
-[Что нового](releases/v1.14.0-alpha.68.md) ·
+**[Скачать APK для Android 6+](https://github.com/Amesu-afk/TarnVPN/releases/download/v1.14.0-alpha.70/TarnVPN-1.14.0-alpha.70-universal.apk)** ·
+[Android 5](https://github.com/Amesu-afk/TarnVPN/releases/download/v1.14.0-alpha.70/TarnVPN-1.14.0-alpha.70-legacy-android-5-universal.apk) ·
+[Что нового](releases/v1.14.0-alpha.70.md) ·
 [Сообщить об ошибке](https://github.com/Amesu-afk/TarnVPN/issues/new/choose)
 
 ## Быстрый старт
@@ -24,6 +24,10 @@
 1. Установите APK для своей версии Android.
 2. Нажмите **«+»** и добавьте ссылку сервера или URL HTTPS-подписки.
 3. Выберите сервер, подключитесь и подтвердите системный запрос Android на создание VPN.
+
+## Что нового в alpha.70
+
+Исправлены удаление выбранного сервера, настройки DNS и фрагментации, резервное копирование подписок и проверка доступности серверов. Включены подготовленные исправления olcRTC. [Подробности и ограничения](releases/v1.14.0-alpha.70.md).
 
 ## Что нового в alpha.68
 
@@ -138,10 +142,9 @@ XHTTP закрывает зависшие сокеты и upload pipe; DoH по�
 
 Берите **universal** APK из [релизов](https://github.com/Amesu-afk/TarnVPN/releases).
 
-[Alpha.68](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.68) — предварительный
+[Alpha.70](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.70) — предварительный
 выпуск. Встроенный апдейтер на сборках с каналом «Стабильный» пропускает такие выпуски; для
-получения alpha-версий нужен канал «Бета». Работу olcRTC, восстановление после обрыва и
-установку этой версии поверх предыдущего APK ещё нужно проверить на физическом телефоне.
+получения alpha-версий нужен канал «Бета». Работу этой версии и установку поверх предыдущего APK ещё нужно проверить на физическом телефоне.
 
 | Сборка | Android |
 |---|---|
@@ -158,20 +161,20 @@ XHTTP закрывает зависшие сокеты и upload pipe; DoH по�
 
 ## Сборка из исходников
 
-Для повторения сборки alpha.68 нужны:
+Для повторения сборки alpha.70 нужны:
 
 - **OpenJDK 17 или 21**;
 - Android SDK с **NDK 28.0.13004108**;
-- **Go 1.26.5** с `gomobile` — только если пересобираете ядро; для alpha.68 использован Go 1.26.5.
+- **Go 1.26.5** с `gomobile` — только если пересобираете ядро; для alpha.70 использован Go 1.26.5.
 
 ```bash
-# Исходники ядра и приложения для alpha.68
+# Исходники ядра и приложения для alpha.70
 git clone https://github.com/Amesu-afk/sing-box-lx
 cd sing-box-lx
-git checkout tarnvpn-v1.14.0-alpha.68
+git checkout tarnvpn-v1.14.0-alpha.70
 git submodule sync --recursive
 git submodule update --init --recursive
-git -C clients/android checkout v1.14.0-alpha.68
+git -C clients/android checkout v1.14.0-alpha.70
 
 # Собрать ядро: AAR не хранятся в репозитории
 go run ./cmd/internal/build_libbox -target android   # даёт libbox.aar + libbox-legacy.aar
@@ -233,7 +236,7 @@ ALIAS_PASS=…
 > Наши собственные правки ядра (пул транспортов XHTTP, фрагментация TLS поверх REALITY,
 > `override_destination` у действия sniff, путь для stream-one и мобильная интеграция olcRTC)
 > лежат в downstream-копии [Amesu-afk/sing-box-lx](https://github.com/Amesu-afk/sing-box-lx).
-> Ядро для alpha.68 основано на `v1.14.0-lx.24`; из этой копии собран вшитый `libbox.aar`.
+> Ядро для alpha.70 основано на `v1.14.0-lx.24`; из этой копии собран вшитый `libbox.aar`.
 > Клиентский код olcRTC адаптирован из [Oleglog/OlConnect_manager](https://github.com/Oleglog/OlConnect_manager/tree/c267dd30b0bc).
 >
 > **Ни один из перечисленных проектов этот не поддерживает и к нему отношения не имеет.**

@@ -42,7 +42,7 @@
     <string name="tarn_servers_fastest">Connect to the fastest server</string>
     <string name="tarn_servers_delete">Delete server</string>
     <string name="tarn_servers_delete_confirm_title">Delete server?</string>
-    <string name="tarn_servers_delete_confirm_message">%1$s will be removed from this device.</string>
+    <string name="tarn_servers_delete_confirm_message">%1$s will be removed from this device. If selected, the VPN will disconnect.</string>
     <string name="tarn_servers_delete_confirm_action">Delete</string>
 
     <string name="tarn_servers_add_title">Add server</string>
@@ -200,7 +200,7 @@
     <string name="tarn_subscriptions_never">not updated yet</string>
     <string name="tarn_subscriptions_just_now">updated just now</string>
     <string name="tarn_subscriptions_delete_title">Delete subscription</string>
-    <string name="tarn_subscriptions_delete_message">Remove "%1$s" and the %2$d servers it added?</string>
+    <string name="tarn_subscriptions_delete_message">Remove "%1$s" and the %2$d servers it added? If the selected server is included, the VPN will disconnect.</string>
     <string name="tarn_subscriptions_delete_action">Delete</string>
     <plurals name="tarn_subscriptions_server_count">
         <item quantity="one">%1$d server</item>

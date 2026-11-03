@@ -82,8 +82,10 @@ class TarnFullTestSession {
 
     /** Safe to call concurrently with [run]. */
     fun cancel() {
-        cancelled = true
-        val clients = synchronized(activeClients) { activeClients.toList() }
+        val clients = synchronized(activeClients) {
+            cancelled = true
+            activeClients.toList()
+        }
         clients.forEach { client ->
             runCatching { client.disconnect() }
         }
@@ -101,7 +103,13 @@ class TarnFullTestSession {
             if (cancelled) throw CancellationException("Full test cancelled")
 
             val client = Libbox.newStandaloneCommandClient()
-            activeClients += client
+            val registered = synchronized(activeClients) {
+                if (cancelled) false else activeClients.add(client)
+            }
+            if (!registered) {
+                runCatching { client.disconnect() }
+                throw CancellationException("Full test cancelled")
+            }
             try {
                 val result = client.urlTestOutbound(target.outboundTag, link, timeoutMs)
                 currentCoroutineContext().ensureActive()
