@@ -1,0 +1,36 @@
+title: "[Вопрос] "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо за вопрос. Чем точнее контекст, тем быстрее ответ.
+
+        **Не вставляйте** рабочие ссылки подписок, UUID, ключи, пароли и IP серверов — вырежьте их.
+  - type: input
+    id: version
+    attributes:
+      label: Версия приложения
+      description: Экран «Защита» → внизу версия и код сборки.
+      placeholder: "1.14.0-alpha.96 (757)"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Устройство и Android
+      placeholder: "Pixel 7, Android 15"
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Вопрос
+      description: Что делаете, что ожидаете и что происходит вместо этого.
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Дополнительно
+      description: Тип сервера (VLESS/REALITY, XHTTP, AWG, olcRTC), настройки лаборатории, логи без кредов.

@@ -18,6 +18,7 @@
 **[Скачать APK для Android 6+](https://github.com/Amesu-afk/TarnVPN/releases/download/v1.14.0-alpha.96/TarnVPN-1.14.0-alpha.96-universal.apk)** ·
 [Android 5](https://github.com/Amesu-afk/TarnVPN/releases/download/v1.14.0-alpha.96/TarnVPN-1.14.0-alpha.96-legacy-android-5-universal.apk) ·
 [Что нового](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.96) ·
+[Вопросы](https://github.com/Amesu-afk/TarnVPN/discussions) ·
 [Сообщить об ошибке](https://github.com/Amesu-afk/TarnVPN/issues/new/choose)
 
 ## Быстрый старт

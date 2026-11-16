@@ -18,6 +18,7 @@ DNS in a focused interface available in English and Russian. Bring your own serv
 **[Download APK for Android 6+](https://github.com/Amesu-afk/TarnVPN/releases/download/v1.14.0-alpha.96/TarnVPN-1.14.0-alpha.96-universal.apk)** ·
 [Android 5](https://github.com/Amesu-afk/TarnVPN/releases/download/v1.14.0-alpha.96/TarnVPN-1.14.0-alpha.96-legacy-android-5-universal.apk) ·
 [Release notes](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.96) ·
+[Questions](https://github.com/Amesu-afk/TarnVPN/discussions) ·
 [Report a bug](https://github.com/Amesu-afk/TarnVPN/issues/new/choose)
 
 ## Quick start

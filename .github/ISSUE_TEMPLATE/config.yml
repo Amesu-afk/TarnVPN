@@ -1,1 +1,8 @@
 blank_issues_enabled: true
+contact_links:
+  - name: Вопросы и обсуждения
+    url: https://github.com/Amesu-afk/TarnVPN/discussions
+    about: Не баг и не запрос фичи? Спросите в Discussions — там же идеи и новости.
+  - name: Сообщить об уязвимости (приватно)
+    url: https://github.com/Amesu-afk/TarnVPN/security/advisories/new
+    about: Не открывайте публичный issue. Порядок описан в SECURITY.md.

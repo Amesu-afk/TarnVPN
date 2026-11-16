@@ -1,0 +1,20 @@
+title: "[Идея] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: Идея
+      description: Что хотите получить и зачем. Пример использования важнее формулировки решения.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Что уже пробовали
+      description: Другие клиенты, настройки, обходные пути — если есть.
+  - type: input
+    id: version
+    attributes:
+      label: Версия приложения
+      placeholder: "1.14.0-alpha.96 (757)"
