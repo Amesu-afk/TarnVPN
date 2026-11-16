@@ -11,6 +11,7 @@
 в одном интерфейсе на русском и английском. Нужен свой сервер или подписка.
 
 [![Android 6+](https://img.shields.io/badge/Android-6.0%2B-3ddc84?logo=android&logoColor=white)](#установка)
+[![CI](https://github.com/Amesu-afk/TarnVPN/actions/workflows/ci.yml/badge.svg)](https://github.com/Amesu-afk/TarnVPN/actions/workflows/ci.yml)
 [![Prerelease](https://img.shields.io/badge/release-1.14.0--alpha.96-8b5cf6)](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.96)
 [![License GPLv3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
