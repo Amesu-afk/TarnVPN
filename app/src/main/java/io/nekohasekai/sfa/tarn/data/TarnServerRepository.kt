@@ -45,10 +45,12 @@ object TarnServerRepository {
 
     /**
      * How stale an auto-update subscription may get before [refreshDueSubscriptions] re-fetches
-     * it. A server list is not fast-moving, so 12h keeps it current without turning every app
-     * open into a network round for each subscription.
+     * it, from [Settings.tarnSubscriptionIntervalHours]. A server list is not fast-moving, so
+     * the default 12 h keeps it current without turning every app open into a network round for
+     * each subscription.
      */
-    private const val AUTO_UPDATE_INTERVAL_MS = 12L * 60 * 60 * 1000
+    private val autoUpdateIntervalMs: Long
+        get() = Settings.tarnSubscriptionIntervalHours * 60L * 60 * 1000
 
     // One lock for every operation that mutates profile files or rows — repatch, standalone
     // import, subscription refresh, delete. It serialises writers so two of them never race on
@@ -181,8 +183,22 @@ object TarnServerRepository {
             )
         }
 
-        val toAdd = newByKey.filterKeys { it !in existingByKey }.values.toList()
-        val toRemove = existingByKey.filterKeys { it !in newByKey }.values.toList()
+        var toAdd = newByKey.filterKeys { it !in existingByKey }.values.toList()
+        var toRemove = existingByKey.filterKeys { it !in newByKey }.values.toList()
+
+        // A one-server subscription whose link was rotated (new uuid, port, sni or key) is
+        // still the same subscription entry. With exactly one old and one new server the
+        // mapping is unambiguous, so rewrite the existing profile in place instead of
+        // deleting it and adding a look-alike: the selection, the favourite star and the
+        // measured latency survive, and the selected-server guard below cannot dead-end a
+        // subscription that has no other server to switch to.
+        var replacedInPlace: Pair<Profile, VlessImporter.ImportedServer>? = null
+        if (shouldReplaceInPlace(existingByKey.keys, newByKey.keys)) {
+            replacedInPlace = existingByKey.values.single() to newByKey.values.single()
+            toAdd = emptyList()
+            toRemove = emptyList()
+        }
+
         if (toRemove.any { it.id == Settings.selectedProfile }) {
             throw IllegalStateException(Application.application.getString(R.string.tarn_subscription_selected_removed))
         }
@@ -198,19 +214,34 @@ object TarnServerRepository {
             )
         }
 
-        val rewrites = newByKey.mapNotNull { (key, server) ->
-            val profile = existingByKey[key] ?: return@mapNotNull null
-            val file = File(profile.typed.path)
-            val current = file.readText()
-            if (current == server.config && sidecarFile(file).readText() == server.sourceUri) {
-                null
-            } else {
-                PendingRewrite(
-                    profile = profile,
-                    file = file,
-                    previousConfig = current,
-                    previousSource = runCatching { sidecarFile(file).readText() }.getOrNull(),
-                    server = server,
+        val rewrites = buildList {
+            newByKey.forEach { (key, server) ->
+                val profile = existingByKey[key] ?: return@forEach
+                val file = File(profile.typed.path)
+                val current = file.readText()
+                if (current == server.config && sidecarFile(file).readText() == server.sourceUri) {
+                    return@forEach
+                }
+                add(
+                    PendingRewrite(
+                        profile = profile,
+                        file = file,
+                        previousConfig = current,
+                        previousSource = runCatching { sidecarFile(file).readText() }.getOrNull(),
+                        server = server,
+                    ),
+                )
+            }
+            replacedInPlace?.let { (profile, server) ->
+                val file = File(profile.typed.path)
+                add(
+                    PendingRewrite(
+                        profile = profile,
+                        file = file,
+                        previousConfig = file.readText(),
+                        previousSource = runCatching { sidecarFile(file).readText() }.getOrNull(),
+                        server = server,
+                    ),
                 )
             }
         }
@@ -235,8 +266,13 @@ object TarnServerRepository {
                 writeAtomically(sidecarFile(rewrite.file), rewrite.server.sourceUri)
             }
 
-            val renamed = newByKey.mapNotNull { (key, server) ->
-                existingByKey[key]?.takeIf { it.name != server.name }?.apply { name = server.name }
+            val renamed = buildList {
+                newByKey.forEach { (key, server) ->
+                    existingByKey[key]?.takeIf { it.name != server.name }?.let { add(it.apply { name = server.name }) }
+                }
+                replacedInPlace?.let { (profile, server) ->
+                    if (profile.name != server.name) add(profile.apply { name = server.name })
+                }
             }
             metadataChanged = true
             TarnSubscriptionStore.upsert(subscription.copy(lastUpdated = System.currentTimeMillis()))
@@ -287,7 +323,7 @@ object TarnServerRepository {
     }
 
     /**
-     * Refreshes every auto-update subscription that has gone stale past [AUTO_UPDATE_INTERVAL_MS].
+     * Refreshes every auto-update subscription that has gone stale past [autoUpdateIntervalMs].
      * Meant to be called when the app comes to the foreground: a server list only needs to be
      * fresh when the user is about to pick from it, so there is no background worker draining the
      * battery for it. Each subscription is refreshed independently — one that is offline or gone
@@ -298,7 +334,7 @@ object TarnServerRepository {
     suspend fun refreshDueSubscriptions(fetch: (String) -> String): Int = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
         val due = TarnSubscriptionStore.load().filter {
-            it.autoUpdate && now - it.lastUpdated >= AUTO_UPDATE_INTERVAL_MS
+            it.autoUpdate && now - it.lastUpdated >= autoUpdateIntervalMs
         }
         var refreshed = 0
         due.forEach { subscription ->
@@ -440,6 +476,14 @@ object TarnServerRepository {
     /** A parsed, tag-free outbound keeps profile identity stable across harmless URI rewrites. */
     private fun connectionKey(sourceUri: String): String = TarnLinkIdentity.connectionKey(sourceUri)
 
+    /**
+     * A single-server subscription whose share link was rotated by the provider: one stored
+     * key, one fetched key, and they differ. The refresh rewrites that profile in place
+     * instead of deleting the selected server and adding a new row.
+     */
+    internal fun shouldReplaceInPlace(existingKeys: Set<String>, newKeys: Set<String>): Boolean =
+        existingKeys.size == 1 && newKeys.size == 1 && existingKeys != newKeys
+
     private fun subscriptionName(url: String): String = runCatching { android.net.Uri.parse(url).host }.getOrNull()?.takeIf { it.isNotBlank() } ?: url
 
     /** The subscription id a profile is tagged with, or null for a standalone/imported profile. */
@@ -455,6 +499,20 @@ object TarnServerRepository {
      * share link the profile was imported from (see [VlessImporter.rebuildConfig]).
      */
     private fun sidecarFile(configFile: File): File = File(configFile.parentFile, configFile.nameWithoutExtension + ".vless")
+
+    /**
+     * The original share link of [profileId], or null when the profile has no sidecar —
+     * hand-written JSON and profiles imported as raw configs have nothing to export.
+     */
+    suspend fun shareLink(profileId: Long): String? = withContext(Dispatchers.IO) {
+        val profile = ProfileManager.get(profileId) ?: return@withContext null
+        runCatching { sidecarFile(File(profile.typed.path)) }
+            .getOrNull()
+            ?.takeIf { it.isFile }
+            ?.readText()
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+    }
 
     /** The `<id>.sub` file naming the subscription a profile belongs to; absent when standalone. */
     private fun subscriptionSidecarFile(configFile: File): File = File(configFile.parentFile, configFile.nameWithoutExtension + ".sub")
@@ -474,6 +532,7 @@ object TarnServerRepository {
             val fragment = Settings.tarnFragmentEnabled
             val quicPolicy = Settings.tarnQuicPolicy
             val tunMtu = Settings.tarnTunMtu
+            val tunStack = Settings.tarnTunStack
             val ipStrategy = Settings.tarnIpStrategy
             val dnsRoute = Settings.tarnDnsRoute
             val logLevel = Settings.tarnLogLevel
@@ -510,6 +569,7 @@ object TarnServerRepository {
                                 fragmentEnabled = fragment,
                                 quicPolicy = quicPolicy,
                                 tunMtu = tunMtu,
+                                tunStack = tunStack,
                                 ipStrategy = ipStrategy,
                                 dnsRoute = dnsRoute,
                                 logLevel = logLevel,
@@ -599,16 +659,35 @@ object TarnServerRepository {
     private fun readEndpoint(profile: Profile): Endpoint? = runCatching {
         val file = File(profile.typed.path)
         if (!file.isFile) return null
-        val outbounds = JSONObject(file.readText()).optJSONArray("outbounds") ?: return null
-        for (i in 0 until outbounds.length()) {
-            val outbound = outbounds.optJSONObject(i) ?: continue
-            val type = outbound.optString("type")
-            if (type.isBlank() || type in NON_SERVER_TYPES) continue
-            val host = outbound.optString("server").takeIf { it.isNotBlank() } ?: continue
+        val config = JSONObject(file.readText())
+        val outbounds = config.optJSONArray("outbounds")
+        if (outbounds != null) {
+            for (i in 0 until outbounds.length()) {
+                val outbound = outbounds.optJSONObject(i) ?: continue
+                val type = outbound.optString("type")
+                if (type.isBlank() || type in NON_SERVER_TYPES) continue
+                val host = outbound.optString("server").takeIf { it.isNotBlank() } ?: continue
+                return Endpoint(
+                    tag = outbound.optString("tag").takeIf { it.isNotBlank() },
+                    host = host,
+                    port = outbound.optInt("server_port"),
+                    type = type,
+                )
+            }
+        }
+        // WireGuard/AmneziaWG endpoints (sing-box 1.13) live outside
+        // outbounds; their peer carries the host and port.
+        val endpoints = config.optJSONArray("endpoints") ?: return null
+        for (i in 0 until endpoints.length()) {
+            val endpoint = endpoints.optJSONObject(i) ?: continue
+            val type = endpoint.optString("type")
+            if (type != "wireguard") continue
+            val peer = endpoint.optJSONArray("peers")?.optJSONObject(0) ?: continue
+            val host = peer.optString("address").takeIf { it.isNotBlank() } ?: continue
             return Endpoint(
-                tag = outbound.optString("tag").takeIf { it.isNotBlank() },
+                tag = endpoint.optString("tag").takeIf { it.isNotBlank() },
                 host = host,
-                port = outbound.optInt("server_port"),
+                port = peer.optInt("port"),
                 type = type,
             )
         }
@@ -619,6 +698,9 @@ object TarnServerRepository {
     suspend fun probe(entry: ServerEntry, timeoutMs: Int = 3000): Int? {
         val host = entry.host ?: return null
         if (entry.port <= 0) return null
+        // The endpoint speaks UDP; a TCP handshake to its port measures
+        // nothing and would show a healthy tunnel as unreachable.
+        if (entry.protocol == "wireguard") return null
         return tcpConnectLatencyMs(host, entry.port, timeoutMs)
     }
 

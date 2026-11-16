@@ -43,6 +43,10 @@ data class TarnShieldState(
     val killSwitch: Boolean = true,
     val dnsProtection: Boolean = true,
     val autoConnect: Boolean = false,
+    /** Bring the tunnel back up when a crash or the system killed it — [Settings.tarnWatchdog]. */
+    val watchdog: Boolean = true,
+    /** Restore the tunnel after a reboot — [Settings.tarnBootAutostart]. */
+    val bootAutostart: Boolean = true,
     val splitEnabled: Boolean = false,
     /** [Settings.PER_APP_PROXY_EXCLUDE] or [Settings.PER_APP_PROXY_INCLUDE]. */
     val splitMode: Int = Settings.PER_APP_PROXY_EXCLUDE,
@@ -70,6 +74,8 @@ fun TarnShieldScreen(
     onKillSwitchChange: (Boolean) -> Unit,
     onDnsProtectionChange: (Boolean) -> Unit,
     onAutoConnectChange: (Boolean) -> Unit,
+    onWatchdogChange: (Boolean) -> Unit,
+    onBootAutostartChange: (Boolean) -> Unit,
     onOpenDnsPicker: () -> Unit,
     onDnsThroughVpnChange: (Boolean) -> Unit,
     onRuDirectChange: (Boolean) -> Unit,
@@ -167,6 +173,27 @@ fun TarnShieldScreen(
                     description = stringResource(R.string.tarn_shield_autoconnect_desc),
                     checked = state.autoConnect,
                     onCheckedChange = onAutoConnectChange,
+                )
+                TarnRowDivider()
+                // The other half of auto-connect: it starts the tunnel when the app opens;
+                // this brings it back when the process dies with nobody looking. Not a
+                // kill switch — the gap before the watchdog's next run stays unprotected,
+                // which the Always-on row above is still the only full answer to.
+                TarnToggleRow(
+                    title = stringResource(R.string.tarn_shield_watchdog),
+                    description = stringResource(R.string.tarn_shield_watchdog_desc),
+                    checked = state.watchdog,
+                    onCheckedChange = onWatchdogChange,
+                )
+                TarnRowDivider()
+                // Boot restore only makes sense when the user had the tunnel up before the
+                // reboot; with the switch off, BootReceiver leaves the tunnel down and Android's
+                // Always-on VPN is the only thing that can bring it back.
+                TarnToggleRow(
+                    title = stringResource(R.string.tarn_shield_boot_autostart),
+                    description = stringResource(R.string.tarn_shield_boot_autostart_desc),
+                    checked = state.bootAutostart,
+                    onCheckedChange = onBootAutostartChange,
                 )
             }
 

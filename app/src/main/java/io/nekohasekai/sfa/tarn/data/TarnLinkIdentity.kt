@@ -1,5 +1,6 @@
 package io.nekohasekai.sfa.tarn.data
 
+import io.nekohasekai.sfa.utils.AwgConfParser
 import io.nekohasekai.sfa.utils.OlcRtcUri
 import io.nekohasekai.sfa.utils.ProxyUriParser
 import org.json.JSONArray
@@ -32,6 +33,17 @@ internal object TarnLinkIdentity {
                     .put("keepalive", profile.keepaliveSeconds)
                     .put("options", JSONObject(profile.options)),
             )
+        }
+        // WireGuard/AmneziaWG sources are wg-quick text, not share links; the
+        // endpoint body is the connection-relevant identity, exactly like a
+        // parsed outbound below. The vpn:// importer stores the extracted
+        // .conf as the source, so one source is one container.
+        if (AwgConfParser.isAwgInput(sourceUri)) {
+            val awg = runCatching { AwgConfParser.parse(sourceUri).first().json }.getOrNull()
+            if (awg != null) {
+                awg.remove("tag")
+                return canonicalJson(awg)
+            }
         }
         val parsed = runCatching { ProxyUriParser.parse(sourceUri, fragmentEnabled = false).json }.getOrNull()
             ?: return sourceUri.substringBefore('#').trim()

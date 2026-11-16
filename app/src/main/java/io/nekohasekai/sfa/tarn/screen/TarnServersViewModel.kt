@@ -175,13 +175,17 @@ class TarnServersViewModel : ViewModel() {
         _uiState.update { state ->
             state.copy(
                 latencies = servers.associate {
-                    it.profileId to if (it.protocol == "olcrtc") Latency.Unknown else Latency.Probing
+                    it.profileId to if (it.protocol == "olcrtc" || it.protocol == "wireguard") {
+                        Latency.Unknown
+                    } else {
+                        Latency.Probing
+                    }
                 },
             )
         }
         probeJob = viewModelScope.launch {
             val semaphore = Semaphore(12)
-            val results = servers.filter { it.protocol != "olcrtc" }.map { server ->
+            val results = servers.filter { it.protocol != "olcrtc" && it.protocol != "wireguard" }.map { server ->
                 async {
                     semaphore.withPermit {
                         val millis = TarnServerRepository.probe(server)
@@ -206,7 +210,8 @@ class TarnServersViewModel : ViewModel() {
     }
 
     /**
-     * Imports a pasted vless:// link or subscription URL. Each server in it becomes its
+     * Imports a pasted share link, WireGuard/AmneziaWG .conf or vpn:// config, or
+     * subscription URL. Each server in it becomes its
      * own profile (see [TarnServerRepository.import]), and [refresh] via the
      * [ProfileManager] callback picks the new rows up and probes them the moment they land.
      */

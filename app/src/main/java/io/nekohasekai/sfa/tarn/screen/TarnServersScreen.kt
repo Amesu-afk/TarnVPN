@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.AlertDialog
@@ -86,6 +87,7 @@ fun TarnServersScreen(
     onImport: (String) -> Unit,
     onDismissImportError: () -> Unit,
     onDelete: (Long) -> Unit = {},
+    onExport: (ServerEntry) -> Unit = {},
     onOpenSubscriptions: () -> Unit = {},
     onCountryFilterChange: (String?) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -391,6 +393,7 @@ fun TarnServersScreen(
                         onClick = { onSelect(server.profileId) },
                         onToggleFavourite = { onToggleFavourite(server.profileId) },
                         onDelete = { pendingDelete = server },
+                        onShare = { onExport(server) },
                     )
                 }
             }
@@ -578,6 +581,7 @@ private fun ServerRow(
     onClick: () -> Unit,
     onToggleFavourite: () -> Unit,
     onDelete: () -> Unit,
+    onShare: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val rowModifier = if (selected) {
@@ -673,6 +677,19 @@ private fun ServerRow(
             }
 
             Spacer(Modifier.width(4.dp))
+            // Only managed profiles keep the share link they were imported from; a raw JSON
+            // profile has nothing to hand out, and the row already says it is unmanaged.
+            if (server.managed) {
+                IconButton(onClick = onShare, modifier = Modifier.size(24.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = stringResource(R.string.tarn_servers_share),
+                        tint = TarnColors.TextDim,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+                Spacer(Modifier.width(4.dp))
+            }
             IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
                 Icon(
                     imageVector = Icons.Default.Delete,

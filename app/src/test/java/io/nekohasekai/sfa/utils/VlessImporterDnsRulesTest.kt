@@ -55,6 +55,8 @@ class VlessImporterDnsRulesTest {
         fragmentEnabled: Boolean = false,
         recordFragment: Boolean = false,
         tlsFingerprint: String = Settings.TLS_FINGERPRINT_AUTO,
+        quicPolicy: String = Settings.QUIC_POLICY_AUTO,
+        tunStack: String = Settings.TUN_STACK_GVISOR,
     ): JSONObject {
         val patched = VlessImporter.applySettings(
             configJson = managedConfig(),
@@ -62,8 +64,9 @@ class VlessImporterDnsRulesTest {
             dnsProtection = dnsProtection,
             ipv6Enabled = ipv6Enabled,
             fragmentEnabled = fragmentEnabled,
-            quicPolicy = Settings.QUIC_POLICY_AUTO,
+            quicPolicy = quicPolicy,
             tunMtu = 0,
+            tunStack = tunStack,
             ipStrategy = Settings.IP_STRATEGY_AUTO,
             dnsRoute = dnsRoute,
             logLevel = Settings.LOG_LEVEL_WARN,
@@ -86,6 +89,9 @@ class VlessImporterDnsRulesTest {
     private fun JSONObject.strings(key: String): List<String> = optJSONArray(key)?.let { arr -> (0 until arr.length()).map(arr::optString) } ?: emptyList()
 
     private fun aaaaRule(config: JSONObject) = dnsRules(config).firstOrNull { it.strings("query_type") == listOf("AAAA") }
+
+    // The record a browser reads `alpn="h3"` from before it ever opens a socket.
+    private fun httpsRule(config: JSONObject) = dnsRules(config).firstOrNull { it.strings("query_type") == listOf("HTTPS") }
 
     private fun bootstrapRules(config: JSONObject) = dnsRules(config).filter { it.optString("server") == "bootstrap" }
 
@@ -185,6 +191,17 @@ class VlessImporterDnsRulesTest {
             dnsRule.strings("domain_suffix"),
             routeRule.strings("domain_suffix"),
         )
+    }
+
+    /**
+     * The phone-resolve runs synchronously in pre-match and rejects on error, so an
+     * unbounded lookup stalls every new googlevideo host for the full DNS timeout.
+     * It must fail fast; the names it covers are cache-warm in the common case.
+     */
+    @Test
+    fun `phone-resolve rule is bounded by an explicit timeout`() {
+        val rule = routeRules(patch()).first { it.optString("action") == "resolve" }
+        assertEquals("3s", rule.optString("timeout"))
     }
 
     /**
@@ -355,5 +372,77 @@ class VlessImporterDnsRulesTest {
                     .none { it.optString("tag") == "bootstrap" },
             )
         }
+    }
+
+    /**
+     * QUIC stays available in `auto`: Android's YouTube client does not fall back to TCP, so a
+     * rejected handshake leaves the feed empty. `block` is the opt-in, and it must remain
+     * sniff-independent so a sniffer miss cannot send QUIC down the path the reject exists for.
+     */
+    @Test
+    fun `block policy rejects QUIC on both rules`() {
+        val rules = routeRules(patch(quicPolicy = Settings.QUIC_POLICY_BLOCK))
+        assertTrue(
+            "block must reject QUIC by protocol",
+            rules.any { it.optString("protocol") == "quic" },
+        )
+        assertTrue(
+            "block must also reject UDP/443 without relying on the sniffer",
+            rules.any { it.optInt("port") == 443 && it.optString("network") == "udp" },
+        )
+        val quicRejects = rules.filter {
+            it.optString("action") == "reject" &&
+                (it.optString("protocol") == "quic" || it.optInt("port") == 443)
+        }
+        assertTrue("expected both QUIC reject rules", quicRejects.size >= 2)
+        assertTrue(
+            "every QUIC reject must keep no_drop, otherwise the flood guard turns Shorts into silent-drop stutter",
+            quicRejects.all { it.optBoolean("no_drop") },
+        )
+        val udpRejectIndex = rules.indexOfFirst {
+            it.optString("action") == "reject" && it.optInt("port") == 443 && it.optString("network") == "udp"
+        }
+        val udpSniffIndex = rules.indexOfFirst {
+            it.optString("action") == "sniff" && it.optString("network") == "udp"
+        }
+        assertTrue("UDP/443 reject is missing", udpRejectIndex >= 0)
+        assertTrue(
+            "UDP/443 reject must precede UDP sniff or PreMatch never reaches it",
+            udpSniffIndex < 0 || udpRejectIndex < udpSniffIndex,
+        )
+    }
+
+    @Test
+    fun `auto policy keeps QUIC available`() {
+        val config = patch(quicPolicy = Settings.QUIC_POLICY_AUTO)
+        assertFalse(
+            "auto must not reject QUIC",
+            routeRules(config).any { it.optString("protocol") == "quic" || it.optInt("port") == 443 },
+        )
+        assertNull(
+            "auto must let the HTTPS record through",
+            httpsRule(config),
+        )
+    }
+
+    /**
+     * Every stored profile is patched through `applySettings`, so the selected stack has to be
+     * rewritten there too вЂ” otherwise a profile imported by an older build keeps the `mixed`
+     * default and its TCP path stays dead.
+     */
+    @Test
+    fun `applySettings follows the selected tun stack`() {
+        val gvisorTun = patch().getJSONArray("inbounds").getJSONObject(0)
+        assertEquals(Settings.TUN_STACK_GVISOR, gvisorTun.optString("stack"))
+        val mixedTun = patch(tunStack = Settings.TUN_STACK_MIXED).getJSONArray("inbounds").getJSONObject(0)
+        assertEquals(Settings.TUN_STACK_MIXED, mixedTun.optString("stack"))
+    }
+
+    @Test
+    fun `applyTunStack covers raw profiles too`() {
+        val patched = VlessImporter.applyTunStack(managedConfig(), Settings.TUN_STACK_SYSTEM)
+        assertNotNull("applyTunStack refused a config with a TUN inbound", patched)
+        val tun = JSONObject(patched!!).getJSONArray("inbounds").getJSONObject(0)
+        assertEquals(Settings.TUN_STACK_SYSTEM, tun.optString("stack"))
     }
 }

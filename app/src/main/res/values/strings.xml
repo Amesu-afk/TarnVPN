@@ -228,6 +228,7 @@
     <string name="per_app_proxy_mode_include_description">Only selected apps are allowed through the VPN</string>
     <string name="per_app_proxy_mode_exclude">Exclude</string>
     <string name="per_app_proxy_mode_exclude_description">Selected apps will be excluded from VPN</string>
+    <string name="tarn_per_app_browser_added">Browser added to the VPN app list so web pages open through the tunnel</string>
     <string name="per_app_proxy_action_copy">Copy</string>
     <string name="per_app_proxy_action_copy_package_name">Package Name</string>
     <string name="per_app_proxy_action_copy_uid">UID</string>

@@ -58,6 +58,9 @@ object OOMReportManager {
     }
 
     suspend fun refresh() = withContext(Dispatchers.IO) {
+        // The core writes these reports itself after an OOM kill, so the redaction of the
+        // config snapshot can only happen here, on the first scan after the fact.
+        ConfigRedaction.redactReports(File(workingDir, OOM_REPORTS_DIR_NAME))
         val reports = scanReports()
         _reports.value = reports
         _unreadCount.value = reports.count { !it.isRead }
@@ -98,7 +101,8 @@ object OOMReportManager {
                 file.name != CONFIG_FILE_NAME &&
                 file.name != GO_LOG_FILE_NAME &&
                 file.name != CMDLINE_FILE_NAME &&
-                file.name != READ_MARKER_FILE_NAME
+                file.name != READ_MARKER_FILE_NAME &&
+                file.name != ConfigRedaction.MARKER_FILE_NAME
         }?.sortedBy { it.name }?.forEach { file ->
             files.add(OOMReportFile(OOMReportFile.Kind.PROFILE, file.name, file))
         }
@@ -143,6 +147,7 @@ object OOMReportManager {
     fun hasLogFile(report: OOMReport): Boolean = File(report.directory, GO_LOG_FILE_NAME).exists()
 
     suspend fun createZipArchive(report: OOMReport, includeConfig: Boolean, includeLog: Boolean, useAgeEncryption: Boolean): File = withContext(Dispatchers.IO) {
+        ConfigRedaction.redactReport(report.directory)
         val cacheDir = File(Application.application.cacheDir, OOM_REPORTS_DIR_NAME)
         cacheDir.mkdirs()
         val zipFile = File(cacheDir, if (useAgeEncryption) "${report.id}.zip.age" else "${report.id}.zip")
@@ -151,6 +156,7 @@ object OOMReportManager {
         strippedDir.deleteRecursively()
         report.directory.copyRecursively(strippedDir, overwrite = true)
         File(strippedDir, READ_MARKER_FILE_NAME).delete()
+        File(strippedDir, ConfigRedaction.MARKER_FILE_NAME).delete()
         if (!includeConfig) {
             File(strippedDir, CONFIG_FILE_NAME).delete()
         }

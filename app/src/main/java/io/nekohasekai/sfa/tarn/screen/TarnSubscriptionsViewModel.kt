@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.database.ProfileManager
+import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.tarn.data.SubscriptionView
 import io.nekohasekai.sfa.tarn.data.TarnServerRepository
 import io.nekohasekai.sfa.utils.AppLifecycleObserver
@@ -26,6 +27,8 @@ data class TarnSubscriptionsUiState(
     val loading: Boolean = false,
     /** Ids currently being re-fetched, so each row can show its own spinner. */
     val refreshing: Set<String> = emptySet(),
+    /** Auto-update freshness floor, hours — [io.nekohasekai.sfa.database.Settings.tarnSubscriptionIntervalHours]. */
+    val intervalHours: Int = 12,
     val error: String? = null,
     val notice: TarnSubscriptionRefreshNotice? = null,
 )
@@ -79,9 +82,25 @@ class TarnSubscriptionsViewModel : ViewModel() {
             _uiState.update { it.copy(loading = true) }
             val subscriptions = runCatching { TarnServerRepository.loadSubscriptions() }
                 .getOrDefault(emptyList())
-            _uiState.update { it.copy(subscriptions = subscriptions, loading = false) }
+            _uiState.update {
+                it.copy(
+                    subscriptions = subscriptions,
+                    loading = false,
+                    intervalHours = Settings.tarnSubscriptionIntervalHours,
+                )
+            }
         }
     }
+
+    /** Persists the freshness floor and re-runs the due check against it immediately. */
+    fun setIntervalHours(hours: Int) {
+        Settings.tarnSubscriptionIntervalHours = hours
+        _uiState.update { it.copy(intervalHours = Settings.tarnSubscriptionIntervalHours) }
+        refreshDue()
+    }
+
+    /** Manual trigger for the foreground auto-update path, e.g. after changing the interval. */
+    fun refreshDueNow() = refreshDue()
 
     fun refresh(id: String) {
         if (_uiState.value.refreshing.contains(id)) return

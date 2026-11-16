@@ -47,6 +47,18 @@ class ProxyUriParserTest {
     }
 
     @Test
+    fun `keeps an ip edge server while tls and host stay on the tunnel name`() {
+        val host = "tract-weapon-lightning-infectious.trycloudflare.com"
+        val link = "vless://7fdcf627-36c8-4e07-b66c-bda98ca7e10d@104.16.230.132:443" +
+            "?type=ws&security=tls&sni=$host&host=$host&path=%2Fws#CF-WS-IP"
+        val outbound = ProxyUriParser.parse(link, false).json
+        assertEquals("104.16.230.132", outbound.getString("server"))
+        assertEquals(host, outbound.getJSONObject("tls").getString("server_name"))
+        assertEquals(host, outbound.getJSONObject("transport").getJSONObject("headers").getString("Host"))
+        assertEquals("/ws", outbound.getJSONObject("transport").getString("path"))
+    }
+
+    @Test
     fun `rejects unrelated schemes`() {
         assertFalse(ProxyUriParser.isSupportedUri("https://example.com"))
         assertFalse(ProxyUriParser.isSupportedUri("not a uri"))

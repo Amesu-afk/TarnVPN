@@ -1,9 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
+    <!-- Only the directories the app actually hands out through FileProvider: profile
+         exports, saved logs, report archives and the debug-info zip. A root-level path
+         would let any future getUriForFile call expose unrelated cache content — the
+         downloaded APK among it. The external-files root is not shared at all: report
+         archives are built in the cache first. -->
     <cache-path
-        name="cache"
-        path="/" />
-    <external-files-path
-        name="external_files"
-        path="/" />
+        name="share"
+        path="share/" />
+    <cache-path
+        name="logs"
+        path="logs/" />
+    <cache-path
+        name="crash_reports"
+        path="crash_reports/" />
+    <cache-path
+        name="oom_reports"
+        path="oom_reports/" />
+    <cache-path
+        name="debug"
+        path="debug/" />
 </paths>

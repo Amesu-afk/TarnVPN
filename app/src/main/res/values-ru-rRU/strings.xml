@@ -228,6 +228,7 @@
     <string name="per_app_proxy_mode_include_description">Только выбранные приложения будут использовать VPN</string>
     <string name="per_app_proxy_mode_exclude">Исключить</string>
     <string name="per_app_proxy_mode_exclude_description">Выбранные приложения не будут использовать VPN</string>
+    <string name="tarn_per_app_browser_added">Браузер добавлен в список приложений VPN, чтобы сайты открывались через туннель</string>
     <string name="per_app_proxy_action_copy">Копировать</string>
     <string name="per_app_proxy_action_copy_package_name">Имя пакета</string>
     <string name="per_app_proxy_action_copy_uid">Уникальный ID</string>

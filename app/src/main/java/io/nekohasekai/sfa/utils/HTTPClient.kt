@@ -1,13 +1,10 @@
 package io.nekohasekai.sfa.utils
 
-import io.nekohasekai.libbox.Libbox
-import io.nekohasekai.sfa.BuildConfig
 import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.Locale
 import java.util.concurrent.ScheduledThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
@@ -16,21 +13,20 @@ class HTTPClient(private val agent: String = userAgent) : Closeable {
         private val deadlines = ScheduledThreadPoolExecutor(1) { runnable ->
             Thread(runnable, "TarnHttpDeadline").apply { isDaemon = true }
         }.apply { removeOnCancelPolicy = true }
-        val userAgent by lazy {
-            var userAgent = "SFA/"
-            userAgent += BuildConfig.VERSION_NAME
-            userAgent += " ("
-            userAgent += BuildConfig.VERSION_CODE
-            userAgent += "; sing-box "
-            userAgent += Libbox.version()
-            userAgent += "; language "
-            userAgent += Locale.getDefault().toLanguageTag().replace("-", "_")
-            userAgent += ")"
-            userAgent
-        }
+
+        /**
+         * The default User-Agent for everything the app requests on its own behalf: update
+         * checks, the Russian direct list, profile fetches. It used to carry the build number,
+         * the core version and the UI locale, which is a free fingerprint for anyone watching
+         * the network in exactly the places this app is meant for. Subscription providers are
+         * the one exception and negotiate their format on a sing-box string instead — see
+         * `SubscriptionFetcher.SHARE_LINKS_USER_AGENT`.
+         */
+        const val userAgent = "TarnVPN"
     }
 
     @Volatile private var active: HttpURLConnection? = null
+    @Volatile private var activeSocket: java.net.Socket? = null
     private val lifecycle = Any()
     private var closed = false
 
@@ -50,6 +46,30 @@ class HTTPClient(private val agent: String = userAgent) : Closeable {
         progress: (Long, Long) -> Unit = { _, _ -> },
     ) {
         require(maxBytes > 0 && timeoutMs in 1..600_000) { "Invalid HTTP limits" }
+        // With a tunnel up, the app's own requests go back into it through the loopback
+        // SOCKS listener instead of out the system network: the hostname is resolved by the
+        // core (over the configured DoH), not by the device. While down, there is nothing to
+        // route into and the direct path below is the only one that can work.
+        val appProxy = AppProxy.descriptorIfTunnelStarted()
+        if (appProxy != null && url.startsWith("https://", ignoreCase = true)) {
+            TunneledHttp.get(
+                url = URL(url),
+                proxy = appProxy,
+                agent = agent,
+                headers = headers,
+                output = output,
+                maxBytes = maxBytes,
+                timeoutMs = timeoutMs,
+                progress = progress,
+                track = { socket ->
+                    synchronized(lifecycle) {
+                        if (socket != null && closed) error("HTTP client is closed")
+                        activeSocket = socket
+                    }
+                },
+            )
+            return
+        }
         val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs)
         var target = URL(url)
         val original = target
@@ -117,5 +137,9 @@ class HTTPClient(private val agent: String = userAgent) : Closeable {
             active
         }
         connection?.disconnect()
+        synchronized(lifecycle) {
+            activeSocket?.let { runCatching { it.close() } }
+            activeSocket = null
+        }
     }
 }

@@ -92,6 +92,28 @@ object Settings {
     var perAppProxyManagedMode by dataStore.boolean(SettingsKey.PER_APP_PROXY_MANAGED_MODE) { false }
     var perAppProxyManagedList by dataStore.stringSet(SettingsKey.PER_APP_PROXY_MANAGED_LIST) { emptySet() }
 
+    /**
+     * One-time safety net for Include mode. A list with YouTube and Telegram but no browser
+     * silently sends every web page around the tunnel, which reads as "VPN connected, nothing
+     * opens". The first time a connection starts with such a list, the installed browsers are
+     * added and the user is told once. The flag keeps a later manual removal from being undone
+     * on every reconnect.
+     */
+    var perAppProxyBrowserMigration by dataStore.boolean(
+        SettingsKey.PER_APP_PROXY_BROWSER_MIGRATION,
+    ) { false }
+
+    /**
+     * Completion marker for the browser migration. The original boolean was consumed before
+     * the empty-list check, so an install that started Include mode with no apps selected
+     * never received the browsers and could not receive them later. A versioned marker lets
+     * that broken run be repaired once, while a deliberate removal of a browser (marker at
+     * the current version) is still left alone.
+     */
+    var perAppProxyBrowserMigrationVersion by dataStore.int(
+        SettingsKey.PER_APP_PROXY_BROWSER_MIGRATION_VERSION,
+    ) { 0 }
+
     const val PACKAGE_QUERY_MODE_SHIZUKU = "SHIZUKU"
     const val PACKAGE_QUERY_MODE_ROOT = "ROOT"
     var perAppProxyPackageQueryMode by dataStore.string(SettingsKey.PER_APP_PROXY_PACKAGE_QUERY_MODE) { PACKAGE_QUERY_MODE_SHIZUKU }
@@ -131,6 +153,28 @@ object Settings {
 
     /** Start the tunnel as soon as the app is opened. */
     var tarnAutoConnect by dataStore.boolean(SettingsKey.TARN_AUTO_CONNECT) { false }
+
+    /**
+     * Restore the tunnel after a reboot when it was running before one. Off means the app
+     * never brings the tunnel up on its own at boot; Android's Always-on VPN remains the
+     * stronger tool for users who need the tunnel up no matter what. On by default: this is
+     * what [io.nekohasekai.sfa.bg.BootReceiver] did unconditionally before the switch existed.
+     */
+    var tarnBootAutostart by dataStore.boolean(SettingsKey.TARN_BOOT_AUTOSTART) { true }
+
+    /**
+     * How stale an auto-update subscription may get before a foreground refresh re-fetches
+     * it — see [io.nekohasekai.sfa.tarn.data.TarnServerRepository.refreshDueSubscriptions].
+     * A server list is not fast-moving, so 12 h keeps it current without turning every app
+     * open into a network round for each subscription.
+     */
+    val TARN_SUBSCRIPTION_INTERVAL_VALUES = setOf(6, 12, 24, 48)
+    private var tarnSubscriptionIntervalStored by dataStore.int(SettingsKey.TARN_SUBSCRIPTION_INTERVAL) { 12 }
+    var tarnSubscriptionIntervalHours: Int
+        get() = tarnSubscriptionIntervalStored.takeIf(TARN_SUBSCRIPTION_INTERVAL_VALUES::contains) ?: 12
+        set(value) {
+            tarnSubscriptionIntervalStored = value.takeIf(TARN_SUBSCRIPTION_INTERVAL_VALUES::contains) ?: 12
+        }
 
     /**
      * Resolve DNS over HTTPS through [tarnDnsProvider] instead of plain UDP. Read by
@@ -269,6 +313,18 @@ object Settings {
         get() = tarnTunMtuStored.takeIf(TARN_TUN_MTU_VALUES::contains) ?: 0
         set(value) {
             tarnTunMtuStored = value.takeIf(TARN_TUN_MTU_VALUES::contains) ?: 0
+        }
+
+    const val TUN_STACK_GVISOR = "gvisor"
+    const val TUN_STACK_MIXED = "mixed"
+    const val TUN_STACK_SYSTEM = "system"
+
+    val TARN_TUN_STACK_VALUES = setOf(TUN_STACK_GVISOR, TUN_STACK_MIXED, TUN_STACK_SYSTEM)
+    private var tarnTunStackStored by dataStore.string(SettingsKey.TARN_TUN_STACK) { TUN_STACK_GVISOR }
+    var tarnTunStack: String
+        get() = normalizeChoice(tarnTunStackStored, TARN_TUN_STACK_VALUES, TUN_STACK_GVISOR)
+        set(value) {
+            tarnTunStackStored = normalizeChoice(value, TARN_TUN_STACK_VALUES, TUN_STACK_GVISOR)
         }
 
     const val IP_STRATEGY_AUTO = "auto"
@@ -477,6 +533,57 @@ object Settings {
 
     var tarnNetworkRecovery by dataStore.boolean(SettingsKey.TARN_NETWORK_RECOVERY) { true }
     var tarnAutoFailover by dataStore.boolean(SettingsKey.TARN_AUTO_FAILOVER) { false }
+
+    /**
+     * Bring the tunnel back up when the service dies without the user asking for it — a core
+     * crash that took the process down, the system reclaiming it under memory pressure. A
+     * WorkManager task compares the `startedByUser` flag with the last known service status;
+     * START_STICKY covers clean system kills, this covers the rest. Every restore posts a
+     * notification: the minutes the tunnel was gone are minutes the traffic ran unprotected,
+     * and the user is entitled to know that. It is not a kill switch — the gap before the
+     * next task run stays unprotected.
+     */
+    var tarnWatchdog by dataStore.boolean(SettingsKey.TARN_WATCHDOG) { true }
+
+    /**
+     * One-shot marker for the lockdown offer: the app's kill-switch toggle only guards a
+     * running tunnel, and the system Always-on VPN with "Block connections without VPN" is
+     * the only thing that covers the tunnel being gone. The dialog appears over the first
+     * successful connection and never again; the Shield screen keeps the permanent entry.
+     */
+    var tarnLockdownPromptShown by dataStore.boolean(SettingsKey.TARN_LOCKDOWN_PROMPT) { false }
+
+    /**
+     * Multiplex proxy streams over one carrier connection (h2mux with padding). Helps on
+     * high-RTT links and against DPI that counts parallel TLS sessions, but it is incompatible
+     * with XHTTP and gRPC transports, so the generator only emits it for plain-TCP outbounds.
+     * Off by default: the server has to support it, and a mismatched config fails to connect.
+     */
+    var tarnMuxEnabled by dataStore.boolean(SettingsKey.TARN_MUX_ENABLED) { false }
+
+    /**
+     * Loopback SOCKS listener the app's own HTTP client dials once a tunnel is up — see
+     * [io.nekohasekai.sfa.utils.AppProxy]. Zero means "not allocated yet"; the credentials
+     * live beside it in this database, which is excluded from backups.
+     */
+    var tarnAppProxyPort by dataStore.int(SettingsKey.TARN_APP_PROXY_PORT) { 0 }
+    var tarnAppProxyUser by dataStore.string(SettingsKey.TARN_APP_PROXY_USER) { "" }
+    var tarnAppProxyPassword by dataStore.string(SettingsKey.TARN_APP_PROXY_PASSWORD) { "" }
+
+    /**
+     * Width of the XHTTP connection pool, written into generated profiles as
+     * `xmux.max_connections` (see the core's lx(xhttp) xmux commit). Each member is a
+     * separate TCP+TLS session, so a narrower pool saves handshakes and radio time on
+     * weak links and a wider one carries more parallel streams. 8 is the core default
+     * and the value every earlier profile already ran on.
+     */
+    val TARN_XHTTP_POOL_VALUES = setOf(4, 8, 16)
+    private var tarnXhttpPoolStored by dataStore.int(SettingsKey.TARN_XHTTP_POOL) { 8 }
+    var tarnXhttpPool: Int
+        get() = tarnXhttpPoolStored.takeIf(TARN_XHTTP_POOL_VALUES::contains) ?: 8
+        set(value) {
+            tarnXhttpPoolStored = value.takeIf(TARN_XHTTP_POOL_VALUES::contains) ?: 8
+        }
 
     /**
      * Which [io.nekohasekai.sfa.utils.VlessImporter.CONFIG_GENERATION] the stored profile files

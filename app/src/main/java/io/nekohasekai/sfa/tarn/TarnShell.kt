@@ -3,6 +3,7 @@ package io.nekohasekai.sfa.tarn
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
@@ -24,6 +25,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
@@ -33,6 +35,7 @@ import androidx.navigation.compose.rememberNavController
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.BuildConfig
 import io.nekohasekai.sfa.R
+import io.nekohasekai.sfa.bg.WatchdogWork
 import io.nekohasekai.sfa.compose.base.GlobalEventBus
 import io.nekohasekai.sfa.compose.base.UiEvent
 import io.nekohasekai.sfa.compose.component.UpdateFlowHost
@@ -42,8 +45,11 @@ import io.nekohasekai.sfa.compose.screen.profileoverride.PerAppProxyScreen
 import io.nekohasekai.sfa.compose.topbar.LocalTopBarController
 import io.nekohasekai.sfa.compose.topbar.TopBarController
 import io.nekohasekai.sfa.compose.topbar.TopBarEntry
+import io.nekohasekai.sfa.constant.ServiceMode
 import io.nekohasekai.sfa.constant.Status
 import io.nekohasekai.sfa.database.Settings
+import io.nekohasekai.sfa.tarn.component.TarnLockdownDialog
+import io.nekohasekai.sfa.tarn.component.TarnShareDialog
 import io.nekohasekai.sfa.tarn.data.Latency
 import io.nekohasekai.sfa.tarn.data.TarnDns
 import io.nekohasekai.sfa.tarn.data.TarnServerRepository
@@ -123,6 +129,40 @@ fun TarnShell(
     var killSwitch by remember { mutableStateOf(Settings.tarnKillSwitch) }
     var dnsProtection by remember { mutableStateOf(Settings.tarnDnsProtection) }
     var autoConnect by remember { mutableStateOf(Settings.tarnAutoConnect) }
+    var watchdog by remember { mutableStateOf(Settings.tarnWatchdog) }
+    var bootAutostart by remember { mutableStateOf(Settings.tarnBootAutostart) }
+    // Set from the servers screen: the dialog needs the share link, which only the
+    // repository can read (from the profile's `.vless` sidecar).
+    var shareTarget by remember { mutableStateOf<Pair<String, String>?>(null) }
+
+    // One-time offer to turn on the system lockdown after the first successful connection.
+    // The app's own "Prevent VPN bypass" switch only guards a running tunnel; this dialog is
+    // the one place that can point at the two system switches that cover a dead one too.
+    var lockdownPromptShown by remember { mutableStateOf(Settings.tarnLockdownPromptShown) }
+    var showLockdownPrompt by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    // One implementation for the Shield row and the onboarding dialog: ACTION_VPN_SETTINGS is
+    // not guaranteed on every OEM build, so fall back to the app's own settings page rather
+    // than crash on ActivityNotFoundException.
+    val openVpnSystemSettings: () -> Unit = {
+        val opened = runCatching {
+            context.startActivity(
+                Intent(android.provider.Settings.ACTION_VPN_SETTINGS)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }.isSuccess
+        if (!opened) {
+            runCatching {
+                context.startActivity(
+                    Intent(
+                        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.fromParts("package", context.packageName, null),
+                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }
+        }
+    }
 
     var splitEnabled by remember { mutableStateOf(Settings.perAppProxyEnabled) }
     var splitMode by remember { mutableIntStateOf(Settings.perAppProxyMode) }
@@ -136,6 +176,7 @@ fun TarnShell(
 
     var quicPolicy by remember { mutableStateOf(Settings.tarnQuicPolicy) }
     var tunMtu by remember { mutableIntStateOf(Settings.tarnTunMtu) }
+    var tunStack by remember { mutableStateOf(Settings.tarnTunStack) }
     var ipStrategy by remember { mutableStateOf(Settings.tarnIpStrategy) }
     var dnsRoute by remember { mutableStateOf(Settings.tarnDnsRoute) }
     var logLevel by remember { mutableStateOf(Settings.tarnLogLevel) }
@@ -149,6 +190,8 @@ fun TarnShell(
     var testRetries by remember { mutableIntStateOf(Settings.tarnTestRetries) }
     var networkRecovery by remember { mutableStateOf(Settings.tarnNetworkRecovery) }
     var autoFailover by remember { mutableStateOf(Settings.tarnAutoFailover) }
+    var mux by remember { mutableStateOf(Settings.tarnMuxEnabled) }
+    var xhttpPool by remember { mutableIntStateOf(Settings.tarnXhttpPool) }
 
     // Per-app rules and the dns block are baked into the config when the service starts, so
     // a running one has to be reloaded for a change to mean anything. Upstream asks first
@@ -320,6 +363,17 @@ fun TarnShell(
         }
     }
 
+    // First successful connection: offer the system lockdown once. Only the normal VPN
+    // service captures traffic — in proxy mode there is nothing for the system to lock down.
+    LaunchedEffect(serviceStatus) {
+        if (serviceStatus == Status.Started &&
+            !lockdownPromptShown &&
+            Settings.serviceMode == ServiceMode.NORMAL
+        ) {
+            showLockdownPrompt = true
+        }
+    }
+
     // Ask about a new version once the tunnel is up. This is the check that can actually
     // succeed: api.github.com is not dependably reachable from the networks this app is built
     // for, so the cold-start check in MainActivity.onCreate() often fails before it asks
@@ -410,6 +464,20 @@ fun TarnShell(
                     onImport = serversViewModel::importServers,
                     onDismissImportError = serversViewModel::dismissImportError,
                     onDelete = serversViewModel::deleteServer,
+                    onExport = { server ->
+                        scope.launch {
+                            val link = TarnServerRepository.shareLink(server.profileId)
+                            if (link == null) {
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.tarn_export_no_link),
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            } else {
+                                shareTarget = server.displayName to link
+                            }
+                        }
+                    },
                     onOpenSubscriptions = { navController.navigate(TarnRoute.SUBSCRIPTIONS) },
                     serviceStarted = serviceStatus == Status.Started,
                     onRunFullTest = serversViewModel::runFullTest,
@@ -435,6 +503,7 @@ fun TarnShell(
                     onRefresh = subscriptionsViewModel::refresh,
                     onDelete = subscriptionsViewModel::delete,
                     onToggleAutoUpdate = subscriptionsViewModel::setAutoUpdate,
+                    onIntervalChange = subscriptionsViewModel::setIntervalHours,
                     onDismissError = subscriptionsViewModel::dismissError,
                 )
             }
@@ -451,6 +520,8 @@ fun TarnShell(
                         killSwitch = killSwitch,
                         dnsProtection = dnsProtection,
                         autoConnect = autoConnect,
+                        watchdog = watchdog,
+                        bootAutostart = bootAutostart,
                         splitEnabled = splitEnabled,
                         splitMode = splitMode,
                         splitAppCount = splitAppCount,
@@ -483,6 +554,17 @@ fun TarnShell(
                         autoConnect = it
                         Settings.tarnAutoConnect = it
                     },
+                    onWatchdogChange = {
+                        watchdog = it
+                        Settings.tarnWatchdog = it
+                        // No tunnel reload needed: the watchdog reads the setting itself,
+                        // the schedule only has to learn about the new preference.
+                        WatchdogWork.reconfigure()
+                    },
+                    onBootAutostartChange = {
+                        bootAutostart = it
+                        Settings.tarnBootAutostart = it
+                    },
                     onOpenDnsPicker = { navController.navigate(TarnRoute.DNS) },
                     onDnsThroughVpnChange = ::onDnsThroughVpnChange,
                     onRuDirectChange = {
@@ -506,28 +588,7 @@ fun TarnShell(
                         applyToRunningService()
                     },
                     onOpenSplitTunneling = { navController.navigate(TarnRoute.SPLIT_TUNNELING) },
-                    onOpenVpnSettings = {
-                        // ACTION_VPN_SETTINGS is where lockdown lives. It is not guaranteed to
-                        // exist on every OEM build, so fall back to the app's own settings page
-                        // rather than crash on ActivityNotFoundException.
-                        val context = navController.context
-                        val opened = runCatching {
-                            context.startActivity(
-                                Intent(android.provider.Settings.ACTION_VPN_SETTINGS)
-                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                            )
-                        }.isSuccess
-                        if (!opened) {
-                            runCatching {
-                                context.startActivity(
-                                    Intent(
-                                        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                                        Uri.fromParts("package", context.packageName, null),
-                                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                                )
-                            }
-                        }
-                    },
+                    onOpenVpnSettings = openVpnSystemSettings,
                     onOpenAdvanced = onOpenAdvanced,
                 )
             }
@@ -614,6 +675,7 @@ fun TarnShell(
                     state = TarnConnectionLabState(
                         quicPolicy = quicPolicy,
                         mtu = tunMtu,
+                        tunStack = tunStack,
                         ipStrategy = ipStrategy,
                         dnsRoute = dnsRoute,
                         dnsProtection = dnsProtection,
@@ -627,6 +689,8 @@ fun TarnShell(
                         testRetries = testRetries,
                         networkRecovery = networkRecovery,
                         failover = autoFailover,
+                        mux = mux,
+                        xhttpPool = xhttpPool,
                     ),
                     onBack = { navController.navigateUp() },
                     onQuicPolicyChange = {
@@ -637,6 +701,11 @@ fun TarnShell(
                     onMtuChange = {
                         tunMtu = it
                         Settings.tarnTunMtu = it
+                        repatchSettingsAndReload()
+                    },
+                    onTunStackChange = {
+                        tunStack = it
+                        Settings.tarnTunStack = it
                         repatchSettingsAndReload()
                     },
                     onIpStrategyChange = ::onIpStrategyChange,
@@ -688,6 +757,16 @@ fun TarnShell(
                         autoFailover = it
                         Settings.tarnAutoFailover = it
                     },
+                    onMuxChange = {
+                        mux = it
+                        Settings.tarnMuxEnabled = it
+                        repatchSettingsAndReload()
+                    },
+                    onXhttpPoolChange = {
+                        xhttpPool = it
+                        Settings.tarnXhttpPool = it
+                        repatchSettingsAndReload()
+                    },
                 )
             }
 
@@ -727,6 +806,35 @@ fun TarnShell(
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding(),
         )
+
+        // The one-time lockdown offer, shown over whatever screen is open at the moment the
+        // first connection comes up. Either answer marks it shown: the Shield row stays the
+        // permanent way back into the same system page.
+        if (showLockdownPrompt) {
+            TarnLockdownDialog(
+                onOpenSettings = {
+                    lockdownPromptShown = true
+                    Settings.tarnLockdownPromptShown = true
+                    showLockdownPrompt = false
+                    openVpnSystemSettings()
+                },
+                onDismiss = {
+                    lockdownPromptShown = true
+                    Settings.tarnLockdownPromptShown = true
+                    showLockdownPrompt = false
+                },
+            )
+        }
+
+        // Original share link of the server the user asked to export, read from the
+        // profile's `.vless` sidecar before the dialog opens (see the servers screen).
+        shareTarget?.let { (name, link) ->
+            TarnShareDialog(
+                name = name,
+                link = link,
+                onDismiss = { shareTarget = null },
+            )
+        }
 
         // The update dialogs live in SFAApp(), which this shell never composes — so an update
         // could be found and cached and the user never see it. Host them here as well; both

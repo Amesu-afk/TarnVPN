@@ -13,11 +13,12 @@ import kotlinx.coroutines.withContext
  *
  * Two callers, on purpose:
  *  - app start (`MainActivity.onCreate`), which is how it always worked;
- *  - the tunnel coming up (`TarnShell`), which is the one that actually reaches GitHub for the
- *    users this app is built for. `api.github.com` is not dependably reachable from a Russian
- *    network without the VPN, so a check fired at cold start — before anything is connected —
- *    lands in the `catch` and the user is told nothing. Re-checking once the tunnel is up sends
- *    the request through it.
+ *  - the tunnel coming up (`TarnShell`), which is the retry that reaches GitHub for the users
+ *    this app is built for. The app's own traffic is deliberately excluded from the tunnel
+ *    (see `BoxService`'s package exclusions), so the request goes out directly over the
+ *    system network either way — the second check exists because the device's network has
+ *    settled by then and a cold-start failure has a second chance. It is not routed through
+ *    the VPN, and this comment used to claim it was.
  */
 object UpdateChecks {
     private const val TAG = "UpdateChecks"

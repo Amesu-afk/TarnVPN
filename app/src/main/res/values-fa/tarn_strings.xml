@@ -55,6 +55,19 @@
     <string name="tarn_shield_dns_desc">درخواست‌ها را از طریق DNS TarnVPN حل کن</string>
     <string name="tarn_shield_autoconnect">اتصال خودکار</string>
     <string name="tarn_shield_autoconnect_desc">هنگام شروع برنامه به VPN وصل شو</string>
+    <string name="tarn_shield_watchdog">بازیابی خودکار تونل</string>
+    <string name="tarn_shield_watchdog_desc">اگر کرش یا سیستم VPN را قطع کند دوباره وصل می‌شود؛ با اعلان مطلع می‌شوید</string>
+
+    <string name="tarn_lockdown_title">محافظت هنگام قطعی</string>
+    <string name="tarn_lockdown_body">«جلوگیری از دور زدن VPN» فقط از تونل فعال محافظت می‌کند. برای اینکه ترافیک پس از کرش یا توقف هم مسدود بماند، در تنظیمات VPN سیستم «VPN همیشه فعال» و «مسدود کردن اتصال‌های بدون VPN» را روشن کنید.</string>
+    <string name="tarn_lockdown_open">باز کردن تنظیمات</string>
+    <string name="tarn_lockdown_later">بعداً</string>
+
+    <string name="tarn_watchdog_channel_name">بازیابی تونل</string>
+    <string name="tarn_watchdog_recovered_title">تونل بازیابی شد</string>
+    <string name="tarn_watchdog_recovered_body">اتصال قطع شد و TarnVPN آن را دوباره وصل کرد. ممکن است بخشی از ترافیک بدون محافظت عبور کرده باشد — وضعیت را در برنامه بررسی کنید.</string>
+    <string name="tarn_watchdog_failed_title">تونل قطع است</string>
+    <string name="tarn_watchdog_failed_body">بازیابی خودکار ممکن نشد. برای اتصال دوباره برنامه را باز کنید.</string>
 
     <string name="tarn_dns_provider">حل‌کننده DNS</string>
     <string name="tarn_dns_title">حل‌کننده DNS</string>
@@ -248,4 +261,23 @@
         <item quantity="one">اشتراک‌گذاری %1$d دستگاه USB</item>
         <item quantity="other">اشتراک‌گذاری %1$d دستگاه USB</item>
     </plurals>
+    <string name="tarn_shield_boot_autostart">راه‌اندازی هنگام بوت</string>
+    <string name="tarn_shield_boot_autostart_desc">اگر VPN پیش از راه‌اندازی مجدد روشن بوده، دوباره وصل شود</string>
+
+    <string name="tarn_subscriptions_interval">به‌روزرسانی هر</string>
+    <string name="tarn_subscriptions_interval_6">۶ س</string>
+    <string name="tarn_subscriptions_interval_12">۱۲ س</string>
+    <string name="tarn_subscriptions_interval_24">۲۴ س</string>
+    <string name="tarn_subscriptions_interval_48">۴۸ س</string>
+
+    <string name="tarn_connection_lab_mux">مالتی‌پلکسینگ (mux)</string>
+    <string name="tarn_connection_lab_mux_desc">چند جریان روی یک اتصال. فقط سرورهای TCP ساده پشتیبانی می‌کنند — XHTTP و gRPC آن را نادیده می‌گیرند</string>
+
+    <string name="tarn_servers_share">اشتراک‌گذاری سرور</string>
+    <string name="tarn_export_title">لینک سرور</string>
+    <string name="tarn_export_copy">کپی</string>
+    <string name="tarn_export_share">اشتراک</string>
+    <string name="tarn_export_copied">لینک کپی شد</string>
+    <string name="tarn_export_no_link">این سرور لینک اصلی برای خروجی ندارد</string>
+<string name="tarn_connection_lab_xhttp_pool">استخر XHTTP</string>
 </resources>

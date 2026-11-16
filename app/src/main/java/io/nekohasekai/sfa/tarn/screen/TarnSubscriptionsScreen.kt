@@ -39,7 +39,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import io.nekohasekai.sfa.R
+import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.tarn.component.TarnDialogTextButton
+import io.nekohasekai.sfa.tarn.component.TarnSegmented
 import io.nekohasekai.sfa.tarn.component.TarnSwitch
 import io.nekohasekai.sfa.tarn.component.hairlineBorder
 import io.nekohasekai.sfa.tarn.data.SubscriptionView
@@ -55,6 +57,7 @@ fun TarnSubscriptionsScreen(
     onDelete: (String) -> Unit,
     onToggleAutoUpdate: (String, Boolean) -> Unit,
     onDismissError: () -> Unit,
+    onIntervalChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var pendingDelete by remember { mutableStateOf<SubscriptionView?>(null) }
@@ -101,6 +104,30 @@ fun TarnSubscriptionsScreen(
             )
             // Balances the back button so the title stays centred.
             Spacer(Modifier.width(48.dp))
+        }
+
+        // Freshness floor for auto-update subscriptions. One global answer per user, so it
+        // lives above the list rather than on every row; changing it re-runs the due check.
+        if (state.subscriptions.isNotEmpty()) {
+            Text(
+                text = stringResource(R.string.tarn_subscriptions_interval).uppercase(),
+                style = TarnLabelStyle,
+                color = TarnColors.TextDim,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+            )
+            TarnSegmented(
+                options = listOf(
+                    stringResource(R.string.tarn_subscriptions_interval_6),
+                    stringResource(R.string.tarn_subscriptions_interval_12),
+                    stringResource(R.string.tarn_subscriptions_interval_24),
+                    stringResource(R.string.tarn_subscriptions_interval_48),
+                ),
+                selectedIndex = Settings.TARN_SUBSCRIPTION_INTERVAL_VALUES.sorted()
+                    .indexOf(state.intervalHours).coerceAtLeast(0),
+                onSelect = { index ->
+                    onIntervalChange(Settings.TARN_SUBSCRIPTION_INTERVAL_VALUES.sorted()[index])
+                },
+            )
         }
 
         if (state.error != null) {

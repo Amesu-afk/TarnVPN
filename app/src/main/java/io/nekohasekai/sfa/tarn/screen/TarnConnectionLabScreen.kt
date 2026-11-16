@@ -77,6 +77,7 @@ object TarnConnectionLabValue {
 data class TarnConnectionLabState(
     val quicPolicy: String = TarnConnectionLabValue.AUTO,
     val mtu: Int = TarnConnectionLabValue.MTU_AUTO,
+    val tunStack: String = Settings.TUN_STACK_GVISOR,
     val ipStrategy: String = TarnConnectionLabValue.AUTO,
     val dnsRoute: String = TarnConnectionLabValue.AUTO,
     val dnsProtection: Boolean = true,
@@ -93,6 +94,10 @@ data class TarnConnectionLabState(
     val testRetries: Int = 2,
     val networkRecovery: Boolean = false,
     val failover: Boolean = false,
+    /** Multiplex streams over one carrier connection — see [Settings.tarnMuxEnabled]. */
+    val mux: Boolean = false,
+    /** XHTTP pool width written as `xmux.max_connections` — see [Settings.tarnXhttpPool]. */
+    val xhttpPool: Int = 8,
 )
 
 @Composable
@@ -101,6 +106,7 @@ fun TarnConnectionLabScreen(
     onBack: () -> Unit,
     onQuicPolicyChange: (String) -> Unit,
     onMtuChange: (Int) -> Unit,
+    onTunStackChange: (String) -> Unit,
     onIpStrategyChange: (String) -> Unit,
     onDnsRouteChange: (String) -> Unit,
     onLogLevelChange: (String) -> Unit,
@@ -113,6 +119,8 @@ fun TarnConnectionLabScreen(
     onTestRetriesChange: (Int) -> Unit,
     onNetworkRecoveryChange: (Boolean) -> Unit,
     onFailoverChange: (Boolean) -> Unit,
+    onMuxChange: (Boolean) -> Unit,
+    onXhttpPoolChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -161,6 +169,20 @@ fun TarnConnectionLabScreen(
                         1500 to "1500",
                     ),
                     onSelect = onMtuChange,
+                )
+                TarnRowDivider()
+                LabOptionRow(
+                    title = stringResource(R.string.tarn_connection_lab_tun_stack),
+                    selectedValue = state.tunStack,
+                    options = listOf(
+                        Settings.TUN_STACK_GVISOR to
+                            stringResource(R.string.tarn_connection_lab_tun_stack_gvisor),
+                        Settings.TUN_STACK_MIXED to
+                            stringResource(R.string.tarn_connection_lab_tun_stack_mixed),
+                        Settings.TUN_STACK_SYSTEM to
+                            stringResource(R.string.tarn_connection_lab_tun_stack_system),
+                    ),
+                    onSelect = onTunStackChange,
                 )
                 TarnRowDivider()
                 LabOptionRow(
@@ -244,6 +266,25 @@ fun TarnConnectionLabScreen(
                     checked = state.recordFragment,
                     onCheckedChange = onRecordFragmentChange,
                     enabled = state.fragmentEnabled,
+                )
+                TarnRowDivider()
+                // Same family as the fragmentation rows above: a server that connects but
+                // performs poorly, or a DPI that counts parallel TLS sessions, is what mux
+                // is for. The generator only honours it on plain-TCP outbounds.
+                TarnToggleRow(
+                    title = stringResource(R.string.tarn_connection_lab_mux),
+                    description = stringResource(R.string.tarn_connection_lab_mux_desc),
+                    checked = state.mux,
+                    onCheckedChange = onMuxChange,
+                )
+                TarnRowDivider()
+                // XHTTP keeps its own pool (one TCP+TLS session per member), so its
+                // width is a separate choice from the stream muxing above.
+                LabOptionRow(
+                    title = stringResource(R.string.tarn_connection_lab_xhttp_pool),
+                    selectedValue = state.xhttpPool,
+                    options = listOf(4, 8, 16).map { it to it.toString() },
+                    onSelect = onXhttpPoolChange,
                 )
             }
             if (!state.dnsProtection) {

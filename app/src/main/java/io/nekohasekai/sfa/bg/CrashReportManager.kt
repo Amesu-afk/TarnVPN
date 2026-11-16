@@ -94,6 +94,9 @@ object CrashReportManager {
     }
 
     suspend fun refresh() = withContext(Dispatchers.IO) {
+        // Reports written by the core (native crash path) never pass through the app, so the
+        // redaction happens here as well: whatever is on disk must not keep usable secrets.
+        ConfigRedaction.redactReports(File(workingDir, CRASH_REPORTS_DIR_NAME))
         val reports = scanCrashReports()
         _reports.value = reports
         _unreadCount.value = reports.count { !it.isRead }
@@ -124,6 +127,7 @@ object CrashReportManager {
             val configContent = runCatching { configFile.readText() }.getOrNull()?.trim()
             if (!configContent.isNullOrEmpty()) {
                 configFile.copyTo(File(reportDir, CONFIG_FILE_NAME), overwrite = true)
+                ConfigRedaction.redactReport(reportDir)
             }
             configFile.delete()
         }
@@ -201,6 +205,8 @@ object CrashReportManager {
     fun hasConfigFile(report: CrashReport): Boolean = File(report.directory, CONFIG_FILE_NAME).exists()
 
     suspend fun createZipArchive(report: CrashReport, includeConfig: Boolean, includeLog: Boolean, useAgeEncryption: Boolean): File = withContext(Dispatchers.IO) {
+        // Defensive: a report may be shared before the first refresh redacted it on disk.
+        ConfigRedaction.redactReport(report.directory)
         val cacheDir = File(Application.application.cacheDir, CRASH_REPORTS_DIR_NAME)
         cacheDir.mkdirs()
         val zipFile = File(cacheDir, if (useAgeEncryption) "${report.id}.zip.age" else "${report.id}.zip")
@@ -209,6 +215,7 @@ object CrashReportManager {
         strippedDir.deleteRecursively()
         report.directory.copyRecursively(strippedDir, overwrite = true)
         File(strippedDir, READ_MARKER_FILE_NAME).delete()
+        File(strippedDir, ConfigRedaction.MARKER_FILE_NAME).delete()
         if (!includeConfig) {
             File(strippedDir, CONFIG_FILE_NAME).delete()
         }

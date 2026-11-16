@@ -58,6 +58,22 @@ class VlessImporterManagedConfigTest {
      * profiles imported from every other share link the moment those became importable.
      */
     @Test
+    fun `recognises a WireGuard endpoint`() {
+        val json = """
+            {
+              "dns": {"servers": [{"tag": "doh"}]},
+              "inbounds": [{"type": "tun", "tag": "tun-in",
+                            "address": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"]}],
+              "outbounds": [{"type": "direct", "tag": "direct"}],
+              "endpoints": [{"type": "wireguard", "tag": "awg",
+                             "peers": [{"address": "185.28.175.193", "port": 56100}]}],
+              "route": {"default_domain_resolver": "doh"}
+            }
+        """.trimIndent()
+        assertTrue(VlessImporter.isManagedConfig(json))
+    }
+
+    @Test
     fun `recognises every protocol the importer can emit`() {
         listOf("vless", "trojan", "shadowsocks", "vmess", "hysteria2", "tuic", "anytls").forEach { type ->
             val json = config(

@@ -34,6 +34,32 @@ class TarnLinkIdentityTest {
     }
 
     @Test
+    fun `uses the awg endpoint body as identity and ignores the comment name`() {
+        val first = """
+            [Interface]
+            PrivateKey = WD18EchEsl5d-BKihACcdjkPjoa6gcTM4p7bVaqKoGQ
+            Address = 10.8.1.2/32
+            Jc = 4
+            S1 = 87
+            S2 = 44
+
+            # First name
+            [Peer]
+            PublicKey = TAcJhi55Wt9A4zvMmyQ85iS0LZkLvkC7ManSQDHukwQ
+            AllowedIPs = 0.0.0.0/0, ::/0
+            Endpoint = 185.28.175.193:56100
+        """.trimIndent()
+        val renamed = first.replace("# First name", "# Renamed by the panel")
+        val otherKey = first.replace(
+            "TAcJhi55Wt9A4zvMmyQ85iS0LZkLvkC7ManSQDHukwQ",
+            "JHXkBz2tA9Mx8mk21_bbZjTniwj2yiMQuLUhWoj6oG8",
+        )
+
+        assertEquals(TarnLinkIdentity.connectionKey(first), TarnLinkIdentity.connectionKey(renamed))
+        assertNotEquals(TarnLinkIdentity.connectionKey(first), TarnLinkIdentity.connectionKey(otherKey))
+    }
+
+    @Test
     fun `keeps distinct olcrtc rooms and ignores only their display names`() {
         val first = "olcrtc://jitsi?datachannel@https://meet.example/alpha#${"a".repeat(64)}\$Alpha"
         val renamed = "olcrtc://jitsi?datachannel@https://meet.example/alpha#${"a".repeat(64)}\$Renamed"

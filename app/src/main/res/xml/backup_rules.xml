@@ -21,4 +21,12 @@
         domain="file"
         path="configuration.json" />
 
+    <!-- The core's cache file lives in the external working dir and holds the persisted
+         DNS cache (experimental.cache_file.store_dns): the domains the device asked about
+         over the last TTL window. That is browsing-history metadata, not settings —
+         it must never leave the device with a cloud backup or a device transfer. -->
+    <exclude
+        domain="external"
+        path="cache.db" />
+
 </full-backup-content>

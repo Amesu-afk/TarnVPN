@@ -37,8 +37,12 @@ object VlessImporter {
      *     XHTTP extras and HTTP/h2 transport); source-backed profiles are regenerated once.
      * 9 — XHTTP + VLESS encryption keeps its valid Vision flow, and canonical Xray
      *     sessionID* fields from current 3x-ui links survive import.
+     * 10 — the TUN excludes the profile's own server IP(s), so the proxy
+     *     transport (Cloudflare, direct WS, WireGuard peer) is not captured by
+     *     the VPN route. On Android 13+ VpnService.excludeRoute is used; this
+     *     is what keeps a large Cloudflare-WS stream out of the TUN.
      */
-    const val CONFIG_GENERATION = 9
+    const val CONFIG_GENERATION = 13
 
     private data class ConnectionConfigSettings(
         val dnsOption: DnsOption,
@@ -47,6 +51,7 @@ object VlessImporter {
         val fragmentEnabled: Boolean,
         val quicPolicy: String,
         val tunMtu: Int,
+        val tunStack: String,
         val ipStrategy: String,
         val dnsRoute: String,
         val logLevel: String,
@@ -66,6 +71,7 @@ object VlessImporter {
         fragmentEnabled = Settings.tarnFragmentEnabled,
         quicPolicy = Settings.tarnQuicPolicy,
         tunMtu = Settings.tarnTunMtu,
+        tunStack = Settings.tarnTunStack,
         ipStrategy = Settings.tarnIpStrategy,
         dnsRoute = Settings.tarnDnsRoute,
         logLevel = Settings.tarnLogLevel,
@@ -95,7 +101,7 @@ object VlessImporter {
      */
     fun isSupported(input: String): Boolean {
         val t = input.trim()
-        return isVlessUri(t) || isHttpsUrl(t)
+        return isVlessUri(t) || isHttpsUrl(t) || AwgConfParser.isAwgInput(t)
     }
 
     /**
@@ -186,7 +192,11 @@ object VlessImporter {
      */
     fun rebuildConfig(sourceUri: String): String? = runCatching {
         val settings = currentConnectionConfigSettings()
-        buildConfig(listOf(ProxyUriParser.parse(sourceUri, settings.fragmentEnabled)), settings)
+        if (AwgConfParser.isAwgInput(sourceUri)) {
+            buildConfig(AwgConfParser.parse(sourceUri), settings)
+        } else {
+            buildConfig(listOf(ProxyUriParser.parse(sourceUri, settings.fragmentEnabled)), settings)
+        }
     }.getOrNull()
 
     private fun parseServers(
@@ -202,13 +212,22 @@ object VlessImporter {
                 issues = emptyList(),
                 isSubscription = false,
             )
+            AwgConfParser.isAwgInput(t) -> {
+                val servers = AwgConfParser.parse(t)
+                ParsedServerBatch(
+                    servers = servers,
+                    totalEntries = servers.size,
+                    issues = emptyList(),
+                    isSubscription = servers.size > 1,
+                )
+            }
             isHttpsUrl(t) -> {
                 val body = fetch(t)
                 parseSubscriptionBody(body, fragmentEnabled)
             }
             else -> throw IllegalArgumentException(
                 "Unsupported input: paste a vless/trojan/ss/vmess/hysteria2/tuic/anytls/olcrtc link, " +
-                    "or an https:// subscription",
+                    "a WireGuard/AmneziaWG .conf or vpn:// link, or an https:// subscription",
             )
         }
     }
@@ -235,11 +254,14 @@ object VlessImporter {
         val servers = mutableListOf<ProxyUriParser.ParsedOutbound>()
         val issues = mutableListOf<ImportIssue>()
         entries.forEach { entry ->
-            if (!ProxyUriParser.isSupportedUri(entry)) {
+            val awg = AwgConfParser.isAwgInput(entry)
+            if (!ProxyUriParser.isSupportedUri(entry) && !awg) {
                 issues += ImportIssue(entry, "Unsupported share-link scheme")
             } else {
-                runCatching { ProxyUriParser.parse(entry, fragmentEnabled) }
-                    .onSuccess(servers::add)
+                runCatching {
+                    if (awg) AwgConfParser.parse(entry) else listOf(ProxyUriParser.parse(entry, fragmentEnabled))
+                }
+                    .onSuccess(servers::addAll)
                     .onFailure { error ->
                         issues += ImportIssue(entry, importIssueReason(error))
                     }
@@ -280,6 +302,7 @@ object VlessImporter {
         fragmentEnabled: Boolean,
         quicPolicy: String = Settings.tarnQuicPolicy,
         tunMtu: Int = Settings.tarnTunMtu,
+        tunStack: String = Settings.tarnTunStack,
         ipStrategy: String = Settings.tarnIpStrategy,
         dnsRoute: String = Settings.tarnDnsRoute,
         logLevel: String = Settings.tarnLogLevel,
@@ -304,6 +327,7 @@ object VlessImporter {
         val route = config.optJSONObject("route")
         val routeFinal = route?.optString("final")?.takeIf { it.isNotBlank() } ?: "direct"
         val effectiveIpStrategy = Settings.effectiveTarnIpStrategy(ipStrategy, ipv6Enabled)
+        val effectiveTunStack = normalizeTunStack(tunStack)
         val blockQuic = shouldBlockQuic(quicPolicy)
         val directSuffixes = directSuffixes(ruDirect, remoteDirectDomains, directDomains)
         config.put(
@@ -344,21 +368,30 @@ object VlessImporter {
             )
         }
 
+        val wireguardMtu = wireguardEndpointMtu(config)
         val inbounds = config.optJSONArray("inbounds")
         if (inbounds != null) {
             for (i in 0 until inbounds.length()) {
                 val inbound = inbounds.optJSONObject(i) ?: continue
                 if (inbound.optString("type") == "tun") {
                     inbound.put("address", tunAddress())
+                    inbound.put("stack", effectiveTunStack)
                     val normalizedMtu = normalizeTunMtu(tunMtu)
-                    if (normalizedMtu == 0) {
+                    val effectiveMtu = if (wireguardMtu != null) {
+                        minOf(normalizedMtu.takeIf { it != 0 } ?: wireguardMtu, wireguardMtu)
+                    } else {
+                        normalizedMtu
+                    }
+                    if (effectiveMtu == 0) {
                         inbound.remove("mtu")
                     } else {
-                        inbound.put("mtu", normalizedMtu)
+                        inbound.put("mtu", effectiveMtu)
                     }
                 }
             }
         }
+
+        applyAppProxyInbound(config)
 
         val outbounds = config.optJSONArray("outbounds")
         if (outbounds != null) {
@@ -368,7 +401,13 @@ object VlessImporter {
                     ProxyUriParser.applyFragment(it, fragmentEnabled, recordFragment)
                     applyTlsFingerprint(it, tlsFingerprint)
                 }
-                if (outbound.optString("type") in SERVER_OUTBOUND_TYPES) applyKeepAlive(outbound)
+                if (outbound.optString("type") in SERVER_OUTBOUND_TYPES &&
+                    outbound.optString("type") != "wireguard"
+                ) {
+                    applyKeepAlive(outbound)
+                }
+                applyMultiplex(outbound)
+                applyXhttpPool(outbound)
             }
             val normalizedTestUrl = normalizeTestUrl(testUrl)
             for (i in 0 until outbounds.length()) {
@@ -399,6 +438,7 @@ object VlessImporter {
             fragmentEnabled = settings.fragmentEnabled,
             quicPolicy = settings.quicPolicy,
             tunMtu = settings.tunMtu,
+            tunStack = settings.tunStack,
             ipStrategy = settings.ipStrategy,
             dnsRoute = settings.dnsRoute,
             logLevel = settings.logLevel,
@@ -410,6 +450,28 @@ object VlessImporter {
             recordFragment = settings.recordFragment,
             tlsFingerprint = settings.tlsFingerprint,
         )
+    }
+
+    /**
+     * Applies only the app-level TUN stack choice to any config that owns a TUN inbound.
+     * Raw/hand-written profiles are never rewritten on disk, but they still run through the
+     * stack the user selected for this connection; a config without a TUN is left untouched.
+     * Returns null when there is nothing to change.
+     */
+    fun applyTunStack(configJson: String, tunStack: String = Settings.tarnTunStack): String? {
+        val config = runCatching { JSONObject(configJson) }.getOrNull() ?: return null
+        val inbounds = config.optJSONArray("inbounds") ?: return null
+        val effectiveTunStack = normalizeTunStack(tunStack)
+        var changed = false
+        for (i in 0 until inbounds.length()) {
+            val inbound = inbounds.optJSONObject(i) ?: continue
+            if (inbound.optString("type") != "tun") continue
+            if (inbound.optString("stack") != effectiveTunStack) {
+                inbound.put("stack", effectiveTunStack)
+                changed = true
+            }
+        }
+        return if (changed) config.toString(2) else null
     }
 
     /**
@@ -474,7 +536,41 @@ object VlessImporter {
                     )
             }
         }
+        if (!hasServer) {
+            val endpoints = config.optJSONArray("endpoints")
+            if (endpoints != null) {
+                for (i in 0 until endpoints.length()) {
+                    val endpoint = endpoints.optJSONObject(i) ?: continue
+                    if (endpoint.optString("type") != "wireguard") continue
+                    val peers = endpoint.optJSONArray("peers") ?: continue
+                    var hasPeerAddress = false
+                    for (peerIndex in 0 until peers.length()) {
+                        val peer = peers.optJSONObject(peerIndex) ?: continue
+                        if (peer.optString("address").isNotBlank()) {
+                            hasPeerAddress = true
+                            break
+                        }
+                    }
+                    if (endpoint.optString("tag").isNotBlank() && hasPeerAddress) {
+                        hasServer = true
+                        break
+                    }
+                }
+            }
+        }
         return hasServer && hasDirect
+    }
+
+    /** MTU of the first WireGuard/AmneziaWG endpoint in [config], if any. */
+    private fun wireguardEndpointMtu(config: JSONObject): Int? {
+        val endpoints = config.optJSONArray("endpoints") ?: return null
+        for (i in 0 until endpoints.length()) {
+            val endpoint = endpoints.optJSONObject(i) ?: continue
+            if (endpoint.optString("type") != "wireguard") continue
+            val mtu = endpoint.optInt("mtu")
+            if (mtu > 0) return mtu
+        }
+        return null
     }
 
     private fun dnsBlock(
@@ -741,9 +837,101 @@ object VlessImporter {
     private const val KEEP_ALIVE_IDLE = "90s"
     private const val KEEP_ALIVE_INTERVAL = "45s"
 
+    /** Outbound types sing-box multiplexes; whether mux fits the transport is [muxEligible]'s call. */
+    private val MUX_OUTBOUND_TYPES = setOf("vless", "vmess", "trojan", "shadowsocks")
+
+    /**
+     * h2mux only fits a plain-TCP carrier: XHTTP and gRPC have their own connection pooling
+     * and reject multiplex, and QUIC-based outbounds are multiplexed by design. Anything else
+     * keeps whatever the share link asked for — usually nothing.
+     */
+    private fun muxEligible(outbound: JSONObject): Boolean {
+        if (outbound.optString("type") !in MUX_OUTBOUND_TYPES) return false
+        val transport = outbound.optJSONObject("transport") ?: return true
+        val type = transport.optString("type")
+        return type.isEmpty() || type == "tcp"
+    }
+
+    private fun applyMultiplex(outbound: JSONObject) {
+        if (!muxEligible(outbound)) return
+        if (Settings.tarnMuxEnabled) {
+            outbound.put(
+                "multiplex",
+                JSONObject().apply {
+                    put("enabled", true)
+                    put("protocol", "h2mux")
+                    put("max_streams", 8)
+                    put("padding", true)
+                },
+            )
+        } else {
+            outbound.remove("multiplex")
+        }
+    }
+
+    /** Tag of the loopback SOCKS inbound the app's own HTTP client dials — see [AppProxy]. */
+    private const val APP_PROXY_TAG = "app-proxy"
+
+    /**
+     * Writes the configured XHTTP pool width as `xmux.max_connections` (the core's
+     * lx(xhttp) pool tuning) onto XHTTP transports only: the block is part of the
+     * transport options, not the outbound, and every other transport either ignores
+     * it or uses a different pooling model. The connection muxing toggle above
+     * covers plain TCP.
+     */
+    private fun applyXhttpPool(outbound: JSONObject) {
+        val transport = outbound.optJSONObject("transport") ?: return
+        if (transport.optString("type") != "xhttp") return
+        // Older builds wrote the block one level too high; the core rejects an
+        // unknown outbound field, so a patched-in-place config must lose it too.
+        outbound.remove("xmux")
+        transport.put(
+            "xmux",
+            JSONObject().put("max_connections", Settings.tarnXhttpPool),
+        )
+    }
+
+    /**
+     * The app's own way back into the tunnel. The app is excluded from its own TUN so its
+     * transport cannot loop, which also used to mean its HTTP (update checks, profile
+     * fetches while connected) bypassed the VPN and resolved through the system DNS. A
+     * loopback SOCKS listener with per-install credentials gives that HTTP a path through
+     * the core without opening anything to other apps: random port, mandatory auth.
+     */
+    private fun appProxyInbound(): JSONObject? {
+        val proxy = AppProxy.descriptor() ?: return null
+        return JSONObject().apply {
+            put("type", "socks")
+            put("tag", APP_PROXY_TAG)
+            put("listen", "127.0.0.1")
+            put("listen_port", proxy.port)
+            put(
+                "users",
+                JSONArray().put(
+                    JSONObject()
+                        .put("username", proxy.username)
+                        .put("password", proxy.password),
+                ),
+            )
+        }
+    }
+
+    /** Replaces whatever app-proxy inbound an older generator wrote, or adds the current one. */
+    private fun applyAppProxyInbound(config: JSONObject) {
+        val inbounds = config.optJSONArray("inbounds") ?: return
+        for (index in inbounds.length() - 1 downTo 0) {
+            if (inbounds.optJSONObject(index)?.optString("tag") == APP_PROXY_TAG) {
+                inbounds.remove(index)
+            }
+        }
+        appProxyInbound()?.let { inbound ->
+            inbounds.put(inbound)
+        }
+    }
+
     /** The outbound types [ProxyUriParser] can emit for a server — everything except `direct`. */
     private val SERVER_OUTBOUND_TYPES =
-        setOf("vless", "trojan", "shadowsocks", "vmess", "hysteria2", "tuic", "anytls", "socks")
+        setOf("vless", "trojan", "shadowsocks", "vmess", "hysteria2", "tuic", "anytls", "socks", "wireguard")
 
     /** Sends [directSuffixes] out the real interface instead of through the proxy. */
     private fun directRule(suffixes: List<String>): JSONObject = JSONObject()
@@ -837,16 +1025,13 @@ object VlessImporter {
     }
 
     /**
-     * `auto` blocks QUIC on every transport. It used to block only on XHTTP, on the reasoning
-     * that raw-TCP/REALITY carries XUDP cheaply enough to leave HTTP/3 alone — but that split
-     * was the one difference between a profile where Gemini loaded and an otherwise identical
-     * one where it did not load at all, on the same server and the same exit IP. Whichever half
-     * does the damage (QUIC over XUDP, or the `ipv6hint`/`alpn=h3` that survives in the HTTPS
-     * record while QUIC is allowed — [dnsBlock] suppresses that record only when QUIC is
-     * blocked), both halves rode on `hasXhttp`, so the transport split is what goes. `allow`
-     * still exists for anyone who wants HTTP/3 back.
+     * `auto` leaves QUIC alone. Android's YouTube client stays on HTTP/3: when the TUN rejects
+     * QUIC it keeps retrying the handshake per host and never opens the TCP stream, so the feed
+     * stays empty. The browser symptom that once looked like QUIC was the TCP path: the default
+     * gVisor TUN stack keeps TCP in userspace instead of the system-stack NAT. `block` stays for
+     * an exit where QUIC-over-XUDP really does stall.
      */
-    private fun shouldBlockQuic(policy: String): Boolean = policy != Settings.QUIC_POLICY_ALLOW
+    private fun shouldBlockQuic(policy: String): Boolean = policy == Settings.QUIC_POLICY_BLOCK
 
     /**
      * Whether DoH is sent through the proxy (so the resolver sees the exit region) or straight
@@ -882,6 +1067,9 @@ object VlessImporter {
 
     private fun normalizeTunMtu(mtu: Int): Int = mtu.takeIf(Settings.TARN_TUN_MTU_VALUES::contains) ?: 0
 
+    private fun normalizeTunStack(stack: String): String =
+        stack.takeIf(Settings.TARN_TUN_STACK_VALUES::contains) ?: Settings.TUN_STACK_GVISOR
+
     private fun normalizeLogLevel(level: String): String = when (level) {
         Settings.LOG_LEVEL_INFO, Settings.LOG_LEVEL_DEBUG, Settings.LOG_LEVEL_TRACE -> level
         else -> Settings.LOG_LEVEL_WARN
@@ -889,8 +1077,28 @@ object VlessImporter {
 
     private fun normalizeTestUrl(url: String): String = url.trim().takeIf(Settings::isValidTarnTestUrl) ?: Settings.DEFAULT_TARN_TEST_URL
 
-    private fun isQuicRejectRule(rule: JSONObject): Boolean = rule.optString("protocol").equals("quic", ignoreCase = true) &&
-        rule.optString("action") == "reject"
+    private fun isQuicRejectRule(rule: JSONObject): Boolean =
+        rule.optString("action") == "reject" && (
+            rule.optString("protocol").equals("quic", ignoreCase = true) ||
+                (rule.optInt("port") == 443 && rule.optString("network") == "udp")
+            )
+
+    /**
+     * A sniff-independent half of the same policy: QUIC always rides on UDP/443, so this
+     * catches it even when the protocol sniffer cannot classify the packet (short-header
+     * QUIC, fragmented datagrams). Without it a single sniff miss sends the flow down the
+     * fragile XUDP path the reject exists to avoid.
+     *
+     * Emitted BEFORE the UDP sniff rule: PreMatch stops at the first rule whose packet
+     * sniffer needs more data, so a reject placed after sniff never reaches the TUN's
+     * immediate ICMP-unreachable path. There the packet becomes a normal route-level
+     * reject, and YouTube waits out its own QUIC timeout before trying TCP.
+     */
+    private fun quicUdpRejectRule(): JSONObject = JSONObject()
+        .put("network", "udp")
+        .put("port", 443)
+        .put("action", "reject")
+        .put("no_drop", true)
 
     /**
      * Rejects QUIC so browsers fall back to TCP (which tunnels cleanly, unlike a
@@ -906,18 +1114,32 @@ object VlessImporter {
     private fun quicRejectRule(): JSONObject = JSONObject().put("protocol", "quic").put("action", "reject").put("no_drop", true)
 
     /**
-     * `override_destination` makes the outbound send the sniffed hostname upstream instead of
-     * the address the phone resolved — what Xray, and so v2rayNG, does by default. This is the
-     * fix for Gemini answering "not available in your region": the exit was connecting to
-     * whichever Google front-end the *phone* had picked, rather than choosing one itself.
+     * `override_destination` (TCP only) makes the outbound send the sniffed hostname upstream
+     * instead of the address the phone resolved — what Xray, and so v2rayNG, does by default.
+     * This is the fix for Gemini answering "not available in your region": the exit was
+     * connecting to whichever Google front-end the *phone* had picked, rather than choosing
+     * one itself.
      *
      * Requires the lx core patch that re-exposes the flag on the sniff action; an older core
      * rejects the unknown field, which the repository catches through `Libbox.checkConfig`
      * before it can write a config the running service cannot load.
+     *
+     * Sniffing is split by transport because the destination override must not apply to UDP.
+     * TCP keeps the hostname (the server resolves the name in its own region). UDP must keep
+     * the address the app dialed — if the domain is sent upstream, the server resolves it
+     * itself and may pick IPv6 on a dual-stack VPS while the app's flow is IPv4; the gVisor
+     * stack then refuses the return packet ("send IPv6 packet to IPv4 connection") and QUIC
+     * dies. The protocol sniff stays enabled on UDP so the QUIC reject rule still matches.
      */
-    private fun sniffRule(sendHostname: Boolean): JSONObject = JSONObject()
-        .put("action", "sniff")
-        .apply { if (sendHostname) put("override_destination", true) }
+    private fun sniffRules(sendHostname: Boolean): List<JSONObject> = buildList {
+        add(
+            JSONObject()
+                .put("network", "tcp")
+                .put("action", "sniff")
+                .apply { if (sendHostname) put("override_destination", true) },
+        )
+        add(JSONObject().put("network", "udp").put("action", "sniff"))
+    }
 
     private fun isSniffRule(rule: JSONObject): Boolean = rule.optString("action") == "sniff"
 
@@ -967,11 +1189,20 @@ object VlessImporter {
      * `M.SocksaddrFrom`), so the server is handed an address instead of the name. Scoped to
      * [PHONE_RESOLVE_SUFFIXES]; everything else keeps the name from [sniffRule]'s override.
      *
+     * No `server`: an empty one defers to the default domain resolver, which is the same
+     * off-tunnel bootstrap the media rule uses under the hood — pinning `bootstrap` here by
+     * name would break configs where that tag does not exist (protection off / direct route).
      * No `strategy`: an empty one is AsIs, which defers to `dns.strategy` (`dns/router.go:799`),
      * so the IPv6 toggle keeps governing the address family here as everywhere else — with it on
      * that is prefer_ipv4, the v4 YouTube Music needs. The lookup is nearly free: the app's own
      * query for the same name went through the hijacked resolver moments earlier and sits in the
      * same (optimistic) cache.
+     *
+     * Bounded at 3s anyway: this rule runs synchronously in pre-match, and on error the packet
+     * is rejected outright (`route/route.go` pre-match resolve) instead of falling through to
+     * the name-based dial that would still connect. A dead default resolver must therefore fail
+     * fast — the default 10s DNS timeout would stall every new googlevideo host for the full
+     * budget before the player even gets its error to retry on.
      *
      * For the matched hosts this also restores `ip_is_private` matching (they carry addresses
      * again) — a non-issue here since none are private, but it means the LAN-by-name caveat of
@@ -980,6 +1211,7 @@ object VlessImporter {
     private fun phoneResolveRule(): JSONObject = JSONObject()
         .put("domain_suffix", JSONArray().apply { PHONE_RESOLVE_SUFFIXES.forEach(::put) })
         .put("action", "resolve")
+        .put("timeout", "3s")
 
     /**
      * Strips any generated address-selection rule so repatch re-emits it fresh: the current
@@ -1017,6 +1249,7 @@ object VlessImporter {
         directSuffixes: List<String>,
     ): JSONArray {
         val retained = mutableListOf<JSONObject>()
+        var sniffEmitted = false
         for (i in 0 until rules.length()) {
             val rule = rules.optJSONObject(i) ?: continue
             if (isQuicRejectRule(rule) ||
@@ -1026,11 +1259,25 @@ object VlessImporter {
             ) {
                 continue
             }
-            // Regenerated in place so the hostname flag tracks the setting; keeping the stored
-            // rule would freeze whatever it was imported with.
-            retained += if (isSniffRule(rule)) sniffRule(sendHostname) else rule
+            // Regenerated so the hostname flag tracks the setting; keeping the stored rule
+            // would freeze whatever it was imported with. The old single sniff rule expands
+            // into the TCP/UDP pair, so any further stored copy is dropped.
+            if (isSniffRule(rule)) {
+                if (!sniffEmitted) {
+                    sniffEmitted = true
+                    retained += sniffRules(sendHostname)
+                }
+                continue
+            }
+            retained += rule
         }
 
+        // PreMatch evaluates rules in order and bails out at a UDP sniff that needs more
+        // data. The port-443 reject must therefore be first, so QUIC gets an immediate
+        // ICMP unreachable instead of falling through to a route-level reject.
+        val earlyRules = buildList {
+            if (blockQuic) add(quicUdpRejectRule())
+        }
         val generated = buildList {
             if (blockQuic) add(quicRejectRule())
             if (routeDnsDirect) add(dnsDirectRule(dnsOption))
@@ -1049,6 +1296,7 @@ object VlessImporter {
         }
 
         return JSONArray().apply {
+            earlyRules.forEach(::put)
             retained.forEachIndexed { index, rule ->
                 if (index == insertAt) generated.forEach(::put)
                 put(rule)
@@ -1074,6 +1322,47 @@ object VlessImporter {
         put(TUN_IPV4_ADDRESS)
         put(TUN_IPV6_ADDRESS)
     }
+
+    /**
+     * The profile's own proxy endpoint(s), as /32 or /128 prefixes. Excluding
+     * them from the TUN keeps the transport socket on the underlying network:
+     * the VPN route must not capture the connection that carries the VPN.
+     * Hostnames are left to `auto_detect_interface` — resolving them here would
+     * make import depend on DNS being up.
+     */
+    private fun tunExcludeAddresses(servers: List<ProxyUriParser.ParsedOutbound>): List<String> {
+        val prefixes = LinkedHashSet<String>()
+        fun add(host: String?) {
+            val value = host?.trim().orEmpty()
+            if (value.isEmpty()) return
+            if (value.contains(':')) {
+                if (IPV6_LITERAL.matches(value)) prefixes += "$value/128"
+                return
+            }
+            val parts = value.split('.')
+            if (parts.size != 4) return
+            for (part in parts) {
+                val number = part.toIntOrNull() ?: return
+                if (number !in 0..255) return
+            }
+            prefixes += "$value/32"
+        }
+        servers.forEach { server ->
+            if (server.json.optString("type") == "wireguard") {
+                val peers = server.json.optJSONArray("peers")
+                if (peers != null) {
+                    for (i in 0 until peers.length()) {
+                        add(peers.optJSONObject(i)?.optString("address"))
+                    }
+                }
+            } else {
+                add(server.json.optString("server"))
+            }
+        }
+        return prefixes.toList()
+    }
+
+    private val IPV6_LITERAL = Regex("^[0-9a-fA-F:]+$")
 
     /**
      * Try base64-decode; fall back to raw. Keep every URI-shaped entry, including a scheme the
@@ -1128,6 +1417,21 @@ object VlessImporter {
         )
         val blockQuic = shouldBlockQuic(settings.quicPolicy)
         val normalizedMtu = normalizeTunMtu(settings.tunMtu)
+        val tunStack = normalizeTunStack(settings.tunStack)
+        val wireguardMtu = servers
+            .filter { it.json.optString("type") == "wireguard" }
+            .mapNotNull { it.json.optInt("mtu").takeIf { mtu -> mtu > 0 } }
+            .minOrNull()
+        val tunMtu = if (wireguardMtu != null) {
+            // The TUN must never hand the userspace WireGuard stack a packet
+            // larger than the tunnel MTU: TCP would derive its MSS from the
+            // TUN value and every full segment would be dropped inside the
+            // endpoint. Explicit user values above the tunnel are clamped.
+            minOf(normalizedMtu.takeIf { it != 0 } ?: wireguardMtu, wireguardMtu)
+        } else {
+            normalizedMtu
+        }
+        val hasWireguard = wireguardMtu != null
         val directSuffixes = directSuffixes(
             settings.ruDirect,
             settings.remoteDirectDomains,
@@ -1135,6 +1439,7 @@ object VlessImporter {
         )
 
         val outboundsArr = JSONArray()
+        val endpointsArr = JSONArray()
         // If more than one server: put an urltest selector first, name it "proxy".
         val routeFinal: String
         if (servers.size > 1) {
@@ -1162,11 +1467,19 @@ object VlessImporter {
             // The parser's job is to translate the link; the connection policy on top of it is
             // ours and is applied in one place, so applySettings can reproduce it exactly on a
             // config that was written by an older generator.
+            if (server.json.optString("type") == "wireguard") {
+                // sing-box 1.13 removed the wireguard outbound; WireGuard and
+                // AmneziaWG live in the top-level endpoints array.
+                endpointsArr.put(server.json)
+                return@forEach
+            }
             server.json.optJSONObject("tls")?.let {
                 ProxyUriParser.applyFragment(it, settings.fragmentEnabled, settings.recordFragment)
                 applyTlsFingerprint(it, settings.tlsFingerprint)
             }
             applyKeepAlive(server.json)
+            applyMultiplex(server.json)
+            applyXhttpPool(server.json)
             outboundsArr.put(server.json)
         }
         outboundsArr.put(
@@ -1200,21 +1513,42 @@ object VlessImporter {
                     JSONObject().apply {
                         put("type", "tun")
                         put("tag", "tun-in")
+                        // gVisor is the default because it keeps TCP in userspace on Android;
+                        // `mixed`/`system` stay selectable for device A/B testing.
+                        put("stack", tunStack)
                         put("address", tunAddress())
-                        if (normalizedMtu != 0) put("mtu", normalizedMtu)
+                        if (tunMtu != 0) put("mtu", tunMtu)
                         put("auto_route", true)
                         put("strict_route", true)
+                        // Keep the proxy transport out of the TUN. Without
+                        // this the outbound socket to Cloudflare/our server can
+                        // be route-bound to the VPN interface itself; small
+                        // packets survive, large streams stall. Android 13+
+                        // turns these into VpnService.excludeRoute entries.
+                        tunExcludeAddresses(servers).takeIf { it.isNotEmpty() }?.let { excludes ->
+                            put("route_exclude_address", JSONArray().apply { excludes.forEach(::put) })
+                        }
                     },
                 ),
             )
             put("outbounds", outboundsArr)
+            if (endpointsArr.length() > 0) put("endpoints", endpointsArr)
             put(
                 "route",
                 JSONObject().apply {
                     put(
                         "rules",
                         JSONArray().apply {
-                            put(sniffRule(settings.sendHostname))
+                            // PreMatch stops at a packet sniff that needs more data. Put the
+                            // sniff-independent UDP/443 reject first so QUIC gets an immediate
+                            // ICMP unreachable from the TUN instead of a route-level reject.
+                            if (blockQuic) put(quicUdpRejectRule())
+                            // A WireGuard endpoint receives raw IP packets;
+                            // replacing the destination with a sniffed name
+                            // would hand it a hostname it cannot dial. Sniff
+                            // without the override so the direct-domain rules
+                            // still work.
+                            sniffRules(settings.sendHostname && !hasWireguard).forEach(::put)
                             put(JSONObject().put("protocol", "dns").put("action", "hijack-dns"))
                             // Reject QUIC so browsers fall back to TCP: every UDP flow is wrapped
                             // in XUDP and costs a separate stream on the proxy, and QUIC-heavy
@@ -1233,7 +1567,7 @@ object VlessImporter {
                             // Everything reaches the server as a name (so it resolves in its own region);
                             // YouTube is the one exception, phone-resolved to a v4 address. See
                             // phoneResolveRule() for why the exception list runs this way round.
-                            if (settings.sendHostname) put(phoneResolveRule())
+                            if (settings.sendHostname && !hasWireguard) put(phoneResolveRule())
                             put(JSONObject().put("ip_is_private", true).put("outbound", "direct"))
                         },
                     )
@@ -1246,6 +1580,7 @@ object VlessImporter {
             )
             put("experimental", experimentalBlock())
         }
+        applyAppProxyInbound(config)
         return config.toString(2)
     }
 

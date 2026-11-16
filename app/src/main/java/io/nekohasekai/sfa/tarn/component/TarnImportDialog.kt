@@ -37,9 +37,9 @@ import io.nekohasekai.sfa.tarn.theme.TarnMetaStyle
 
 /**
  * Paste-a-link dialog used to add servers from the servers screen. Deliberately narrow: it
- * accepts share links handled by [io.nekohasekai.sfa.utils.ProxyUriParser] and HTTPS
- * subscriptions. QR uses the same import callback; file import and raw JSON stay behind
- * "Advanced".
+ * accepts share links handled by [io.nekohasekai.sfa.utils.ProxyUriParser], WireGuard/
+ * AmneziaWG .conf or vpn:// configs, and HTTPS subscriptions. QR uses the same import
+ * callback; file import and raw JSON stay behind "Advanced".
  */
 @Composable
 fun TarnImportDialog(

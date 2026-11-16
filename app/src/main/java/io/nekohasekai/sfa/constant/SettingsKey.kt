@@ -23,6 +23,8 @@ object SettingsKey {
     const val PER_APP_PROXY_MANAGED_MODE = "per_app_proxy_managed_mode"
     const val PER_APP_PROXY_MANAGED_LIST = "per_app_proxy_managed_list"
     const val PER_APP_PROXY_PACKAGE_QUERY_MODE = "per_app_proxy_package_query_mode"
+    const val PER_APP_PROXY_BROWSER_MIGRATION = "per_app_proxy_browser_migration"
+    const val PER_APP_PROXY_BROWSER_MIGRATION_VERSION = "per_app_proxy_browser_migration_version"
 
     const val ALLOW_BYPASS = "allow_bypass"
     const val SYSTEM_PROXY_ENABLED = "system_proxy_enabled"
@@ -55,6 +57,8 @@ object SettingsKey {
 
     // TarnVPN shell
     const val TARN_AUTO_CONNECT = "tarn_auto_connect"
+    const val TARN_BOOT_AUTOSTART = "tarn_boot_autostart"
+    const val TARN_SUBSCRIPTION_INTERVAL = "tarn_subscription_interval"
     const val TARN_DNS_PROTECTION = "tarn_dns_protection"
     const val TARN_DNS_PROVIDER = "tarn_dns_provider"
     const val TARN_DNS_CUSTOM_SERVER = "tarn_dns_custom_server"
@@ -64,6 +68,7 @@ object SettingsKey {
     const val TARN_THEME_MODE = "tarn_theme_mode"
     const val TARN_QUIC_POLICY = "tarn_quic_policy"
     const val TARN_TUN_MTU = "tarn_tun_mtu"
+    const val TARN_TUN_STACK = "tarn_tun_stack"
     const val TARN_IP_STRATEGY = "tarn_ip_strategy"
     const val TARN_DNS_ROUTE = "tarn_dns_route"
     const val TARN_SEND_HOSTNAME = "tarn_send_hostname"
@@ -81,6 +86,13 @@ object SettingsKey {
     const val TARN_TEST_RETRIES = "tarn_test_retries"
     const val TARN_NETWORK_RECOVERY = "tarn_network_recovery"
     const val TARN_AUTO_FAILOVER = "tarn_auto_failover"
+    const val TARN_WATCHDOG = "tarn_watchdog"
+    const val TARN_LOCKDOWN_PROMPT = "tarn_lockdown_prompt"
+    const val TARN_MUX_ENABLED = "tarn_mux_enabled"
+    const val TARN_APP_PROXY_PORT = "tarn_app_proxy_port"
+    const val TARN_APP_PROXY_USER = "tarn_app_proxy_user"
+    const val TARN_APP_PROXY_PASSWORD = "tarn_app_proxy_password"
+    const val TARN_XHTTP_POOL = "tarn_xhttp_pool"
     const val TARN_CONFIG_GENERATION = "tarn_config_generation"
 
     // cache

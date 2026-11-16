@@ -47,8 +47,8 @@
     <string name="tarn_servers_delete_confirm_action">Delete</string>
 
     <string name="tarn_servers_add_title">Add server</string>
-    <string name="tarn_servers_add_hint">Paste a server link or a subscription URL. vless, trojan, ss, vmess, hysteria2, tuic, anytls and olcRTC are understood. Each server in a subscription becomes its own entry.</string>
-    <string name="tarn_servers_add_placeholder">vless://… trojan://… ss://… or https://…</string>
+    <string name="tarn_servers_add_hint">Paste a server link, a WireGuard/AmneziaWG .conf or vpn:// config, or a subscription URL. vless, trojan, ss, vmess, hysteria2, tuic, anytls, olcRTC and AmneziaWG are understood. Each server in a subscription becomes its own entry.</string>
+    <string name="tarn_servers_add_placeholder">vless://… .conf vpn://… or https://…</string>
     <string name="tarn_servers_add_action">Add</string>
     <string name="tarn_servers_import_partial">Processed %1$d server(s); skipped %2$d unsupported or invalid link(s).</string>
     <string name="tarn_servers_qr_unsupported">This QR code does not contain a server link or subscription URL.</string>
@@ -61,6 +61,19 @@
     <string name="tarn_shield_dns_desc">Resolve queries through TarnVPN DNS</string>
     <string name="tarn_shield_autoconnect">Auto-connect</string>
     <string name="tarn_shield_autoconnect_desc">Connect to the VPN when the app starts</string>
+    <string name="tarn_shield_watchdog">Auto-restore tunnel</string>
+    <string name="tarn_shield_watchdog_desc">Bring the VPN back up if a crash or the system kills it. A notification tells you when that happens</string>
+
+    <string name="tarn_lockdown_title">Protection on disconnect</string>
+    <string name="tarn_lockdown_body">“Prevent VPN bypass” only guards a running tunnel. For traffic to stay blocked after a crash or a kill, turn on Android’s Always-on VPN and “Block connections without VPN” in the system VPN settings.</string>
+    <string name="tarn_lockdown_open">Open settings</string>
+    <string name="tarn_lockdown_later">Later</string>
+
+    <string name="tarn_watchdog_channel_name">Tunnel recovery</string>
+    <string name="tarn_watchdog_recovered_title">Tunnel was restored</string>
+    <string name="tarn_watchdog_recovered_body">The connection dropped and TarnVPN restarted it automatically. Some traffic may have gone unprotected meanwhile — check the status in the app.</string>
+    <string name="tarn_watchdog_failed_title">Tunnel is down</string>
+    <string name="tarn_watchdog_failed_body">TarnVPN could not restore the connection automatically. Open the app to reconnect.</string>
 
     <string name="tarn_dns_provider">DNS resolver</string>
     <string name="tarn_dns_title">DNS resolver</string>
@@ -106,6 +119,10 @@
     <string name="tarn_connection_lab_section_network">Connection parameters</string>
     <string name="tarn_connection_lab_quic">QUIC policy</string>
     <string name="tarn_connection_lab_mtu">TUN MTU</string>
+    <string name="tarn_connection_lab_tun_stack">TUN stack</string>
+    <string name="tarn_connection_lab_tun_stack_gvisor">gVisor (recommended)</string>
+    <string name="tarn_connection_lab_tun_stack_mixed">mixed (system TCP + gVisor UDP)</string>
+    <string name="tarn_connection_lab_tun_stack_system">system</string>
     <string name="tarn_connection_lab_ip_strategy">IP strategy</string>
     <string name="tarn_connection_lab_dns_route">Encrypted DNS route</string>
     <string name="tarn_connection_lab_log_level">Log level</string>
@@ -224,4 +241,25 @@
     <string name="tarn_update_not_configured">Update checking is not set up in this build yet.</string>
     <!-- Shown when a settings change could not be pushed into the running service. -->
     <string name="tarn_apply_failed">Could not apply the change to the running VPN.</string>
+    <!-- Settings batch: boot autostart, subscription freshness, mux, server export. -->
+
+    <string name="tarn_shield_boot_autostart">Start on boot</string>
+    <string name="tarn_shield_boot_autostart_desc">Bring the VPN back up after a reboot if it was running before one</string>
+
+    <string name="tarn_subscriptions_interval">Update every</string>
+    <string name="tarn_subscriptions_interval_6">6 h</string>
+    <string name="tarn_subscriptions_interval_12">12 h</string>
+    <string name="tarn_subscriptions_interval_24">24 h</string>
+    <string name="tarn_subscriptions_interval_48">48 h</string>
+
+    <string name="tarn_connection_lab_mux">Multiplexing (mux)</string>
+    <string name="tarn_connection_lab_mux_desc">Carry proxy streams over one connection. Only plain-TCP servers support it — XHTTP and gRPC ignore it</string>
+
+    <string name="tarn_servers_share">Share server</string>
+    <string name="tarn_export_title">Server link</string>
+    <string name="tarn_export_copy">Copy</string>
+    <string name="tarn_export_share">Share</string>
+    <string name="tarn_export_copied">Link copied</string>
+    <string name="tarn_export_no_link">This server has no original link to export</string>
+<string name="tarn_connection_lab_xhttp_pool">XHTTP pool</string>
 </resources>

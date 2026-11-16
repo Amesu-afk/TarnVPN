@@ -20,6 +20,12 @@
         <exclude
             domain="file"
             path="configuration.json" />
+        <!-- The core's cache file holds the persisted DNS cache (store_dns): the domains
+             the device asked about over the last TTL window. Browsing-history metadata,
+             not settings — it must never leave the device. -->
+        <exclude
+            domain="external"
+            path="cache.db" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="subscriptions.json" />
@@ -41,5 +47,9 @@
         <exclude
             domain="file"
             path="configuration.json" />
+        <!-- Same reason as in cloud-backup: the DNS cache is browsing metadata. -->
+        <exclude
+            domain="external"
+            path="cache.db" />
     </device-transfer>
 </data-extraction-rules>

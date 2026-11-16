@@ -8,6 +8,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.Network
 import android.net.Uri
 import android.os.Build
@@ -20,6 +21,7 @@ import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.Observer
 import go.Seq
 import io.nekohasekai.libbox.CommandServer
 import io.nekohasekai.libbox.CommandServerHandler
@@ -34,6 +36,7 @@ import io.nekohasekai.sfa.compose.MainActivity
 import io.nekohasekai.sfa.constant.Action
 import io.nekohasekai.sfa.constant.Alert
 import io.nekohasekai.sfa.constant.Status
+import io.nekohasekai.sfa.database.Profile
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.ktx.hasPermission
@@ -75,6 +78,12 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         private const val OLCRTC_RETRY_MIN_MS = 5_000L
         private const val OLCRTC_RETRY_MAX_MS = 60_000L
 
+        /**
+         * 1 — browser auto-add first shipped with the flag consumed before its guards; 2 —
+         * one-shot repair run for installs that lost that flag without ever adding a browser.
+         */
+        private const val BROWSER_MIGRATION_VERSION = 2
+
         fun start() {
             val intent =
                 runBlocking {
@@ -92,6 +101,16 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 ),
             )
         }
+
+        /**
+         * Latest status any live service instance has reported, or null when no service
+         * instance is alive in this process. The watchdog task may run in the same process
+         * (its normal schedule) or in a fresh one after a crash took the old process down;
+         * this mirror is what lets it tell a live tunnel from a dead one in either case.
+         */
+        @Volatile
+        var tunnelStatus: Status? = null
+            private set
     }
 
     var fileDescriptor: ParcelFileDescriptor? = null
@@ -102,6 +121,17 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     private val olcRtcRuntime = OlcRtcRuntimeController(service)
     private lateinit var commandServer: CommandServer
     private val serviceReloadMutex = Mutex()
+
+    // Watchdog coordination: every status change is published to the companion mirror so a
+    // WorkManager task in this or a fresh process can distinguish "tunnel up" from "process
+    // died". The observer must be attached on the main thread — BoxService is constructed
+    // inside Service.onCreate — and is detached in onDestroy so a replaced instance cannot
+    // keep publishing through a reference the system dropped.
+    private val tunnelStatusObserver = Observer<Status> { tunnelStatus = it }
+
+    init {
+        status.observeForever(tunnelStatusObserver)
+    }
 
     // Reap stale transports without rebuilding the VPN interface. Screen and idle
     // events also cover a lost NAT mapping on an unchanged default Wi-Fi network.
@@ -157,6 +187,124 @@ class BoxService(private val service: Service, private val platformInterface: Pl
 
     private var lastProfileName = ""
 
+    /**
+     * Browsers that do not necessarily answer a generic ACTION_VIEW query (or are installed
+     * but not the current default). Kept explicit on top of the intent query so a browser the
+     * user opens by its own icon is still covered.
+     */
+    private val BROWSER_PACKAGES = listOf(
+        "com.android.chrome",
+        "com.chrome.beta",
+        "com.chrome.dev",
+        "com.chrome.canary",
+        "org.mozilla.firefox",
+        "org.mozilla.firefox_beta",
+        "com.yandex.browser",
+        "com.opera.browser",
+        "com.opera.mini.native",
+        "com.brave.browser",
+        "com.microsoft.emmx",
+        "com.sec.android.app.sbrowser",
+        "com.duckduckgo.mobile.android",
+        "com.vivaldi.browser",
+        "com.kiwibrowser.browser",
+    )
+
+    private fun installedBrowserPackages(): Set<String> {
+        val packages = linkedSetOf<String>()
+        runCatching {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com/"))
+            Application.application.packageManager
+                .queryIntentActivities(intent, PackageManager.MATCH_ALL)
+                .forEach { info ->
+                    val packageName = info.activityInfo?.packageName ?: return@forEach
+                    if (packageName != Application.application.packageName) {
+                        packages += packageName
+                    }
+                }
+        }
+        for (packageName in BROWSER_PACKAGES) {
+            runCatching {
+                Application.application.packageManager.getApplicationInfo(packageName, 0)
+                packages += packageName
+            }
+        }
+        return packages
+    }
+
+    /**
+     * Include mode is the one setting that can make the VPN look connected while every web
+     * page bypasses it: only the selected packages are captured, and a list of Telegram and
+     * YouTube has no browser in it. Add the installed browsers once, then leave the list
+     * alone so a deliberate removal stays removed.
+     *
+     * The version marker exists because the first release of this migration could spend its
+     * one-shot flag on an empty list (before the later check), leaving those installs without
+     * a browser forever. Version 0–1 means "not repaired yet"; only a completed run at
+     * [BROWSER_MIGRATION_VERSION] suppresses a later re-add.
+     */
+    private fun ensureBrowserInPerAppInclude() {
+        if (!Vendor.isPerAppProxyAvailable() || !Settings.perAppProxyEnabled) return
+        if (Settings.getEffectivePerAppProxyMode() != Settings.PER_APP_PROXY_INCLUDE) return
+        if (Settings.perAppProxyBrowserMigrationVersion >= BROWSER_MIGRATION_VERSION) return
+        val current = Settings.perAppProxyList
+        if (current.isEmpty()) return
+        val browsers = installedBrowserPackages()
+        if (browsers.isEmpty()) return
+        if (current.none { it in browsers }) {
+            Settings.perAppProxyList = current + browsers
+            GlobalScope.launch(Dispatchers.Main) {
+                Toast.makeText(
+                    service,
+                    service.getString(R.string.tarn_per_app_browser_added),
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
+        Settings.perAppProxyBrowserMigrationVersion = BROWSER_MIGRATION_VERSION
+    }
+
+    /**
+     * The config to actually run for [profile]. A Tarn profile keeps the share link it was
+     * imported from in a `.vless` sidecar next to the config, so the config is regenerated
+     * with the current generator at every connect; policies that only exist in newly written
+     * configs (QUIC rejection, endpoint exclusion, DNS shape) would otherwise stay frozen at
+     * whatever the installing build produced. Raw profiles have no sidecar and fall back to
+     * the stored file patched in place.
+     */
+    private fun currentProfileContent(profile: Profile, stored: String): String {
+        val file = File(profile.typed.path)
+        val source = runCatching {
+            File(file.parentFile, file.nameWithoutExtension + ".vless")
+                .takeIf { it.isFile }?.readText()?.trim()
+        }.getOrNull()
+        val fallback = VlessImporter.applyCurrentSettings(stored)
+            ?: VlessImporter.applyTunStack(stored)
+            ?: stored
+        if (!source.isNullOrEmpty()) {
+            VlessImporter.rebuildConfig(source)?.let { generated ->
+                return validatedConfig(generated, fallback, "regenerated")
+            }
+        }
+        if (fallback != stored) {
+            return validatedConfig(fallback, stored, "patched")
+        }
+        return stored
+    }
+
+    /**
+     * An in-memory rewrite is not protected by the import path's checkConfig, and a
+     * sidecar can outlive the core that knows its fields. Never replace a loadable
+     * stored file with JSON the bundled core rejects.
+     */
+    private fun validatedConfig(candidate: String, fallback: String, kind: String): String = try {
+        Libbox.checkConfig(candidate)
+        candidate
+    } catch (e: Exception) {
+        Log.w("BoxService", "$kind config rejected by bundled core, using stored shape", e)
+        fallback
+    }
+
     private suspend fun startService() {
         shuttingDown = false
         try {
@@ -183,15 +331,17 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             }
 
             // Profiles are stored as the generator output from the time they were imported.
-            // Revalidate the maintained direct list before the tunnel exists, then apply the
-            // cached/current settings in memory so this connection receives it immediately.
+            // Revalidate the maintained direct list before the tunnel exists, then regenerate
+            // (or patch) the config in memory so this connection receives today's policy
+            // immediately — a stored config written by alpha.79, for example, has no QUIC
+            // rejection rule at all.
             val updatedRuDirectDomainCount =
                 if (Settings.tarnRuDirect && VlessImporter.isManagedConfig(content)) {
                     RuDirectDomainUpdater.refresh()
                 } else {
                     null
                 }
-            content = VlessImporter.applyCurrentSettings(content) ?: content
+            content = currentProfileContent(profile, content)
 
             lastProfileName = profile.name
             withContext(Dispatchers.Main) {
@@ -214,14 +364,44 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                     OverrideOptions().apply {
                         autoRedirect = Settings.autoRedirect
                         if (Vendor.isPerAppProxyAvailable() && Settings.perAppProxyEnabled) {
+                            ensureBrowserInPerAppInclude()
                             val appList = Settings.getEffectivePerAppProxyList()
                             if (Settings.getEffectivePerAppProxyMode() == Settings.PER_APP_PROXY_INCLUDE) {
-                                includePackage =
-                                    PlatformInterfaceWrapper.StringArray((appList + Application.application.packageName).iterator())
+                                // The VPN app itself must stay outside its own tunnel: its
+                                // proxy transport (Cloudflare/WS/WireGuard) and its background
+                                // probes otherwise get routed back into the TUN, which stalls
+                                // large streams after the first few KB. User-selected apps
+                                // remain inside.
+                                // Do not mix addAllowedApplication with
+                                // addDisallowedApplication here: Android rejects that
+                                // ("addAllowedApplication already called"). Leaving the
+                                // VPN app out of the allowed list is enough — its own
+                                // traffic is then not captured by the tunnel.
+                                val selectedApps = appList - Application.application.packageName
+                                if (selectedApps.isEmpty()) {
+                                    // An empty include list means "all apps" to
+                                    // VpnService, which would pull the VPN app itself
+                                    // back in. Fall back to global mode with only the
+                                    // VPN app excluded.
+                                    excludePackage = PlatformInterfaceWrapper.StringArray(
+                                        setOf(Application.application.packageName).iterator(),
+                                    )
+                                } else {
+                                    includePackage =
+                                        PlatformInterfaceWrapper.StringArray(selectedApps.iterator())
+                                }
                             } else {
                                 excludePackage =
-                                    PlatformInterfaceWrapper.StringArray((appList - Application.application.packageName).iterator())
+                                    PlatformInterfaceWrapper.StringArray(
+                                        (appList + Application.application.packageName).iterator(),
+                                    )
                             }
+                        } else {
+                            // Global mode captures every app; keep the VPN app itself
+                            // outside so its transport/probes never loop back into it.
+                            excludePackage = PlatformInterfaceWrapper.StringArray(
+                                setOf(Application.application.packageName).iterator(),
+                            )
                         }
                     },
                 )
@@ -307,7 +487,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             return
         }
         // A recovery reload must retain the cached list that was applied at connection time.
-        content = VlessImporter.applyCurrentSettings(content) ?: content
+        content = currentProfileContent(profile, content)
         lastProfileName = profile.name
         try {
             val olcRtcEndpoint = olcRtcRuntime.startForProfile(File(profile.typed.path))
@@ -316,12 +496,28 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 OverrideOptions().apply {
                     autoRedirect = Settings.autoRedirect
                     if (Vendor.isPerAppProxyAvailable() && Settings.perAppProxyEnabled) {
+                        ensureBrowserInPerAppInclude()
                         val appList = Settings.getEffectivePerAppProxyList()
                         if (Settings.getEffectivePerAppProxyMode() == Settings.PER_APP_PROXY_INCLUDE) {
-                            includePackage = PlatformInterfaceWrapper.StringArray((appList + Application.application.packageName).iterator())
+                            // Only the selected apps are allowed; the VPN app stays out
+                            // of the allowed list, so its own traffic bypasses the TUN.
+                            val selectedApps = appList - Application.application.packageName
+                            if (selectedApps.isEmpty()) {
+                                excludePackage = PlatformInterfaceWrapper.StringArray(
+                                    setOf(Application.application.packageName).iterator(),
+                                )
+                            } else {
+                                includePackage = PlatformInterfaceWrapper.StringArray(selectedApps.iterator())
+                            }
                         } else {
-                            excludePackage = PlatformInterfaceWrapper.StringArray((appList - Application.application.packageName).iterator())
+                            excludePackage = PlatformInterfaceWrapper.StringArray(
+                                (appList + Application.application.packageName).iterator(),
+                            )
                         }
+                    } else {
+                        excludePackage = PlatformInterfaceWrapper.StringArray(
+                            setOf(Application.application.packageName).iterator(),
+                        )
                     }
                 },
             )
@@ -564,10 +760,12 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         recoveryScope.launch {
             stopOlcRtc("forced olcRTC stop failed")
         }
-        // Off the main thread: this is a Room write, and it is only read at boot.
-        GlobalScope.launch(Dispatchers.IO) {
-            runCatching { Settings.startedByUser = false }
-        }
+        // Synchronous, not the old fire-and-forget write: the watchdog task acts on
+        // startedByUser AND a null tunnelStatus (cleared later, in onDestroy). If the
+        // clear lagged past onDestroy, a periodic run landing in that window could
+        // resurrect a tunnel the user just turned off. stopAndAlert clears the same
+        // flag synchronously on its own paths.
+        runCatching { Settings.startedByUser = false }
     }
 
     private fun closeService() {
@@ -608,9 +806,16 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     }
 
     @OptIn(DelicateCoroutinesApi::class)
-    @Suppress("SameReturnValue")
-    internal fun onStartCommand(): Int {
-        if (status.value != Status.Stopped) return Service.START_NOT_STICKY
+    internal fun onStartCommand(intent: Intent?): Int {
+        if (status.value != Status.Stopped) return Service.START_STICKY
+        // A start the system performed on its own (process killed, service recreated)
+        // arrives with a null intent. Resurrect the tunnel only if the user last had it
+        // up: terminate() and stopAndAlert() clear startedByUser, so a deliberate
+        // disconnect is never brought back behind the user's back.
+        if (intent == null && !Settings.startedByUser) {
+            service.stopSelf()
+            return Service.START_NOT_STICKY
+        }
         status.value = Status.Starting
         stopRequested = false
         wakeRecoveryPolicy.reset(Application.powerManager.isInteractive, SystemClock.elapsedRealtime())
@@ -645,7 +850,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             }
             startService()
         }
-        return Service.START_NOT_STICKY
+        return Service.START_STICKY
     }
 
     internal fun onBind(): IBinder = binder
@@ -653,6 +858,9 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     internal fun onDestroy() {
         destroyed = true
         shuttingDown = true
+        runCatching { status.removeObserver(tunnelStatusObserver) }
+            .onFailure { Log.w(TAG, "tunnel status observer detach failed", it) }
+        tunnelStatus = null
         runBlocking(Dispatchers.IO) {
             stopNetworkRecovery()
             runCatching { DefaultNetworkMonitor.stop() }

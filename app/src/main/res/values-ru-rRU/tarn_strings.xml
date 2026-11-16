@@ -44,8 +44,8 @@
     <string name="tarn_servers_delete_confirm_action">Удалить</string>
 
     <string name="tarn_servers_add_title">Добавить сервер</string>
-    <string name="tarn_servers_add_hint">Вставьте ссылку сервера или адрес подписки. Понимаем vless, trojan, ss, vmess, hysteria2, tuic, anytls и olcRTC. Каждый сервер из подписки станет отдельной записью.</string>
-    <string name="tarn_servers_add_placeholder">vless://… trojan://… ss://… или https://…</string>
+    <string name="tarn_servers_add_hint">Вставьте ссылку сервера, конфиг WireGuard/AmneziaWG (.conf или vpn://) или адрес подписки. Понимаем vless, trojan, ss, vmess, hysteria2, tuic, anytls, olcRTC и AmneziaWG. Каждый сервер из подписки станет отдельной записью.</string>
+    <string name="tarn_servers_add_placeholder">vless://… .conf vpn://… или https://…</string>
     <string name="tarn_servers_add_action">Добавить</string>
     <string name="tarn_servers_import_partial">Обработано серверов: %1$d. Пропущено неподдерживаемых или ошибочных ссылок: %2$d.</string>
     <string name="tarn_servers_qr_unsupported">В QR-коде нет ссылки сервера или адреса подписки.</string>
@@ -58,6 +58,19 @@
     <string name="tarn_shield_dns_desc">Использовать DNS TarnVPN для защиты запросов</string>
     <string name="tarn_shield_autoconnect">Автоподключение</string>
     <string name="tarn_shield_autoconnect_desc">Подключаться к VPN при запуске приложения</string>
+    <string name="tarn_shield_watchdog">Автовосстановление туннеля</string>
+    <string name="tarn_shield_watchdog_desc">Поднять VPN заново, если его убьёт сбой или система. О каждом таком случае придёт уведомление</string>
+
+    <string name="tarn_lockdown_title">Защита при разрыве</string>
+    <string name="tarn_lockdown_body">«Запретить обход VPN» защищает только работающий туннель. Чтобы трафик оставался заблокированным после сбоя или остановки, включите в системных настройках VPN «Всегда включённый VPN» и «Блокировать соединения без VPN».</string>
+    <string name="tarn_lockdown_open">Открыть настройки</string>
+    <string name="tarn_lockdown_later">Позже</string>
+
+    <string name="tarn_watchdog_channel_name">Восстановление туннеля</string>
+    <string name="tarn_watchdog_recovered_title">Туннель восстановлен</string>
+    <string name="tarn_watchdog_recovered_body">Соединение оборвалось, и TarnVPN поднял его автоматически. Часть трафика могла пройти без защиты — проверьте статус в приложении.</string>
+    <string name="tarn_watchdog_failed_title">Туннель не работает</string>
+    <string name="tarn_watchdog_failed_body">Не удалось восстановить соединение автоматически. Откройте приложение, чтобы переподключиться.</string>
 
     <string name="tarn_dns_provider">DNS-резолвер</string>
     <string name="tarn_dns_title">DNS-резолвер</string>
@@ -128,6 +141,10 @@
     <string name="tarn_connection_lab_section_network">Параметры соединения</string>
     <string name="tarn_connection_lab_quic">Политика QUIC</string>
     <string name="tarn_connection_lab_mtu">MTU туннеля</string>
+    <string name="tarn_connection_lab_tun_stack">Стек TUN</string>
+    <string name="tarn_connection_lab_tun_stack_gvisor">gVisor (рекомендуется)</string>
+    <string name="tarn_connection_lab_tun_stack_mixed">mixed (системный TCP + gVisor UDP)</string>
+    <string name="tarn_connection_lab_tun_stack_system">system</string>
     <string name="tarn_connection_lab_ip_strategy">Стратегия IP</string>
     <string name="tarn_connection_lab_dns_route">Маршрут защищённого DNS</string>
     <string name="tarn_connection_lab_log_level">Уровень журналирования</string>
@@ -229,4 +246,23 @@
     </plurals>
     <string name="tarn_update_not_configured">В этой сборке проверка обновлений ещё не настроена.</string>
     <string name="tarn_apply_failed">Не удалось применить изменение к запущенному VPN.</string>
+    <string name="tarn_shield_boot_autostart">Запуск при загрузке</string>
+    <string name="tarn_shield_boot_autostart_desc">Поднимать VPN после перезагрузки, если он был включён до неё</string>
+
+    <string name="tarn_subscriptions_interval">Обновлять каждые</string>
+    <string name="tarn_subscriptions_interval_6">6 ч</string>
+    <string name="tarn_subscriptions_interval_12">12 ч</string>
+    <string name="tarn_subscriptions_interval_24">24 ч</string>
+    <string name="tarn_subscriptions_interval_48">48 ч</string>
+
+    <string name="tarn_connection_lab_mux">Мультиплексирование (mux)</string>
+    <string name="tarn_connection_lab_mux_desc">Несколько потоков через одно соединение. Только для серверов на чистом TCP — XHTTP и gRPC его игнорируют</string>
+
+    <string name="tarn_servers_share">Поделиться сервером</string>
+    <string name="tarn_export_title">Ссылка на сервер</string>
+    <string name="tarn_export_copy">Копировать</string>
+    <string name="tarn_export_share">Поделиться</string>
+    <string name="tarn_export_copied">Ссылка скопирована</string>
+    <string name="tarn_export_no_link">У этого сервера нет исходной ссылки для экспорта</string>
+<string name="tarn_connection_lab_xhttp_pool">Пул XHTTP</string>
 </resources>

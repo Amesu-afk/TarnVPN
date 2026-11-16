@@ -55,6 +55,19 @@
     <string name="tarn_shield_dns_desc">透過 TarnVPN DNS 解析查詢</string>
     <string name="tarn_shield_autoconnect">自動連線</string>
     <string name="tarn_shield_autoconnect_desc">應用程式啟動時連線到 VPN</string>
+    <string name="tarn_shield_watchdog">自動復原隧道</string>
+    <string name="tarn_shield_watchdog_desc">系統回收或當機導致 VPN 中斷時自動重連，並透過通知告知</string>
+
+    <string name="tarn_lockdown_title">中斷時的保護</string>
+    <string name="tarn_lockdown_body">「防止繞過 VPN」只能保護正在運作的隧道。若要讓當機或停止後流量仍被封鎖，請在系統 VPN 設定中開啟「永遠開啟的 VPN」和「封鎖未使用 VPN 的連線」。</string>
+    <string name="tarn_lockdown_open">開啟設定</string>
+    <string name="tarn_lockdown_later">稍後</string>
+
+    <string name="tarn_watchdog_channel_name">隧道復原</string>
+    <string name="tarn_watchdog_recovered_title">隧道已復原</string>
+    <string name="tarn_watchdog_recovered_body">連線中斷後 TarnVPN 已自動重新啟動。期間部分流量可能未受保護，請在應用程式中確認狀態。</string>
+    <string name="tarn_watchdog_failed_title">隧道已中斷</string>
+    <string name="tarn_watchdog_failed_body">自動復原失敗，請開啟應用程式重新連線。</string>
 
     <string name="tarn_dns_provider">DNS 解析器</string>
     <string name="tarn_dns_title">DNS 解析器</string>
@@ -241,4 +254,23 @@
     <plurals name="usbip_notification_text">
         <item quantity="other">正在共用 %1$d 個 USB 裝置</item>
     </plurals>
+    <string name="tarn_shield_boot_autostart">開機啟動</string>
+    <string name="tarn_shield_boot_autostart_desc">重新開機後若先前已連線則自動恢復 VPN</string>
+
+    <string name="tarn_subscriptions_interval">自動更新間隔</string>
+    <string name="tarn_subscriptions_interval_6">6 時</string>
+    <string name="tarn_subscriptions_interval_12">12 時</string>
+    <string name="tarn_subscriptions_interval_24">24 時</string>
+    <string name="tarn_subscriptions_interval_48">48 時</string>
+
+    <string name="tarn_connection_lab_mux">多工 (mux)</string>
+    <string name="tarn_connection_lab_mux_desc">透過單一連線承載多個代理串流。僅支援純 TCP 伺服器 — XHTTP 與 gRPC 會忽略</string>
+
+    <string name="tarn_servers_share">分享伺服器</string>
+    <string name="tarn_export_title">伺服器連結</string>
+    <string name="tarn_export_copy">複製</string>
+    <string name="tarn_export_share">分享</string>
+    <string name="tarn_export_copied">連結已複製</string>
+    <string name="tarn_export_no_link">此伺服器沒有可匯出的原始連結</string>
+<string name="tarn_connection_lab_xhttp_pool">XHTTP 連線池</string>
 </resources>
