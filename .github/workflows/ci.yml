@@ -83,8 +83,10 @@ jobs:
           cd ../core
           git submodule update --init --depth 1 --recursive
           go run ./cmd/internal/build_libbox -target android -platform android/arm64
-          mkdir -p ../app/libs
-          cp libbox.aar ../app/libs/
+          mkdir -p "$GITHUB_WORKSPACE/app/libs"
+          cp libbox.aar "$GITHUB_WORKSPACE/app/libs/"
+      - name: Verify AAR
+        run: test -s app/libs/libbox.aar
 
       - name: Unit tests
         run: ./gradlew --no-daemon testOtherDebugUnitTest
