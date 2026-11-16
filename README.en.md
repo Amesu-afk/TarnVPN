@@ -11,12 +11,12 @@ Import a server link or subscription, choose which apps use the VPN, and configu
 DNS in a focused interface available in English and Russian. Bring your own server or subscription.
 
 [![Android 6+](https://img.shields.io/badge/Android-6.0%2B-3ddc84?logo=android&logoColor=white)](#install)
-[![Prerelease](https://img.shields.io/badge/release-1.14.0--alpha.68-8b5cf6)](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.68)
+[![Prerelease](https://img.shields.io/badge/release-1.14.0--alpha.96-8b5cf6)](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.96)
 [![License GPLv3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
-**[Download APK for Android 6+](https://github.com/Amesu-afk/TarnVPN/releases/download/v1.14.0-alpha.68/TarnVPN-1.14.0-alpha.68-universal.apk)** ·
-[Android 5](https://github.com/Amesu-afk/TarnVPN/releases/download/v1.14.0-alpha.68/TarnVPN-1.14.0-alpha.68-legacy-android-5-universal.apk) ·
-[Release notes](releases/v1.14.0-alpha.68.md) ·
+**[Download APK for Android 6+](https://github.com/Amesu-afk/TarnVPN/releases/download/v1.14.0-alpha.96/TarnVPN-1.14.0-alpha.96-universal.apk)** ·
+[Android 5](https://github.com/Amesu-afk/TarnVPN/releases/download/v1.14.0-alpha.96/TarnVPN-1.14.0-alpha.96-legacy-android-5-universal.apk) ·
+[Release notes](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.96) ·
 [Report a bug](https://github.com/Amesu-afk/TarnVPN/issues/new/choose)
 
 ## Quick start
@@ -25,14 +25,14 @@ DNS in a focused interface available in English and Russian. Bring your own serv
 2. Tap **+** and import a server link or HTTPS subscription URL.
 3. Select a server, connect, and accept Android's VPN connection request.
 
-## New in alpha.68
+## New in alpha.96
 
-- **Network recovery:** a Wi-Fi/mobile handover received during a reset is queued and handled afterward.
-- **Targeted XHTTP recovery:** a timeout retires the affected pool member while preserving healthy siblings.
-- **XHTTP lifecycle fixes:** bounded HTTP/2 opening, upload/download cleanup, and diagnostics showing where a request waits.
-
-This is a prerelease. Local tests and signed APK checks passed; physical-phone checks for the
-reported stalls and updating over the previous version are still pending.
+One release on top of alpha.89. The tunnel now survives process death (a watchdog restores it and
+notifies), boot autostart and a one-time Always-on VPN onboarding exist, the app's own requests go
+back through the tunnel instead of around it, and privacy fixes landed (DNS cache out of backups,
+credentials redacted in reports, User-Agent without build or locale). The core gained XHTTP pool
+width and `download_settings`; the app adds mux for TCP, server export with QR, and a subscription
+refresh interval. [Full changelog](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.96).
 
 ## No bundled VPN servers
 
@@ -56,33 +56,41 @@ can be turned off.
   config reload keeps the active WebRTC session; if its client fully exits, the app attempts to
   reconnect it. The local SOCKS5 port and credentials are created anew for each session.
 - **Subscriptions** are first-class: refresh diffs by link, keeps your selection, de-duplicates.
+  Each subscription has its own auto-update toggle; the shared interval is 6/12/24/48 hours and
+  refreshes run when the app returns to the foreground, not in the background.
 - **Split tunnelling** per application, with include/exclude modes.
-- **Block VPN bypass** — keeps apps inside the running VPN service. For protection after the service stops, enable Android Always-on VPN and Block connections without VPN.
+- **Server export** — a row action hands out the original share link as a QR code, copyable text,
+  or through the system share sheet.
+- **Block VPN bypass** — keeps apps inside the running VPN service. For protection after the
+  service stops, enable Android Always-on VPN and Block connections without VPN.
+- **Tunnel recovery** — a watchdog restores the tunnel if the process crashes or the system kills
+  it, with a notification every time; a manual disconnect stays disconnected. Optional start on
+  boot restores the tunnel after a reboot.
 - **DNS you can reason about**: DoH presets or your own resolver, and a switch for whether lookups
   travel through the tunnel (the exit's region answers) or straight out (faster, reveals your
   region). Cold lookups for media CDNs are kept off the tunnel so short-video feeds do not stall
   on every clip.
 - **Anti-DPI knobs** that the core actually honours: TLS fragmentation over REALITY, QUIC policy,
-  MTU, IPv6 strategy, hostname-vs-address destinations.
+  MTU, TUN stack (gVisor/mixed/system), IPv6 strategy, stream muxing for plain-TCP outbounds,
+  XHTTP pool width, hostname-vs-address destinations.
 - Light and dark themes, in-app log viewer, and the full upstream sing-box interface still
   reachable underneath for anything the shell does not cover.
 
 ## Recovery after sleep
 
-In alpha.68, the enabled sleep/network recovery setting also handles waking after 60 seconds
-with the screen off and deep/light idle on the same Wi-Fi. It resets core network/DNS
-connections while retaining the VPN interface. XHTTP closes stale sockets and upload pipes;
-DoH retries once only across an observed transport reset within its original deadline.
-These client fixes still need verification after sleep on a physical phone.
+The sleep/network recovery setting handles waking after 60 seconds with the screen off and
+deep/light idle on the same Wi-Fi. It resets core network/DNS connections while retaining the VPN
+interface. XHTTP closes stale sockets and upload pipes; DoH retries once only across an observed
+transport reset within its original deadline.
 
 ## Install
 
 Grab the **universal** APK from [Releases](https://github.com/Amesu-afk/TarnVPN/releases).
 
-[Alpha.68](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.68) is a prerelease.
+[Alpha.96](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.96) is a prerelease.
 The in-app updater skips prereleases on the Stable track; select the Beta track to receive alpha
-versions. olcRTC, recovery after interruption, and updating this APK over a previous one still
-need testing on a physical phone.
+versions. The build is device-tested, and updating the APK over a previous alpha installs without
+uninstalling.
 
 | Build | Android |
 |---|---|
@@ -99,20 +107,20 @@ can be turned off in settings.
 
 ## Build from source
 
-To reproduce the alpha.68 build:
+To reproduce the alpha.96 build:
 
 - **OpenJDK 17 or 21**.
 - Android SDK with **NDK 28.0.13004108**.
-- **Go 1.26.5** with `gomobile`, only if you rebuild the core; alpha.68 used Go 1.26.5.
+- **Go 1.26.5** with `gomobile`, only if you rebuild the core; alpha.96 used Go 1.26.5.
 
 ```bash
-# Core and app source for alpha.68
+# Core and app source for alpha.96
 git clone https://github.com/Amesu-afk/sing-box-lx
 cd sing-box-lx
-git checkout tarnvpn-v1.14.0-alpha.68
+git checkout tarnvpn-v1.14.0-alpha.96
 git submodule sync --recursive
 git submodule update --init --recursive
-git -C clients/android checkout v1.14.0-alpha.68
+git -C clients/android checkout v1.14.0-alpha.96
 
 # Build the core: AARs are not stored in this repository
 go run ./cmd/internal/build_libbox -target android   # emits libbox.aar + libbox-legacy.aar
@@ -153,7 +161,8 @@ seen to emit a 40% larger, wrong APK from a stale cache.
 > Our own core patches (the XHTTP transport pool, TLS fragmentation over REALITY,
 > `override_destination` on the sniff action, the stream-one path fix, and the mobile olcRTC
 > integration) sit in a downstream copy at [Amesu-afk/sing-box-lx](https://github.com/Amesu-afk/sing-box-lx).
-> Alpha.68 uses a core based on `v1.14.0-lx.24`; its bundled `libbox.aar` is built from that copy.
+> Alpha.96 is built from the `tarnvpn-v1.14.0-alpha.96` tag of that copy: upstream 1.14.0 plus the
+> lx layer and our patches, including the XHTTP pool (`xmux`) and `download_settings`.
 > The olcRTC client code is adapted from [Oleglog/OlConnect_manager](https://github.com/Oleglog/OlConnect_manager/tree/c267dd30b0bc).
 >
 > **None of the projects above endorse this one or are affiliated with it.**
