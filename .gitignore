@@ -19,5 +19,12 @@ local.properties.*
 # leaking it means anyone can publish a build users' phones accept as an update.
 *.keystore
 *.jks
+# Local diagnostic artefacts: HAR captures and logs routinely carry Authorization
+# headers, cookies, subscription URLs and personal data. Never commit or attach them.
+*.har
+*.hprof
+*.log
+*.orig
+*.rej
 /CLAUDE.md
 /.claude/

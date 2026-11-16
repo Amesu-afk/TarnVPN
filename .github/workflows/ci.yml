@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [tarnvpn]
+
+# Least privilege by default. Nothing here receives the signing keystore or a
+# long-lived token: the app is built with the debug key, and only the automatic
+# read-only GITHUB_TOKEN exists. Never add `pull_request_target` to this file —
+# it hands secrets to code from forks.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    name: Build and unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - name: Resolve core tag
+        run: |
+          version="$(grep '^VERSION_NAME=' version.properties | cut -d= -f2)"
+          echo "CORE_TAG=tarnvpn-v${version}" >> "$GITHUB_ENV"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.5'
+          cache: false
+
+      # The AARs are deliberately not stored in git (125 MB each). Build them
+      # once per core tag and reuse; the single arm64 target keeps a cold build
+      # inside the job budget without changing what the tests cover.
+      - name: Restore libbox AAR
+        id: aar
+        uses: actions/cache@v4
+        with:
+          path: app/libs
+          key: libbox-${{ env.CORE_TAG }}-arm64-v1
+      - name: Install NDK
+        if: steps.aar.outputs.cache-hit != 'true'
+        run: |
+          if [ ! -d "$ANDROID_HOME/ndk/28.0.13004108" ]; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;28.0.13004108" > /dev/null
+          fi
+      - name: Install gomobile
+        if: steps.aar.outputs.cache-hit != 'true'
+        run: |
+          go install github.com/sagernet/gomobile/cmd/gomobile@v0.1.12
+          go install github.com/sagernet/gomobile/cmd/gobind@v0.1.12
+      - name: Build libbox
+        if: steps.aar.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "$CORE_TAG" https://github.com/Amesu-afk/sing-box-lx ../core
+          cd ../core
+          git submodule update --init --depth 1 --recursive
+          go run ./cmd/internal/build_libbox -target android -platform android/arm64
+          mkdir -p "$GITHUB_WORKSPACE/app/libs"
+          cp libbox.aar "$GITHUB_WORKSPACE/app/libs/"
+      - name: Verify AAR
+        run: test -s app/libs/libbox.aar
+
+      - name: Unit tests
+        run: ./gradlew --no-daemon testOtherDebugUnitTest
+      - name: Build debug APK
+        run: ./gradlew --no-daemon assembleOtherDebug
