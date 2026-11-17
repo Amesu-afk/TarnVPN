@@ -176,10 +176,10 @@ alpha.96 ставится без удаления и сохраняет проф
 - **Go 1.26.5** с `gomobile` — только если пересобираете ядро; для 1.14.0 использован Go 1.26.5.
 
 ```bash
-# Ядро — снимок alpha.96, приложение — тег v1.14.0
+# Ядро — тег tarnvpn-v1.14.0 (тот же снимок, что alpha.96), приложение — v1.14.0
 git clone https://github.com/Amesu-afk/sing-box-lx
 cd sing-box-lx
-git checkout tarnvpn-v1.14.0-alpha.96
+git checkout tarnvpn-v1.14.0
 git submodule sync --recursive
 git submodule update --init --recursive
 git -C clients/android checkout v1.14.0
@@ -245,7 +245,7 @@ ALIAS_PASS=…
 > Наши собственные правки ядра (пул транспортов XHTTP, фрагментация TLS поверх REALITY,
 > `override_destination` у действия sniff, путь для stream-one и мобильная интеграция olcRTC)
 > лежат в downstream-копии [Amesu-afk/sing-box-lx](https://github.com/Amesu-afk/sing-box-lx).
-> Ядро для 1.14.0 — тот же снимок, что в alpha.96: тег `tarnvpn-v1.14.0-alpha.96` этой копии,
+> Ядро для 1.14.0 — тот же коммит, что в alpha.96: тег `tarnvpn-v1.14.0` этой копии,
 > upstream 1.14.0 плюс lx-слой и наши правки, включая пул XHTTP (`xmux`) и `download_settings`.
 > Клиентский код olcRTC адаптирован из [Oleglog/OlConnect_manager](https://github.com/Oleglog/OlConnect_manager/tree/c267dd30b0bc).
 >

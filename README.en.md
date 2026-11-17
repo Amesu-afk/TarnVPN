@@ -116,10 +116,10 @@ To reproduce the 1.14.0 build:
 - **Go 1.26.5** with `gomobile`, only if you rebuild the core; 1.14.0 used Go 1.26.5.
 
 ```bash
-# Core is the alpha.96 snapshot; the app is tag v1.14.0
+# Core is tag tarnvpn-v1.14.0 (same snapshot as alpha.96); app is v1.14.0
 git clone https://github.com/Amesu-afk/sing-box-lx
 cd sing-box-lx
-git checkout tarnvpn-v1.14.0-alpha.96
+git checkout tarnvpn-v1.14.0
 git submodule sync --recursive
 git submodule update --init --recursive
 git -C clients/android checkout v1.14.0
@@ -163,7 +163,7 @@ seen to emit a 40% larger, wrong APK from a stale cache.
 > Our own core patches (the XHTTP transport pool, TLS fragmentation over REALITY,
 > `override_destination` on the sniff action, the stream-one path fix, and the mobile olcRTC
 > integration) sit in a downstream copy at [Amesu-afk/sing-box-lx](https://github.com/Amesu-afk/sing-box-lx).
-> 1.14.0 uses the same core snapshot as alpha.96: the `tarnvpn-v1.14.0-alpha.96` tag of that copy,
+> 1.14.0 uses the same core commit as alpha.96: the `tarnvpn-v1.14.0` tag of that copy,
 > upstream 1.14.0 plus the
 > lx layer and our patches, including the XHTTP pool (`xmux`) and `download_settings`.
 > The olcRTC client code is adapted from [Oleglog/OlConnect_manager](https://github.com/Oleglog/OlConnect_manager/tree/c267dd30b0bc).

@@ -45,7 +45,12 @@ jobs:
       - name: Resolve core tag
         run: |
           version="$(grep '^VERSION_NAME=' version.properties | cut -d= -f2)"
-          echo "CORE_TAG=tarnvpn-v${version}" >> "$GITHUB_ENV"
+          core_tag="$(grep '^CORE_TAG=' version.properties | cut -d= -f2- || true)"
+          if [ -z "$core_tag" ]; then
+            core_tag="tarnvpn-v${version}"
+          fi
+          echo "CORE_TAG=${core_tag}" >> "$GITHUB_ENV"
+          echo "Using core tag: ${core_tag}"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
