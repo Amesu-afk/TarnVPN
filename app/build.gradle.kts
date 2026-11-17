@@ -231,13 +231,13 @@ dependencies {
     val roomVersion23 = "2.8.4"
     val workVersion23 = "2.11.1"
     val cameraVersion23 = "1.5.3"
-    val browserVersion23 = "1.9.0"
+    val browserVersion23 = "1.10.0"
 
     val lifecycleVersion21 = "2.9.4"
     val roomVersion21 = "2.7.2"
     val workVersion21 = "2.10.5"
     val cameraVersion21 = "1.4.2"
-    val browserVersion21 = "1.9.0"
+    val browserVersion21 = "1.10.0"
 
     // Common dependencies (no API level difference)
     implementation("androidx.core:core-ktx:1.17.0")
