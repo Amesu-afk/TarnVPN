@@ -66,7 +66,7 @@ jobs:
       # inside the job budget without changing what the tests cover.
       - name: Restore libbox AAR
         id: aar
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: app/libs
           key: libbox-${{ env.CORE_TAG }}-arm64-v1
