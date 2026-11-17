@@ -51,7 +51,7 @@ jobs:
           fi
           echo "CORE_TAG=${core_tag}" >> "$GITHUB_ENV"
           echo "Using core tag: ${core_tag}"
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
