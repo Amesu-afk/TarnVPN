@@ -136,7 +136,7 @@ fun TarnShieldScreen(
             TarnPanel {
                 TarnToggleRow(
                     title = stringResource(R.string.tarn_shield_kill_switch),
-                    description = stringResource(R.string.tarn_shield_kill_switch_desc),
+                    description = null,
                     checked = state.killSwitch,
                     onCheckedChange = onKillSwitchChange,
                 )
@@ -155,7 +155,7 @@ fun TarnShieldScreen(
                 TarnRowDivider()
                 TarnToggleRow(
                     title = stringResource(R.string.tarn_shield_dns),
-                    description = stringResource(R.string.tarn_shield_dns_desc),
+                    description = null,
                     checked = state.dnsProtection,
                     onCheckedChange = onDnsProtectionChange,
                 )
@@ -170,7 +170,7 @@ fun TarnShieldScreen(
                 TarnRowDivider()
                 TarnToggleRow(
                     title = stringResource(R.string.tarn_shield_autoconnect),
-                    description = stringResource(R.string.tarn_shield_autoconnect_desc),
+                    description = null,
                     checked = state.autoConnect,
                     onCheckedChange = onAutoConnectChange,
                 )
@@ -181,7 +181,7 @@ fun TarnShieldScreen(
                 // which the Always-on row above is still the only full answer to.
                 TarnToggleRow(
                     title = stringResource(R.string.tarn_shield_watchdog),
-                    description = stringResource(R.string.tarn_shield_watchdog_desc),
+                    description = null,
                     checked = state.watchdog,
                     onCheckedChange = onWatchdogChange,
                 )
@@ -191,7 +191,7 @@ fun TarnShieldScreen(
                 // Always-on VPN is the only thing that can bring it back.
                 TarnToggleRow(
                     title = stringResource(R.string.tarn_shield_boot_autostart),
-                    description = stringResource(R.string.tarn_shield_boot_autostart_desc),
+                    description = null,
                     checked = state.bootAutostart,
                     onCheckedChange = onBootAutostartChange,
                 )
@@ -203,7 +203,7 @@ fun TarnShieldScreen(
             TarnPanel {
                 TarnToggleRow(
                     title = stringResource(R.string.tarn_shield_ru_direct),
-                    description = stringResource(R.string.tarn_shield_ru_direct_desc),
+                    description = null,
                     checked = state.ruDirect,
                     onCheckedChange = onRuDirectChange,
                 )
@@ -227,7 +227,7 @@ fun TarnShieldScreen(
                 TarnRowDivider()
                 TarnToggleRow(
                     title = stringResource(R.string.tarn_shield_dns_tunnel),
-                    description = stringResource(R.string.tarn_shield_dns_tunnel_desc),
+                    description = null,
                     checked = state.dnsThroughVpn,
                     onCheckedChange = onDnsThroughVpnChange,
                     enabled = state.dnsProtection,
@@ -362,6 +362,13 @@ fun TarnShieldScreen(
                     color = TarnColors.TextDim,
                 )
             }
+            // CC BY 4.0 requires the geodata credit to be visible, not only in a NOTICE file.
+            Text(
+                text = stringResource(R.string.tarn_shield_geodata),
+                style = TarnMetaStyle,
+                color = TarnColors.TextDim,
+                modifier = Modifier.padding(top = 4.dp),
+            )
             Spacer(Modifier.height(40.dp))
         }
     }

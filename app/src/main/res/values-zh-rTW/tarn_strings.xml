@@ -27,7 +27,7 @@
     <string name="tarn_action_dismiss">關閉</string>
 
     <string name="tarn_title_servers">伺服器</string>
-    <string name="tarn_title_shield">保護</string>
+    <string name="tarn_title_shield">設定</string>
     <string name="tarn_servers_tab_recommended">建議</string>
     <string name="tarn_servers_tab_all">所有國家/地區</string>
     <string name="tarn_servers_country_all">全部</string>
@@ -100,12 +100,12 @@
     <string name="tarn_shield_dns_tunnel">DNS 經由 VPN</string>
     <string name="tarn_shield_dns_tunnel_desc">開啟：DNS 經由通道，DNS 洩漏測試會顯示出口地區，但高負載下解析較慢。關閉：快速直接 DNS（仍加密），但測試會顯示你的真實地區。</string>
     <string name="tarn_shield_ipv6">IPv6</string>
-    <string name="tarn_shield_ipv6_desc">也讓 IPv6 流量通過通道；否則具原生 IPv6 的應用程式可能完全繞過 VPN。</string>
+    <string name="tarn_shield_ipv6_desc">透過通道傳輸 IPv6 流量</string>
     <string name="tarn_shield_fragment">TLS 分段</string>
-    <string name="tarn_shield_fragment_desc">將 TLS 交握拆分到多個封包，使依賴其形狀的過濾更難比對。也適用於 Reality。若伺服器可在 Wi‑Fi 連線卻無法在行動網路連線，請嘗試此項。</string>
+    <string name="tarn_shield_fragment_desc">TLS 被封鎖時使用</string>
 
     <string name="tarn_connection_lab_entry">連線實驗室</string>
-    <string name="tarn_connection_lab_entry_desc">調整路由與完整測試參數</string>
+    <string name="tarn_connection_lab_entry_desc">路由與測試</string>
     <string name="tarn_connection_lab_title">連線實驗室</string>
     <string name="tarn_connection_lab_intro">每次只變更一個參數，並在相同網路中比較結果。自動值是最安全的預設選項。</string>
     <string name="tarn_connection_lab_section_network">連線參數</string>
@@ -133,7 +133,7 @@
     <string name="tarn_servers_unmanaged">設定不會套用；請刪除後重新新增。</string>
     <string name="tarn_servers_insecure_tls">未驗證伺服器憑證；此流量可能遭到攔截。</string>
     <string name="tarn_shield_always_on">系統一律開啟 VPN</string>
-    <string name="tarn_shield_always_on_desc">上方開關只在服務存活時有效。若服務當機或手機重新啟動，流量會直接送出。只有系統設定能阻止它：開啟「一律開啟 VPN」與「封鎖未使用 VPN 的連線」。開啟 Android 設定。</string>
+    <string name="tarn_shield_always_on_desc">開啟 Android 設定</string>
     <string name="tarn_connection_lab_ipv4_only_warning">所有流量都會走 IPv4，而且應用程式會被告知該名稱完全沒有 IPv6。請同時保持「將主機名稱傳送到伺服器」開啟，否則某些 Google 服務會回覆「在你所在的地區無法使用」。</string>
     <string name="tarn_connection_lab_tls_fingerprint">TLS 指紋</string>
     <string name="tarn_connection_lab_tls_fingerprint_auto">來自連結</string>
@@ -183,7 +183,7 @@
     <string name="tarn_shield_theme_dark">深色</string>
     <string name="tarn_shield_section_split">分流</string>
     <string name="tarn_shield_split">分流</string>
-    <string name="tarn_shield_split_desc">只讓部分應用程式通過 VPN</string>
+    <string name="tarn_shield_split_desc">僅部分應用</string>
     <string name="tarn_shield_split_mode_exclude">除所選應用程式外全部</string>
     <string name="tarn_shield_split_mode_include">僅所選應用程式</string>
     <string name="tarn_shield_split_apps">選擇應用程式</string>

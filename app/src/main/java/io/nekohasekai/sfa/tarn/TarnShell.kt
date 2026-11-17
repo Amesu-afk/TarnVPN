@@ -50,6 +50,7 @@ import io.nekohasekai.sfa.constant.Status
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.tarn.component.TarnLockdownDialog
 import io.nekohasekai.sfa.tarn.component.TarnShareDialog
+import io.nekohasekai.sfa.tarn.data.GeoIpCountry
 import io.nekohasekai.sfa.tarn.data.Latency
 import io.nekohasekai.sfa.tarn.data.TarnDns
 import io.nekohasekai.sfa.tarn.data.TarnServerRepository
@@ -343,6 +344,21 @@ fun TarnShell(
     val selectedProfileId = dashboardState.selectedProfileId
     val selectedServer = serversState.servers.firstOrNull { it.profileId == selectedProfileId }
 
+    // The profile name is a claim; the address is a fact. Look it up locally when the tunnel
+    // comes up, so the map can prefer the country the server is actually registered in. A
+    // miss or a failed DNS lookup just leaves the name-based country in place.
+    var ipCountryCode by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(selectedProfileId, selectedServer?.host, serviceStatus == Status.Started) {
+        val host = selectedServer?.host
+        if (serviceStatus != Status.Started || host == null) {
+            ipCountryCode = null
+            return@LaunchedEffect
+        }
+        ipCountryCode = withContext(Dispatchers.IO) {
+            GeoIpCountry.countryForHost(context, host)
+        }
+    }
+
     // olcRTC has no fixed endpoint to TCP-probe. Its native liveness loop already measures
     // the encrypted carrier RTT, so read that snapshot without opening another connection.
     LaunchedEffect(serviceStatus, selectedProfileId, selectedServer?.protocol) {
@@ -434,6 +450,9 @@ fun TarnShell(
                     serviceStatus = serviceStatus,
                     serverName = selectedServer?.displayName ?: dashboardState.selectedProfileName,
                     serverTag = selectedServer?.tag,
+                    countryCode = ipCountryCode ?: selectedServer?.countryCode,
+                    namedCountryCode = selectedServer?.countryCode,
+                    locatedByIp = ipCountryCode != null,
                     latency = serversState.latencies[selectedProfileId] ?: Latency.Unknown,
                     startTime = dashboardState.serviceStartTime,
                     onToggleConnection = { dashboardViewModel.toggleService() },

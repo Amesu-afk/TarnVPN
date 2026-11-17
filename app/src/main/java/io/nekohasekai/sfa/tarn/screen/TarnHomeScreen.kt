@@ -1,6 +1,8 @@
 package io.nekohasekai.sfa.tarn.screen
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -35,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.constant.Status
 import io.nekohasekai.sfa.tarn.component.GridBackdrop
@@ -44,17 +48,26 @@ import io.nekohasekai.sfa.tarn.component.TarnSectionLabel
 import io.nekohasekai.sfa.tarn.component.TarnStatusPill
 import io.nekohasekai.sfa.tarn.component.TarnWordmark
 import io.nekohasekai.sfa.tarn.component.WorldMapGlyph
+import io.nekohasekai.sfa.tarn.component.WorldMapPanel
 import io.nekohasekai.sfa.tarn.component.hairlineBorder
 import io.nekohasekai.sfa.tarn.data.Latency
+import io.nekohasekai.sfa.tarn.data.regionalFlag
 import io.nekohasekai.sfa.tarn.theme.TarnColors
 import io.nekohasekai.sfa.tarn.theme.TarnMetaStyle
 import kotlinx.coroutines.delay
+import java.util.Locale
 
 @Composable
 fun TarnHomeScreen(
     serviceStatus: Status,
     serverName: String?,
     serverTag: String?,
+    /** ISO-3166 alpha-2 the map should show; the address wins over the name when known. */
+    countryCode: String?,
+    /** ISO-3166 alpha-2 the profile name suggested, shown only when the address disagrees. */
+    namedCountryCode: String?,
+    /** True when [countryCode] came from the server's address rather than its name. */
+    locatedByIp: Boolean,
     latency: Latency,
     startTime: Long?,
     onToggleConnection: () -> Unit,
@@ -64,6 +77,20 @@ fun TarnHomeScreen(
 ) {
     val connected = serviceStatus == Status.Started
     val transitioning = serviceStatus == Status.Starting || serviceStatus == Status.Stopping
+
+    // The map needs room that only exists once the status block moves up: a small gap
+    // instead of the mockup's generous one. Animating it keeps the two states from
+    // snapping the headline between two positions.
+    val headerGap by animateDpAsState(
+        targetValue = if (connected) 24.dp else 64.dp,
+        animationSpec = tween(durationMillis = 320),
+        label = "homeHeaderGap",
+    )
+    val uptimeGap by animateDpAsState(
+        targetValue = if (connected) 24.dp else 32.dp,
+        animationSpec = tween(durationMillis = 320),
+        label = "homeUptimeGap",
+    )
 
     Box(modifier = modifier.fillMaxSize().background(TarnColors.Background)) {
         GridBackdrop(modifier = Modifier.fillMaxSize())
@@ -105,7 +132,7 @@ fun TarnHomeScreen(
                 }
             }
 
-            Spacer(Modifier.height(64.dp))
+            Spacer(Modifier.height(headerGap))
 
             // ---- Status -------------------------------------------------------
             TarnSectionLabel(text = stringResource(R.string.tarn_label_status))
@@ -138,7 +165,7 @@ fun TarnHomeScreen(
                 enter = fadeIn(),
                 exit = fadeOut(),
             ) {
-                Column(modifier = Modifier.padding(top = 32.dp)) {
+                Column(modifier = Modifier.padding(top = uptimeGap)) {
                     UptimeReadout(startTime = startTime ?: 0L)
                     Spacer(Modifier.height(4.dp))
                     Text(
@@ -149,7 +176,25 @@ fun TarnHomeScreen(
                 }
             }
 
-            Spacer(Modifier.weight(1f))
+            // ---- Route map -----------------------------------------------------
+            // A weighted Box owns this slot whether the map is there or not: without it,
+            // AnimatedVisibility measures to zero when hidden and the whole column packs
+            // to the top, leaving the connect button right under the status line.
+            Box(
+                modifier = Modifier.weight(1f),
+                contentAlignment = Alignment.Center,
+            ) {
+                MapVisibility(visible = connected) {
+                    LocationMap(
+                        countryCode = countryCode,
+                        namedCountryCode = namedCountryCode,
+                        locatedByIp = locatedByIp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 320.dp),
+                    )
+                }
+            }
 
             // ---- Primary action ------------------------------------------------
             TarnActionButton(
@@ -174,8 +219,9 @@ fun TarnHomeScreen(
             ServerSummaryCard(
                 serverName = serverName,
                 serverTag = serverTag,
+                countryCode = countryCode,
                 latency = latency,
-                showLatency = connected,
+                connected = connected,
                 onClick = onOpenServers,
                 modifier = Modifier.padding(bottom = 32.dp),
             )
@@ -210,8 +256,9 @@ private fun UptimeReadout(startTime: Long, modifier: Modifier = Modifier) {
 private fun ServerSummaryCard(
     serverName: String?,
     serverTag: String?,
+    countryCode: String?,
     latency: Latency,
-    showLatency: Boolean,
+    connected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -240,12 +287,109 @@ private fun ServerSummaryCard(
             }
             // Only once a reading actually lands — a brief "measuring…"/"n/a" flash right
             // as the tunnel comes up would read as a contradiction next to "Подключено".
-            if (showLatency && latency is Latency.Ok) {
+            if (connected && latency is Latency.Ok) {
                 Spacer(Modifier.height(8.dp))
                 TarnLatencyReadout(latency)
             }
         }
         Spacer(Modifier.width(16.dp))
-        WorldMapGlyph(highlighted = showLatency)
+        WorldMapGlyph(highlighted = connected, countryCode = countryCode)
     }
 }
+
+/**
+ * The map's fade, kept in its own composable so it resolves to the plain [AnimatedVisibility]
+ * rather than the ColumnScope overload: the weighted Box that reserves the slot is its
+ * parent, not the column itself.
+ */
+@Composable
+private fun MapVisibility(visible: Boolean, content: @Composable () -> Unit) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(animationSpec = tween(durationMillis = 360)),
+        exit = fadeOut(animationSpec = tween(durationMillis = 180)),
+    ) {
+        content()
+    }
+}
+
+/**
+ * Where the tunnel comes out: a label, the country, and the map itself. Deliberately not a
+ * card — no fill and no frame, so the map reads as part of the screen rather than another
+ * panel stacked on it. It is only on screen while connected; an unpinned world over a
+ * disconnected app would say nothing useful.
+ */
+@Composable
+private fun LocationMap(
+    countryCode: String?,
+    namedCountryCode: String?,
+    locatedByIp: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val flag = countryCode?.let(::regionalFlag).orEmpty()
+    val countryName = remember(countryCode) { countryCode?.let(::displayCountryName) }
+    val namedCountryName = remember(namedCountryCode) {
+        namedCountryCode?.let(::displayCountryName)
+    }
+    val locationNote = when {
+        locatedByIp && namedCountryCode != null && namedCountryCode != countryCode ->
+            stringResource(
+                R.string.tarn_home_location_ip_named,
+                namedCountryName ?: namedCountryCode,
+            )
+
+        locatedByIp -> stringResource(R.string.tarn_home_location_ip)
+        // A name-based country is a guess; saying so is what keeps a wrong-looking pin from
+        // reading as a fact the app vouches for.
+        countryCode != null -> stringResource(R.string.tarn_home_location_name)
+        else -> null
+    }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TarnSectionLabel(text = stringResource(R.string.tarn_home_location))
+            Spacer(Modifier.weight(1f))
+            if (countryCode != null) {
+                if (flag.isNotEmpty()) {
+                    Text(text = flag, style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.width(8.dp))
+                }
+                Text(
+                    text = countryName ?: countryCode,
+                    style = TarnMetaStyle.copy(fontSize = 13.sp),
+                    color = TarnColors.TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            } else {
+                Text(
+                    text = stringResource(R.string.tarn_home_country_unknown),
+                    style = TarnMetaStyle,
+                    color = TarnColors.TextDim,
+                    maxLines = 1,
+                )
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        WorldMapPanel(
+            countryCode = countryCode,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (locationNote != null) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = locationNote,
+                style = TarnMetaStyle.copy(fontSize = 11.sp),
+                color = TarnColors.TextDim,
+            )
+        }
+    }
+}
+
+/** Localized country name for an ISO code, or null when the platform has nothing to show. */
+private fun displayCountryName(code: String): String? = Locale.forLanguageTag("und-$code")
+    .getDisplayCountry(Locale.getDefault())
+    .takeIf { it.isNotBlank() }

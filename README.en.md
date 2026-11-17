@@ -12,12 +12,12 @@ DNS in a focused interface available in English and Russian. Bring your own serv
 
 [![Android 6+](https://img.shields.io/badge/Android-6.0%2B-3ddc84?logo=android&logoColor=white)](#install)
 [![CI](https://github.com/Amesu-afk/TarnVPN/actions/workflows/ci.yml/badge.svg)](https://github.com/Amesu-afk/TarnVPN/actions/workflows/ci.yml)
-[![Prerelease](https://img.shields.io/badge/release-1.14.0--alpha.96-8b5cf6)](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.96)
+[![Release](https://img.shields.io/badge/release-1.14.0-3ddc84)](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0)
 [![License GPLv3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 
-**[Download APK for Android 6+](https://github.com/Amesu-afk/TarnVPN/releases/download/v1.14.0-alpha.96/TarnVPN-1.14.0-alpha.96-universal.apk)** ·
-[Android 5](https://github.com/Amesu-afk/TarnVPN/releases/download/v1.14.0-alpha.96/TarnVPN-1.14.0-alpha.96-legacy-android-5-universal.apk) ·
-[Release notes](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.96) ·
+**[Download APK for Android 6+](https://github.com/Amesu-afk/TarnVPN/releases/download/v1.14.0/TarnVPN-1.14.0-universal.apk)** ·
+[Android 5](https://github.com/Amesu-afk/TarnVPN/releases/download/v1.14.0/TarnVPN-1.14.0-legacy-android-5-universal.apk) ·
+[Release notes](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0) ·
 [Questions](https://github.com/Amesu-afk/TarnVPN/discussions) ·
 [Report a bug](https://github.com/Amesu-afk/TarnVPN/issues/new/choose)
 
@@ -27,14 +27,15 @@ DNS in a focused interface available in English and Russian. Bring your own serv
 2. Tap **+** and import a server link or HTTPS subscription URL.
 3. Select a server, connect, and accept Android's VPN connection request.
 
-## New in alpha.96
+## New in 1.14.0
 
-One release on top of alpha.89. The tunnel now survives process death (a watchdog restores it and
-notifies), boot autostart and a one-time Always-on VPN onboarding exist, the app's own requests go
-back through the tunnel instead of around it, and privacy fixes landed (DNS cache out of backups,
-credentials redacted in reports, User-Agent without build or locale). The core gained XHTTP pool
-width and `download_settings`; the app adds mux for TCP, server export with QR, and a subscription
-refresh interval. [Full changelog](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.96).
+First stable release of the 1.14.0 line after alpha.96. While connected, the home screen now shows
+a world map with a pin on the server's country. The country is resolved from the selected server's
+IP through the bundled offline DB-IP table (no external geolocation service), with the profile name
+and hosting cities such as Miami or Frankfurt as fallbacks. The Protection screen is now Settings,
+long toggle descriptions are gone, and the disconnected layout no longer collapses to the top.
+The alpha.96 base — watchdog, Always-on and privacy work — is included.
+[Full changelog](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0).
 
 ## No bundled VPN servers
 
@@ -89,10 +90,9 @@ transport reset within its original deadline.
 
 Grab the **universal** APK from [Releases](https://github.com/Amesu-afk/TarnVPN/releases).
 
-[Alpha.96](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0-alpha.96) is a prerelease.
-The in-app updater skips prereleases on the Stable track; select the Beta track to receive alpha
-versions. The build is device-tested, and updating the APK over a previous alpha installs without
-uninstalling.
+[1.14.0](https://github.com/Amesu-afk/TarnVPN/releases/tag/v1.14.0) is a stable release. The
+in-app updater offers it on the Stable track (and on Beta); installing it over alpha.96 keeps
+profiles and settings.
 
 | Build | Android |
 |---|---|
@@ -109,20 +109,20 @@ can be turned off in settings.
 
 ## Build from source
 
-To reproduce the alpha.96 build:
+To reproduce the 1.14.0 build:
 
 - **OpenJDK 17 or 21**.
 - Android SDK with **NDK 28.0.13004108**.
-- **Go 1.26.5** with `gomobile`, only if you rebuild the core; alpha.96 used Go 1.26.5.
+- **Go 1.26.5** with `gomobile`, only if you rebuild the core; 1.14.0 used Go 1.26.5.
 
 ```bash
-# Core and app source for alpha.96
+# Core is the alpha.96 snapshot; the app is tag v1.14.0
 git clone https://github.com/Amesu-afk/sing-box-lx
 cd sing-box-lx
 git checkout tarnvpn-v1.14.0-alpha.96
 git submodule sync --recursive
 git submodule update --init --recursive
-git -C clients/android checkout v1.14.0-alpha.96
+git -C clients/android checkout v1.14.0
 
 # Build the core: AARs are not stored in this repository
 go run ./cmd/internal/build_libbox -target android   # emits libbox.aar + libbox-legacy.aar
@@ -163,7 +163,8 @@ seen to emit a 40% larger, wrong APK from a stale cache.
 > Our own core patches (the XHTTP transport pool, TLS fragmentation over REALITY,
 > `override_destination` on the sniff action, the stream-one path fix, and the mobile olcRTC
 > integration) sit in a downstream copy at [Amesu-afk/sing-box-lx](https://github.com/Amesu-afk/sing-box-lx).
-> Alpha.96 is built from the `tarnvpn-v1.14.0-alpha.96` tag of that copy: upstream 1.14.0 plus the
+> 1.14.0 uses the same core snapshot as alpha.96: the `tarnvpn-v1.14.0-alpha.96` tag of that copy,
+> upstream 1.14.0 plus the
 > lx layer and our patches, including the XHTTP pool (`xmux`) and `download_settings`.
 > The olcRTC client code is adapted from [Oleglog/OlConnect_manager](https://github.com/Oleglog/OlConnect_manager/tree/c267dd30b0bc).
 >

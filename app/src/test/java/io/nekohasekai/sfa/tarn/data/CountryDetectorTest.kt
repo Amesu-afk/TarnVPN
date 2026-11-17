@@ -21,12 +21,46 @@ class CountryDetectorTest {
         assertEquals("TR", CountryDetector.detect("Türkiye", null))
     }
 
+    /**
+     * Providers commonly prefix a profile with its flag, and that emoji is the most explicit
+     * signal in the whole name — the coffee one is here so any pair of regional indicators
+     * is not mistaken for one.
+     */
+    @Test
+    fun `reads the flag emoji in front of a profile name`() {
+        assertEquals("DE", CountryDetector.detect("🇩🇪 Германия, Берлин", null))
+        assertEquals("JP", CountryDetector.detect("🇯🇵 Tokyo", null))
+        assertNull(CountryDetector.detect("🙂 Fast node", null))
+    }
+
     @Test
     fun `detects multi-word names across any separator`() {
         assertEquals("US", CountryDetector.detect("United States — East", null))
         assertEquals("HK", CountryDetector.detect("Hong, Kong", null))
         assertEquals("HK", CountryDetector.detect("Hong-Kong", null))
         assertEquals("ZA", CountryDetector.detect("South Africa 2", null))
+    }
+
+    /**
+     * Providers commonly name a node after its city and nothing else. "TestMiami-Test" is
+     * the case that showed up as "Страна не определена" on the home screen; the CamelCase
+     * split is what turns the glued prefix back into words the city table can match.
+     */
+    @Test
+    fun `detects a hosting city when the name has no country`() {
+        assertEquals("US", CountryDetector.detect("TestMiami-Test", null))
+        assertEquals("US", CountryDetector.detect("TestMiami", "TestMiami"))
+        assertEquals("US", CountryDetector.detect("New York 01", null))
+        assertEquals("DE", CountryDetector.detect("Frankfurt am Main", null))
+        assertEquals("NL", CountryDetector.detect("Amsterdam-02", null))
+        assertEquals("JP", CountryDetector.detect("Tokyo", null))
+    }
+
+    /** A city inside a longer word is not a location signal, just like a country inside one. */
+    @Test
+    fun `does not match a city inside a longer word`() {
+        assertNull(CountryDetector.detect("Miamiville relay", null))
+        assertNull(CountryDetector.detect("Berliner filter", null))
     }
 
     @Test
@@ -56,8 +90,8 @@ class CountryDetectorTest {
         // Leading, but capitalised as a word rather than written as a code.
         assertNull(CountryDetector.detect("My Server", null))
         assertNull(CountryDetector.detect("It works", null))
-        // Not leading at all.
-        assertNull(CountryDetector.detect("Server in Berlin", null))
+        // Not leading at all. Berlin is a city, not the word "in" being read as India.
+        assertEquals("DE", CountryDetector.detect("Server in Berlin", null))
         assertNull(CountryDetector.detect("Backup is fast", null))
     }
 

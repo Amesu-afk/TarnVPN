@@ -19,6 +19,11 @@
     <string name="tarn_label_uptime">Connected for</string>
     <string name="tarn_label_server">Server</string>
     <string name="tarn_server_none">No server selected</string>
+    <string name="tarn_home_location">Location</string>
+    <string name="tarn_home_country_unknown">Country not detected</string>
+    <string name="tarn_home_location_ip">By server IP</string>
+    <string name="tarn_home_location_ip_named">By IP · name says %1$s</string>
+    <string name="tarn_home_location_name">By server name</string>
 
     <string name="tarn_latency_ms">%1$d ms</string>
     <string name="tarn_latency_unreachable">n/a</string>
@@ -32,7 +37,7 @@
     <string name="tarn_action_dismiss">Dismiss</string>
 
     <string name="tarn_title_servers">Servers</string>
-    <string name="tarn_title_shield">Protection</string>
+    <string name="tarn_title_shield">Settings</string>
 
     <string name="tarn_servers_tab_recommended">Recommended</string>
     <string name="tarn_servers_tab_all">All countries</string>
@@ -108,12 +113,12 @@
     <string name="tarn_shield_dns_tunnel">DNS through VPN</string>
     <string name="tarn_shield_dns_tunnel_desc">On: DNS goes through the tunnel, so a DNS-leak test shows the exit region — but lookups are slower under load. Off: fast direct DNS (still encrypted), but the test shows your real region</string>
     <string name="tarn_shield_ipv6">IPv6</string>
-    <string name="tarn_shield_ipv6_desc">Route IPv6 traffic through the tunnel too — otherwise apps with native IPv6 can bypass the VPN entirely</string>
+    <string name="tarn_shield_ipv6_desc">Route IPv6 through the tunnel</string>
     <string name="tarn_shield_fragment">TLS fragmentation</string>
-    <string name="tarn_shield_fragment_desc">Split the TLS handshake across packets so filtering that matches on its shape has less to go on. Works on Reality too. Try it when a server connects on Wi-Fi but not on mobile</string>
+    <string name="tarn_shield_fragment_desc">Helps when TLS is filtered</string>
 
     <string name="tarn_connection_lab_entry">Connection lab</string>
-    <string name="tarn_connection_lab_entry_desc">Tune routing and full-test parameters</string>
+    <string name="tarn_connection_lab_entry_desc">Routing and tests</string>
     <string name="tarn_connection_lab_title">Connection lab</string>
     <string name="tarn_connection_lab_intro">Change one parameter at a time and compare results on the same network. Automatic values are the safest defaults.</string>
     <string name="tarn_connection_lab_section_network">Connection parameters</string>
@@ -145,7 +150,7 @@
     <string name="tarn_servers_unmanaged">Settings do not apply — delete and add again</string>
     <string name="tarn_servers_insecure_tls">Server certificate is not verified — this traffic can be intercepted</string>
     <string name="tarn_shield_always_on">System always-on VPN</string>
-    <string name="tarn_shield_always_on_desc">The toggle above only holds while the service is alive. If it crashes or the phone reboots, traffic goes out directly. Only the system setting closes that: turn on "Always-on VPN" and "Block connections without VPN". Open Android settings</string>
+    <string name="tarn_shield_always_on_desc">Open Android settings</string>
     <string name="tarn_connection_lab_ipv4_only_warning">All traffic goes over IPv4, and apps are told the name has no IPv6 at all. Keep "Send the hostname to the server" on alongside it, or some Google services answer "not available in your region".</string>
     <string name="tarn_connection_lab_tls_fingerprint">TLS fingerprint</string>
     <string name="tarn_connection_lab_tls_fingerprint_auto">From the link</string>
@@ -196,7 +201,7 @@
 
     <string name="tarn_shield_section_split">Split tunneling</string>
     <string name="tarn_shield_split">Split tunneling</string>
-    <string name="tarn_shield_split_desc">Route only some applications through the VPN</string>
+    <string name="tarn_shield_split_desc">Only some apps</string>
     <string name="tarn_shield_split_mode_exclude">Everything except selected</string>
     <string name="tarn_shield_split_mode_include">Selected only</string>
     <string name="tarn_shield_split_apps">Choose applications</string>
@@ -210,6 +215,7 @@
     <string name="tarn_shield_protocol">Protocol</string>
 
     <string name="tarn_shield_version">App version</string>
+    <string name="tarn_shield_geodata">Geodata: DB-IP (db-ip.com), CC BY 4.0</string>
 
     <string name="tarn_subscriptions_title">Subscriptions</string>
     <string name="tarn_subscriptions_manage_hint">Update or delete a subscription with all its servers</string>

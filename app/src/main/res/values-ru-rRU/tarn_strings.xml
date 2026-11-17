@@ -16,6 +16,11 @@
     <string name="tarn_label_uptime">Время подключения</string>
     <string name="tarn_label_server">Сервер</string>
     <string name="tarn_server_none">Сервер не выбран</string>
+    <string name="tarn_home_location">Локация</string>
+    <string name="tarn_home_country_unknown">Страна не определена</string>
+    <string name="tarn_home_location_ip">по IP сервера</string>
+    <string name="tarn_home_location_ip_named">по IP · в имени: %1$s</string>
+    <string name="tarn_home_location_name">по имени сервера</string>
 
     <string name="tarn_latency_ms">%1$d мс</string>
     <string name="tarn_latency_unreachable">н/д</string>
@@ -29,7 +34,7 @@
     <string name="tarn_action_dismiss">Скрыть</string>
 
     <string name="tarn_title_servers">Серверы</string>
-    <string name="tarn_title_shield">Защита</string>
+    <string name="tarn_title_shield">Настройки</string>
 
     <string name="tarn_servers_tab_recommended">Рекомендованные</string>
     <string name="tarn_servers_tab_all">Все страны</string>
@@ -51,7 +56,7 @@
     <string name="tarn_servers_qr_unsupported">В QR-коде нет ссылки сервера или адреса подписки.</string>
     <string name="tarn_subscriptions_refresh_partial">Подписка обновлена: серверов %1$d; пропущено неподдерживаемых или ошибочных ссылок: %2$d.</string>
 
-    <string name="tarn_shield_section_general">Основные настройки</string>
+    <string name="tarn_shield_section_general">Основные</string>
     <string name="tarn_shield_kill_switch">Запретить обход VPN</string>
     <string name="tarn_shield_kill_switch_desc">Не давать приложениям обходить активный VPN. Для блокировки трафика при разрыве включите системный режим «Всегда включённый VPN».</string>
     <string name="tarn_shield_dns">Защита DNS</string>
@@ -107,9 +112,9 @@
     <string name="tarn_shield_dns_tunnel">DNS через VPN</string>
     <string name="tarn_shield_dns_tunnel_desc">Вкл: DNS идёт через туннель, и тест DNS-leak показывает регион сервера — но под нагрузкой запросы медленнее. Выкл: быстрый прямой DNS (всё равно шифрованный), но тест покажет твой реальный регион</string>
     <string name="tarn_shield_ipv6">IPv6</string>
-    <string name="tarn_shield_ipv6_desc">Пускать IPv6-трафик через туннель — без этого приложения с нативным IPv6 могут обойти VPN целиком</string>
+    <string name="tarn_shield_ipv6_desc">Трафик IPv6 через туннель</string>
     <string name="tarn_shield_fragment">Фрагментация TLS</string>
-    <string name="tarn_shield_fragment_desc">Разбивать TLS-хендшейк по пакетам, чтобы фильтрации было не за что зацепиться. Работает и с Reality. Стоит попробовать, если сервер подключается по Wi-Fi, но не по мобильному</string>
+    <string name="tarn_shield_fragment_desc">Помогает при фильтрации TLS</string>
 
     <string name="tarn_shield_section_appearance">Внешний вид</string>
     <string name="tarn_shield_theme_system">Системная</string>
@@ -118,7 +123,7 @@
 
     <string name="tarn_shield_section_split">Split tunneling</string>
     <string name="tarn_shield_split">Раздельное туннелирование</string>
-    <string name="tarn_shield_split_desc">Пускать через VPN только часть приложений</string>
+    <string name="tarn_shield_split_desc">Только часть приложений</string>
     <string name="tarn_shield_split_mode_exclude">Кроме выбранных</string>
     <string name="tarn_shield_split_mode_include">Только выбранные</string>
     <string name="tarn_shield_split_apps">Выбрать приложения</string>
@@ -134,8 +139,9 @@
     <string name="tarn_shield_protocol">Протокол</string>
 
     <string name="tarn_shield_version">Версия приложения</string>
+    <string name="tarn_shield_geodata">Геоданные: DB-IP (db-ip.com), CC BY 4.0</string>
     <string name="tarn_connection_lab_entry">Лаборатория соединения</string>
-    <string name="tarn_connection_lab_entry_desc">Настройка маршрутизации и полного теста</string>
+    <string name="tarn_connection_lab_entry_desc">Маршрутизация и тесты</string>
     <string name="tarn_connection_lab_title">Лаборатория соединения</string>
     <string name="tarn_connection_lab_intro">Меняйте по одному параметру и сравнивайте результаты в одной сети. Автоматические значения — самые безопасные.</string>
     <string name="tarn_connection_lab_section_network">Параметры соединения</string>
@@ -167,7 +173,7 @@
     <string name="tarn_servers_unmanaged">Настройки не применяются — удалите и добавьте заново</string>
     <string name="tarn_servers_insecure_tls">Сертификат сервера не проверяется — трафик можно перехватить</string>
     <string name="tarn_shield_always_on">Постоянный VPN в системе</string>
-    <string name="tarn_shield_always_on_desc">Тумблер выше действует, только пока сервис жив. Если он упадёт или телефон перезагрузится, трафик пойдёт напрямую. Полностью это закрывает только системная настройка: включите «Постоянный VPN» и «Блокировать соединения без VPN». Открыть настройки Android</string>
+    <string name="tarn_shield_always_on_desc">Открыть настройки Android</string>
     <string name="tarn_connection_lab_ipv4_only_warning">Весь трафик пойдёт по IPv4, а приложениям сообщается, что у имени вообще нет IPv6. Держите при этом включённым «Отдавать серверу имя хоста» — иначе часть сервисов Google отвечает «недоступно в вашем регионе».</string>
     <string name="tarn_connection_lab_tls_fingerprint">Отпечаток TLS</string>
     <string name="tarn_connection_lab_tls_fingerprint_auto">Из ссылки</string>

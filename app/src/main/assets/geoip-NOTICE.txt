@@ -1,0 +1,7 @@
+IP geolocation data: DB-IP Lite (https://db-ip.com).
+Licensed under Creative Commons Attribution 4.0 International
+(https://creativecommons.org/licenses/by/4.0/).
+Dataset: 2026-11.
+Modified: converted to a compact binary IPv4 range table for offline lookup; the
+country assignments themselves are unchanged.
+Bundled offline; the app never sends an address to a geolocation service.

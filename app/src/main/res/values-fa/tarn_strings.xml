@@ -27,7 +27,7 @@
     <string name="tarn_action_dismiss">بستن</string>
 
     <string name="tarn_title_servers">سرورها</string>
-    <string name="tarn_title_shield">محافظت</string>
+    <string name="tarn_title_shield">تنظیمات</string>
     <string name="tarn_servers_tab_recommended">پیشنهادی</string>
     <string name="tarn_servers_tab_all">همه کشورها</string>
     <string name="tarn_servers_country_all">همه</string>
@@ -101,12 +101,12 @@
     <string name="tarn_shield_dns_tunnel">DNS از طریق VPN</string>
     <string name="tarn_shield_dns_tunnel_desc">روشن: DNS از تونل می‌گذرد، بنابراین آزمون نشت DNS منطقه خروجی را نشان می‌دهد، اما جست‌وجوها زیر بار کندترند. خاموش: DNS مستقیم و سریع (همچنان رمزگذاری‌شده)، اما آزمون منطقه واقعی شما را نشان می‌دهد.</string>
     <string name="tarn_shield_ipv6">IPv6</string>
-    <string name="tarn_shield_ipv6_desc">ترافیک IPv6 را نیز از تونل عبور دهید؛ وگرنه برنامه‌های دارای IPv6 بومی می‌توانند کامل VPN را دور بزنند.</string>
+    <string name="tarn_shield_ipv6_desc">ترافیک IPv6 را از تونل عبور دهید</string>
     <string name="tarn_shield_fragment">تکه‌تکه کردن TLS</string>
-    <string name="tarn_shield_fragment_desc">دست‌دادن TLS را میان بسته‌ها تقسیم می‌کند تا فیلترها کمتر به شکل آن تکیه کنند. با Reality نیز کار می‌کند. وقتی سرور روی Wi‑Fi وصل می‌شود ولی روی اینترنت موبایل نه، امتحانش کنید.</string>
+    <string name="tarn_shield_fragment_desc">وقتی TLS فیلتر شده کمک می‌کند</string>
 
     <string name="tarn_connection_lab_entry">آزمایشگاه اتصال</string>
-    <string name="tarn_connection_lab_entry_desc">مسیریابی و پارامترهای آزمون کامل را تنظیم کنید</string>
+    <string name="tarn_connection_lab_entry_desc">مسیریابی و تست‌ها</string>
     <string name="tarn_connection_lab_title">آزمایشگاه اتصال</string>
     <string name="tarn_connection_lab_intro">هر بار یک پارامتر را تغییر دهید و نتیجه را در همان شبکه مقایسه کنید. مقادیر خودکار امن‌ترین پیش‌فرض‌ها هستند.</string>
     <string name="tarn_connection_lab_section_network">پارامترهای اتصال</string>
@@ -134,7 +134,7 @@
     <string name="tarn_servers_unmanaged">تنظیمات اعمال نمی‌شوند؛ حذف کنید و دوباره اضافه کنید.</string>
     <string name="tarn_servers_insecure_tls">گواهی سرور بررسی نمی‌شود؛ این ترافیک قابل رهگیری است.</string>
     <string name="tarn_shield_always_on">VPN همیشه‌فعال سیستم</string>
-    <string name="tarn_shield_always_on_desc">کلید بالا فقط تا وقتی سرویس زنده است کار می‌کند. اگر سرویس متوقف شود یا گوشی راه‌اندازی مجدد شود، ترافیک مستقیم می‌رود. فقط تنظیم سیستم این را می‌بندد: «VPN همیشه‌فعال» و «مسدود کردن اتصال‌های بدون VPN» را روشن کنید. تنظیمات اندروید را باز کنید.</string>
+    <string name="tarn_shield_always_on_desc">باز کردن تنظیمات اندروید</string>
     <string name="tarn_connection_lab_ipv4_only_warning">تمام ترافیک از IPv4 می‌گذرد و به برنامه‌ها گفته می‌شود نام هیچ IPv6 ندارد. «ارسال نام میزبان به سرور» را همراه آن روشن نگه دارید؛ وگرنه بعضی خدمات گوگل «در منطقه شما در دسترس نیست» پاسخ می‌دهند.</string>
     <string name="tarn_connection_lab_tls_fingerprint">اثر انگشت TLS</string>
     <string name="tarn_connection_lab_tls_fingerprint_auto">از پیوند</string>
@@ -184,7 +184,7 @@
     <string name="tarn_shield_theme_dark">تیره</string>
     <string name="tarn_shield_section_split">تونل‌سازی تفکیکی</string>
     <string name="tarn_shield_split">تونل‌سازی تفکیکی</string>
-    <string name="tarn_shield_split_desc">فقط بعضی برنامه‌ها را از VPN عبور بده</string>
+    <string name="tarn_shield_split_desc">فقط برخی برنامه‌ها</string>
     <string name="tarn_shield_split_mode_exclude">همه به‌جز انتخاب‌شده‌ها</string>
     <string name="tarn_shield_split_mode_include">فقط انتخاب‌شده‌ها</string>
     <string name="tarn_shield_split_apps">انتخاب برنامه‌ها</string>
