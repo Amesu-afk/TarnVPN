@@ -291,8 +291,7 @@ private fun MapPin(
 }
 
 /** Horizontal position of a [longitude] in this mask, as a 0..1 fraction. */
-private fun longitudeFraction(longitude: Double): Float =
-    ((longitude + 180.0) / 360.0).toFloat().coerceIn(0f, 1f)
+private fun longitudeFraction(longitude: Double): Float = ((longitude + 180.0) / 360.0).toFloat().coerceIn(0f, 1f)
 
 /** Vertical position of a [latitude], as a 0..1 fraction of the mask's top-to-bottom span. */
 private fun latitudeFraction(latitude: Float, columns: Int, rows: Int): Float {

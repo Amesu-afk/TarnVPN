@@ -224,6 +224,7 @@
     <string name="per_app_proxy_mode_include_description">僅允許選定的應用程式透過 VPN</string>
     <string name="per_app_proxy_mode_exclude">排除</string>
     <string name="per_app_proxy_mode_exclude_description">選定的應用將從 VPN 中排除</string>
+    <string name="tarn_per_app_browser_added">瀏覽器已加入 VPN 應用程式清單，網頁將透過通道開啟</string>
     <string name="per_app_proxy_action_copy">複製</string>
     <string name="per_app_proxy_action_copy_package_name">套件名稱</string>
     <string name="per_app_proxy_action_copy_uid">UID</string>
@@ -622,4 +623,5 @@
     <string name="remote_checking">檢查中…</string>
     <string name="remote_available">可用</string>
     <string name="remote_unavailable">不可用</string>
+    <string name="tarn_subscription_selected_removed">所選伺服器在此次訂閱更新中已不存在。重新整理前請選擇其他伺服器。</string>
 </resources>

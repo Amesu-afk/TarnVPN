@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- TarnVPN strings kept separate from upstream sing-box resources. -->
 <resources>
+    <string name="tarn_subscription_format_unsupported">提供者傳回 sing-box 設定而非伺服器連結，且未提供相容的連結清單。請向提供者確認訂閱格式。</string>
     <string name="tarn_state_offline">離線</string>
     <string name="tarn_state_connected">已連線</string>
     <string name="tarn_state_connecting">正在連線</string>
@@ -15,6 +16,11 @@
     <string name="tarn_label_uptime">已連線時間</string>
     <string name="tarn_label_server">伺服器</string>
     <string name="tarn_server_none">尚未選擇伺服器</string>
+    <string name="tarn_home_location">位置</string>
+    <string name="tarn_home_country_unknown">未偵測到國家/地區</string>
+    <string name="tarn_home_location_ip">依伺服器 IP</string>
+    <string name="tarn_home_location_ip_named">依 IP · 名稱顯示 %1$s</string>
+    <string name="tarn_home_location_name">依伺服器名稱</string>
     <string name="tarn_latency_ms">%1$d 毫秒</string>
     <string name="tarn_latency_unreachable">無法使用</string>
 
@@ -111,6 +117,10 @@
     <string name="tarn_connection_lab_section_network">連線參數</string>
     <string name="tarn_connection_lab_quic">QUIC 策略</string>
     <string name="tarn_connection_lab_mtu">通道 MTU</string>
+    <string name="tarn_connection_lab_tun_stack">TUN 通訊協定堆疊</string>
+    <string name="tarn_connection_lab_tun_stack_gvisor">gVisor（建議）</string>
+    <string name="tarn_connection_lab_tun_stack_mixed">混合（系統 TCP + gVisor UDP）</string>
+    <string name="tarn_connection_lab_tun_stack_system">系統</string>
     <string name="tarn_connection_lab_ip_strategy">IP 策略</string>
     <string name="tarn_connection_lab_dns_route">加密 DNS 路由</string>
     <string name="tarn_connection_lab_log_level">記錄層級</string>
@@ -194,8 +204,10 @@
     <string name="tarn_shield_section_protocol">通訊協定</string>
     <string name="tarn_shield_protocol">通訊協定</string>
     <string name="tarn_shield_version">應用程式版本</string>
+    <string name="tarn_shield_geodata">地理位置資料：DB-IP (db-ip.com)，CC BY 4.0</string>
 
     <string name="tarn_subscriptions_title">訂閱</string>
+    <string name="tarn_subscriptions_manage_hint">更新訂閱或刪除訂閱及其所有伺服器</string>
     <string name="tarn_subscriptions_empty">尚無訂閱。在「伺服器」頁面使用「+」貼上訂閱 URL，它會在此處受到追蹤。</string>
     <string name="tarn_subscriptions_refresh">更新</string>
     <string name="tarn_subscriptions_auto_update">自動更新</string>

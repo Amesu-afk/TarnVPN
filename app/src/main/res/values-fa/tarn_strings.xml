@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- TarnVPN strings kept separate from upstream sing-box resources. -->
 <resources>
+    <string name="tarn_subscription_format_unsupported">ارائه‌دهنده به‌جای پیوند سرورها پیکربندی sing-box برگرداند و فهرست پیوندهای سازگار ارائه نکرد. قالب اشتراک را با ارائه‌دهنده خود بررسی کنید.</string>
     <string name="tarn_state_offline">آفلاین</string>
     <string name="tarn_state_connected">متصل</string>
     <string name="tarn_state_connecting">در حال اتصال</string>
@@ -15,6 +16,11 @@
     <string name="tarn_label_uptime">مدت اتصال</string>
     <string name="tarn_label_server">سرور</string>
     <string name="tarn_server_none">سروری انتخاب نشده است</string>
+    <string name="tarn_home_location">مکان</string>
+    <string name="tarn_home_country_unknown">کشور تشخیص داده نشد</string>
+    <string name="tarn_home_location_ip">بر اساس IP سرور</string>
+    <string name="tarn_home_location_ip_named">بر اساس IP · نام: %1$s</string>
+    <string name="tarn_home_location_name">بر اساس نام سرور</string>
     <string name="tarn_latency_ms">%1$d میلی‌ثانیه</string>
     <string name="tarn_latency_unreachable">ناموجود</string>
 
@@ -112,6 +118,10 @@
     <string name="tarn_connection_lab_section_network">پارامترهای اتصال</string>
     <string name="tarn_connection_lab_quic">سیاست QUIC</string>
     <string name="tarn_connection_lab_mtu">MTU تونل</string>
+    <string name="tarn_connection_lab_tun_stack">پشته TUN</string>
+    <string name="tarn_connection_lab_tun_stack_gvisor">gVisor (پیشنهادی)</string>
+    <string name="tarn_connection_lab_tun_stack_mixed">ترکیبی (TCP سیستم + UDP از gVisor)</string>
+    <string name="tarn_connection_lab_tun_stack_system">سیستم</string>
     <string name="tarn_connection_lab_ip_strategy">راهبرد IP</string>
     <string name="tarn_connection_lab_dns_route">مسیر DNS رمزگذاری‌شده</string>
     <string name="tarn_connection_lab_log_level">سطح گزارش</string>
@@ -196,8 +206,10 @@
     <string name="tarn_shield_section_protocol">پروتکل</string>
     <string name="tarn_shield_protocol">پروتکل</string>
     <string name="tarn_shield_version">نسخه برنامه</string>
+    <string name="tarn_shield_geodata">داده‌های جغرافیایی: DB-IP (db-ip.com)، CC BY 4.0</string>
 
     <string name="tarn_subscriptions_title">اشتراک‌ها</string>
+    <string name="tarn_subscriptions_manage_hint">به‌روزرسانی یا حذف اشتراک همراه با همه سرورهای آن</string>
     <string name="tarn_subscriptions_empty">هنوز اشتراکی نیست. با «+» در صفحه سرورها یک نشانی اشتراک جای‌گذاری کنید تا اینجا پیگیری شود.</string>
     <string name="tarn_subscriptions_refresh">به‌روزرسانی</string>
     <string name="tarn_subscriptions_auto_update">به‌روزرسانی خودکار</string>

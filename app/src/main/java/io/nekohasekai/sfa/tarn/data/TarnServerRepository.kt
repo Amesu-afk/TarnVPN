@@ -481,8 +481,7 @@ object TarnServerRepository {
      * key, one fetched key, and they differ. The refresh rewrites that profile in place
      * instead of deleting the selected server and adding a new row.
      */
-    internal fun shouldReplaceInPlace(existingKeys: Set<String>, newKeys: Set<String>): Boolean =
-        existingKeys.size == 1 && newKeys.size == 1 && existingKeys != newKeys
+    internal fun shouldReplaceInPlace(existingKeys: Set<String>, newKeys: Set<String>): Boolean = existingKeys.size == 1 && newKeys.size == 1 && existingKeys != newKeys
 
     private fun subscriptionName(url: String): String = runCatching { android.net.Uri.parse(url).host }.getOrNull()?.takeIf { it.isNotBlank() } ?: url
 
@@ -491,8 +490,7 @@ object TarnServerRepository {
         .getOrNull()
         ?.takeIf { it.isNotBlank() }
 
-    internal fun profilesOwnedBySubscription(profiles: List<Profile>, id: String): List<Profile> =
-        profiles.filter { subscriptionIdOf(File(it.typed.path)) == id }
+    internal fun profilesOwnedBySubscription(profiles: List<Profile>, id: String): List<Profile> = profiles.filter { subscriptionIdOf(File(it.typed.path)) == id }
 
     /**
      * The `<id>.vless` file sitting next to a `<id>.json` config, holding the original
