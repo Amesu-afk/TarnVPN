@@ -54,6 +54,7 @@
     <string name="tarn_servers_qr_unsupported">این کد QR حاوی پیوند سرور یا نشانی اشتراک نیست.</string>
     <string name="tarn_servers_pick_file">گشودن پروندهٔ پیکربندی (پروندهٔ .conf یا پیوندها/اشتراک)</string>
     <string name="tarn_servers_file_unreadable">خواندن پروندهٔ انتخاب‌شده ممکن نشد.</string>
+    <string name="tarn_subscriptions_file_group">وارد‌شده از پرونده‌ای روی همین دستگاه</string>
     <string name="tarn_subscriptions_refresh_partial">اشتراک با %1$d سرور به‌روزرسانی شد؛ %2$d پیوند پشتیبانی‌نشده یا نامعتبر رد شد.</string>
 
     <string name="tarn_shield_section_general">عمومی</string>

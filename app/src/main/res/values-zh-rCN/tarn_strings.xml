@@ -54,6 +54,7 @@
     <string name="tarn_servers_qr_unsupported">此二维码不包含服务器链接或订阅 URL。</string>
     <string name="tarn_servers_pick_file">打开配置文件（.conf 或链接/订阅文件）</string>
     <string name="tarn_servers_file_unreadable">无法读取所选文件。</string>
+    <string name="tarn_subscriptions_file_group">从本机文件导入</string>
     <string name="tarn_subscriptions_refresh_partial">订阅已刷新，含 %1$d 个服务器；跳过 %2$d 个不支持或无效的链接。</string>
 
     <string name="tarn_shield_section_general">常规</string>

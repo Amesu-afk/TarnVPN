@@ -1,5 +1,7 @@
 package io.nekohasekai.sfa.tarn.data
 
+import android.net.Uri
+import android.provider.OpenableColumns
 import android.util.AtomicFile
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.Application
@@ -107,6 +109,62 @@ object TarnServerRepository {
         return ImportOutcome(serverCount, fetched.rejectedCount)
     }
 
+    /**
+     * Imports a config file picked through the system picker as a subscription group:
+     * every server is tagged to a file-backed subscription (dedup by the document URI),
+     * so the subscriptions screen can drop the whole group in one action — the same way
+     * it deletes a URL subscription. Re-picking the same document refreshes the group in
+     * place; auto-update stays off because a document may not be re-readable later (SAF
+     * grants can lapse), so nothing should ever fetch it on a schedule.
+     *
+     * [content] is read lazily — at most once per call, outside the repository lock.
+     */
+    suspend fun importFile(uri: Uri, name: String?, content: () -> String): ImportOutcome = withContext(Dispatchers.IO) {
+        val url = uri.toString()
+        TarnSubscriptionStore.findByUrl(url)?.let {
+            return@withContext refreshSubscriptionOutcome(it.id) { content() }
+        }
+        // Same safety rule as importSubscription: an unparseable file must not leave
+        // an empty group behind — the subscription becomes durable only through
+        // applyRefresh, after every profile has been written safely.
+        val subscription = Subscription(
+            id = Subscription.newId(),
+            name = name?.takeIf { it.isNotBlank() } ?: subscriptionName(url),
+            url = url,
+            lastUpdated = 0L,
+            autoUpdate = false,
+        )
+        val fetched = VlessImporter.toSingBoxImportBatch(content()) { content() }
+        val serverCount = mutex.withLock {
+            applyRefresh(TarnSubscriptionStore.findByUrl(url) ?: subscription, fetched)
+        }
+        ImportOutcome(serverCount, fetched.rejectedCount)
+    }
+
+    /** Best-effort display name for a picked document ("sub.txt"), null when anonymous. */
+    fun documentName(resolver: android.content.ContentResolver, uri: Uri): String? = runCatching {
+        resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+            cursor.moveToFirst().takeIf { !cursor.isNull(0) }?.let { cursor.getString(0) }
+        }
+    }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/')
+
+    /** Keeps a picked document inside the same budget the subscription parser enforces. */
+    internal const val MAX_IMPORT_FILE_BYTES = 8L * 1024 * 1024
+
+    /**
+     * Reads a picked config document as text. Caps the read at [MAX_IMPORT_FILE_BYTES] and
+     * requires the stream to exist, so a revoked grant or a deleted document fails with a
+     * message instead of a crash; decoding is UTF-8, where binary junk becomes replacement
+     * characters and the parser rejects it as unsupported input.
+     */
+    internal fun readDocumentText(resolver: android.content.ContentResolver, uri: Uri): String = resolver.openInputStream(uri)?.use { input ->
+        val bytes = input.readBytes()
+        require(bytes.size <= MAX_IMPORT_FILE_BYTES) {
+            "Document is too large (max $MAX_IMPORT_FILE_BYTES bytes)"
+        }
+        String(bytes, Charsets.UTF_8)
+    } ?: throw IllegalArgumentException("Could not open the selected document")
+
     /** Every stored subscription, each with a live count of the profiles still tagged to it. */
     suspend fun loadSubscriptions(): List<SubscriptionView> = withContext(Dispatchers.IO) {
         val subscriptions = TarnSubscriptionStore.load()
@@ -139,8 +197,14 @@ object TarnServerRepository {
     ): ImportOutcome = withContext(Dispatchers.IO) {
         val subscription = TarnSubscriptionStore.get(subscriptionId)
             ?: return@withContext ImportOutcome(serverCount = 0, rejectedCount = 0)
-        // Network first, outside the lock.
-        val fetched = VlessImporter.toSingBoxImportBatch(subscription.url, fetch)
+        // Network first, outside the lock. A file-backed group (a picked document, not an
+        // https subscription) re-reads its document instead of fetching over the network.
+        val read: () -> String = if (VlessImporter.isHttpsUrl(subscription.url)) {
+            { fetch(subscription.url) }
+        } else {
+            { readDocumentText(Application.application.contentResolver, Uri.parse(subscription.url)) }
+        }
+        val fetched = VlessImporter.toSingBoxImportBatch(read(), fetch)
         val serverCount = mutex.withLock {
             val current = TarnSubscriptionStore.get(subscriptionId)
                 ?: return@withLock 0

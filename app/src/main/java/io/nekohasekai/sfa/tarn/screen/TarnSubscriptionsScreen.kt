@@ -233,7 +233,11 @@ private fun SubscriptionRow(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = view.subscription.url,
+                    text = if (view.subscription.url.startsWith("http")) {
+                        view.subscription.url
+                    } else {
+                        stringResource(R.string.tarn_subscriptions_file_group)
+                    },
                     style = TarnMetaStyle,
                     color = TarnColors.TextDim,
                     maxLines = 1,

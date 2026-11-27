@@ -1,13 +1,11 @@
 package io.nekohasekai.sfa.tarn.screen
 
-import android.content.ContentResolver
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.nekohasekai.mobile.Mobile
 import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.R
-import io.nekohasekai.sfa.compose.screen.configuration.readProfileBytes
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.tarn.data.Latency
@@ -238,12 +236,25 @@ class TarnServersViewModel : ViewModel() {
      * pipeline as [importServers]; the size cap matches [VlessImporter] so an absurdly
      * large file fails with a clear message instead of an OOM.
      */
+
+    /**
+     * Imports a picked config file as a subscription group (see [TarnServerRepository
+     * .importFile]): the servers screen then offers "delete" for the whole group on the
+     * subscriptions screen, and re-picking the same document refreshes it in place.
+     */
     fun importFile(uri: Uri) {
         _uiState.update { it.copy(importing = true, importError = null, importNotice = null) }
         viewModelScope.launch {
             val read = runCatching {
                 withContext(Dispatchers.IO) {
-                    readConfigText(Application.application.contentResolver, uri)
+                    // Keep the read grant for later refreshes of the same document.
+                    runCatching {
+                        Application.application.contentResolver.takePersistableUriPermission(
+                            uri,
+                            android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                        )
+                    }
+                    TarnServerRepository.readDocumentText(Application.application.contentResolver, uri)
                 }
             }
             if (read.isFailure) {
@@ -255,10 +266,12 @@ class TarnServersViewModel : ViewModel() {
                 }
                 return@launch
             }
+            val text = read.getOrThrow()
             val result = runCatching {
-                TarnServerRepository.import(read.getOrThrow()) { url ->
-                    SubscriptionFetcher.fetch(url)
+                val name = withContext(Dispatchers.IO) {
+                    TarnServerRepository.documentName(Application.application.contentResolver, uri)
                 }
+                TarnServerRepository.importFile(uri, name) { text }
             }
             applyImportOutcome(result)
         }
@@ -462,16 +475,3 @@ class TarnServersViewModel : ViewModel() {
         .minByOrNull { (_, millis) -> millis }
         ?.first
 }
-
-/** Keeps a picked config file inside the same budget the subscription parser enforces. */
-private const val MAX_IMPORT_FILE_BYTES = 8L * 1024 * 1024
-
-/**
- * Reads a picked config file as text. Caps the read at [MAX_IMPORT_FILE_BYTES] and requires
- * the stream to exist, so a revoked or non-existent document fails with a message instead
- * of a crash; decoding is UTF-8, where binary junk becomes replacement characters and the
- * parser rejects it as unsupported input.
- */
-internal fun readConfigText(resolver: ContentResolver, uri: Uri): String = resolver.openInputStream(uri)?.use { input ->
-    String(readProfileBytes(input, MAX_IMPORT_FILE_BYTES), Charsets.UTF_8)
-} ?: throw IllegalArgumentException("Could not open the selected file")
