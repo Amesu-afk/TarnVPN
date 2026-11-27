@@ -181,12 +181,17 @@ private class HttpsTestServer : Closeable {
     }
     private val previousSslContext = SSLContext.getDefault()
     private val previousHostnameVerifier = HttpsURLConnection.getDefaultHostnameVerifier()
+    private val previousSocketFactory = HttpsURLConnection.getDefaultSSLSocketFactory()
     private val server = HttpsServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply {
         setHttpsConfigurator(HttpsConfigurator(sslContext))
     }
 
     init {
         SSLContext.setDefault(sslContext)
+        // The JVM caches the default SSL socket factory on first use, so setting the
+        // default SSLContext alone is not enough on a runner where something touched
+        // TLS before this test — restore both explicitly.
+        HttpsURLConnection.setDefaultSSLSocketFactory(sslContext.socketFactory)
         HttpsURLConnection.setDefaultHostnameVerifier { _, _ -> true }
         server.start()
     }
@@ -200,6 +205,7 @@ private class HttpsTestServer : Closeable {
     override fun close() {
         server.stop(0)
         SSLContext.setDefault(previousSslContext)
+        HttpsURLConnection.setDefaultSSLSocketFactory(previousSocketFactory)
         HttpsURLConnection.setDefaultHostnameVerifier(previousHostnameVerifier)
     }
 }
