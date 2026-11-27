@@ -195,7 +195,7 @@ private class HttpsTestServer : Closeable {
         server.createContext(path) { exchange -> handler(exchange) }
     }
 
-    fun url(path: String): String = "https://localhost:${server.address.port}$path"
+    fun url(path: String): String = "https://127.0.0.1:${server.address.port}$path"
 
     override fun close() {
         server.stop(0)
