@@ -12,8 +12,13 @@ import io.nekohasekai.sfa.database.TypedProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.InputStream
+import java.net.URL
 import java.util.Date
+
+private const val MAX_PROFILE_IMPORT_BYTES = 16L * 1024 * 1024
 
 class ProfileImportHandler(private val context: Context) {
     sealed class ImportResult {
@@ -45,7 +50,7 @@ class ProfileImportHandler(private val context: Context) {
     suspend fun importFromUri(uri: Uri): ImportResult = withContext(Dispatchers.IO) {
         try {
             val data =
-                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                readBytesLimited(uri)
                     ?: return@withContext ImportResult.Error(context.getString(R.string.error_empty_file))
 
             // Get the filename from the URI
@@ -81,7 +86,7 @@ class ProfileImportHandler(private val context: Context) {
     suspend fun parseUri(uri: Uri): UriParseResult = withContext(Dispatchers.IO) {
         try {
             val data =
-                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                readBytesLimited(uri)
                     ?: return@withContext UriParseResult.Error(context.getString(R.string.error_empty_file))
 
             val filename = getFileNameFromUri(uri)
@@ -118,7 +123,7 @@ class ProfileImportHandler(private val context: Context) {
                     return@withContext QRCodeParseResult.RemoteProfile(
                         name = profileInfo.name,
                         host = profileInfo.host,
-                        url = profileInfo.url,
+                        url = requireHttpsSubscription(profileInfo.url),
                     )
                 } catch (e: Exception) {
                     return@withContext QRCodeParseResult.Error(
@@ -128,12 +133,12 @@ class ProfileImportHandler(private val context: Context) {
             }
 
             // Check if it's a direct URL
-            if (data.startsWith("http://") || data.startsWith("https://")) {
+            if (data.startsWith("http://", ignoreCase = true) || data.startsWith("https://", ignoreCase = true)) {
                 val profileName = extractProfileNameFromUrl(data)
                 return@withContext QRCodeParseResult.RemoteProfile(
                     name = profileName,
                     host = extractHostFromUrl(data),
-                    url = data,
+                    url = requireHttpsSubscription(data),
                 )
             }
 
@@ -168,10 +173,10 @@ class ProfileImportHandler(private val context: Context) {
             }
 
             // Check if it's a URL or direct profile content
-            if (data.startsWith("http://") || data.startsWith("https://")) {
+            if (data.startsWith("http://", ignoreCase = true) || data.startsWith("https://", ignoreCase = true)) {
                 // Handle remote profile URL
                 val profileName = extractProfileNameFromUrl(data)
-                importRemoteProfile(profileName, data)
+                importRemoteProfile(profileName, requireHttpsSubscription(data))
             } else {
                 // Try to decode as profile content
                 val content =
@@ -233,7 +238,7 @@ class ProfileImportHandler(private val context: Context) {
             }
             Libbox.ProfileTypeRemote -> {
                 typedProfile.type = TypedProfile.Type.Remote
-                typedProfile.remoteURL = content.remotePath
+                typedProfile.remoteURL = requireHttpsSubscription(content.remotePath)
                 typedProfile.autoUpdate = content.autoUpdate
                 typedProfile.autoUpdateInterval = content.autoUpdateInterval
                 typedProfile.lastUpdated = Date(content.lastUpdated)
@@ -254,10 +259,11 @@ class ProfileImportHandler(private val context: Context) {
     }
 
     private suspend fun importRemoteProfile(name: String, url: String): ImportResult {
+        val validatedUrl = requireHttpsSubscription(url)
         val typedProfile =
             TypedProfile().apply {
                 type = TypedProfile.Type.Remote
-                remoteURL = url
+                remoteURL = validatedUrl
                 autoUpdate = true
                 autoUpdateInterval = 60
                 lastUpdated = Date()
@@ -279,6 +285,19 @@ class ProfileImportHandler(private val context: Context) {
         ProfileManager.create(profile, andSelect = true)
 
         return ImportResult.Success(profile)
+    }
+
+    private fun readBytesLimited(uri: Uri): ByteArray? {
+        val input = context.contentResolver.openInputStream(uri) ?: return null
+        return input.use(::readProfileBytes)
+    }
+
+    private fun requireHttpsSubscription(url: String): String {
+        val parsed = URL(url)
+        require(parsed.protocol.equals("https", ignoreCase = true) && !parsed.host.isNullOrEmpty()) {
+            context.getString(R.string.profile_url_https_required)
+        }
+        return url
     }
 
     private fun extractProfileNameFromUrl(url: String): String {
@@ -386,4 +405,19 @@ class ProfileImportHandler(private val context: Context) {
             ImportResult.Error(e.message ?: "Unknown error importing JSON configuration")
         }
     }
+}
+
+internal fun readProfileBytes(input: InputStream, maxBytes: Long = MAX_PROFILE_IMPORT_BYTES): ByteArray {
+    require(maxBytes > 0)
+    val output = ByteArrayOutputStream(minOf(maxBytes, 64L * 1024).toInt())
+    val buffer = ByteArray(32 * 1024)
+    while (true) {
+        val read = input.read(buffer)
+        if (read < 0) break
+        require(output.size().toLong() + read <= maxBytes) {
+            "Profile file exceeds the 16 MiB limit"
+        }
+        output.write(buffer, 0, read)
+    }
+    return output.toByteArray()
 }

@@ -14,13 +14,14 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LifecycleOwner
 import io.nekohasekai.libbox.Libbox
+import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.qrs.QRSDecoder
-import io.nekohasekai.sfa.qrs.readIntLE
 import io.nekohasekai.sfa.vendor.Vendor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import java.net.URL
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
@@ -264,6 +265,11 @@ class QRScanViewModel(application: Application) : AndroidViewModel(application) 
             else -> content
         }
 
+        if (base64Data.length > QRSDecoder.MAX_BASE64_FRAME_LENGTH) {
+            Log.d(TAG, "QRS frame is too large")
+            return null
+        }
+
         val decoded = try {
             Base64.decode(base64Data, Base64.DEFAULT)
         } catch (e: Exception) {
@@ -272,28 +278,8 @@ class QRScanViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         Log.d(TAG, "Decoded size: ${decoded.size}")
-        if (decoded.size < 20) {
-            Log.d(TAG, "Too small: ${decoded.size} < 20")
-            return null
-        }
-
-        val degree = decoded.readIntLE(0)
-        Log.d(TAG, "degree: $degree")
-        if (degree <= 0 || degree > 1000) {
-            Log.d(TAG, "Invalid degree: $degree")
-            return null
-        }
-
-        val headerSize = 4 + 4 * degree + 12
-        if (decoded.size < headerSize) {
-            Log.d(TAG, "Too small for header: ${decoded.size} < $headerSize")
-            return null
-        }
-
-        val k = decoded.readIntLE(4 + 4 * degree)
-        Log.d(TAG, "k: $k")
-        if (k <= 0 || k > 100000) {
-            Log.d(TAG, "Invalid k: $k")
+        if (!QRSDecoder.isValidFrame(decoded)) {
+            Log.d(TAG, "Malformed QRS block")
             return null
         }
 
@@ -321,15 +307,13 @@ class QRScanViewModel(application: Application) : AndroidViewModel(application) 
             it.copy(qrsProgress = Pair(progress.decodedBlocks, progress.totalBlocks))
         }
 
-        if (progress.isComplete) {
-            if (progress.error != null) {
-                Log.e(TAG, "QRS complete with error: ${progress.error}, retrying...")
-                resetQRSState()
-            } else if (progress.data != null) {
-                imageAnalysis?.clearAnalyzer()
-                Log.d(TAG, "QRS complete! Data size: ${progress.data.size}")
-                importQRSProfile(progress.data)
-            }
+        if (progress.error != null) {
+            Log.e(TAG, "QRS frame error: ${progress.error}, retrying...")
+            resetQRSState()
+        } else if (progress.isComplete && progress.data != null) {
+            imageAnalysis?.clearAnalyzer()
+            Log.d(TAG, "QRS complete! Data size: ${progress.data.size}")
+            importQRSProfile(progress.data)
         }
     }
 
@@ -341,15 +325,15 @@ class QRScanViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun parseQRSFileFormat(data: ByteArray): ByteArray {
+        require(data.size >= 8) { "Truncated QRS file header" }
         var offset = 0
 
         val metaLength = ((data[offset].toInt() and 0xFF) shl 24) or
             ((data[offset + 1].toInt() and 0xFF) shl 16) or
             ((data[offset + 2].toInt() and 0xFF) shl 8) or
             (data[offset + 3].toInt() and 0xFF)
-        offset += 4
-
-        offset += metaLength
+        require(metaLength >= 0 && metaLength.toLong() <= data.size - 8L) { "Invalid metadata length" }
+        offset += 4 + metaLength
 
         val dataLength = ((data[offset].toInt() and 0xFF) shl 24) or
             ((data[offset + 1].toInt() and 0xFF) shl 16) or
@@ -357,6 +341,7 @@ class QRScanViewModel(application: Application) : AndroidViewModel(application) 
             (data[offset + 3].toInt() and 0xFF)
         offset += 4
 
+        require(dataLength >= 0 && dataLength.toLong() <= data.size - offset) { "Invalid data length" }
         return data.copyOfRange(offset, offset + dataLength)
     }
 
@@ -385,7 +370,11 @@ class QRScanViewModel(application: Application) : AndroidViewModel(application) 
                 _uiState.update { it.copy(result = QRScanResult.RawText(value.trim())) }
                 return true
             }
-            Libbox.parseRemoteProfileImportLink(uri.toString())
+            val profile = Libbox.parseRemoteProfileImportLink(uri.toString())
+            val remoteUrl = URL(profile.url)
+            require(remoteUrl.protocol.equals("https", ignoreCase = true) && !remoteUrl.host.isNullOrEmpty()) {
+                getApplication<Application>().getString(R.string.profile_url_https_required)
+            }
             _uiState.update { it.copy(result = QRScanResult.RemoteProfile(uri)) }
             return true
         } catch (e: Exception) {

@@ -17,6 +17,12 @@ object QRSConstants {
     const val MIN_SLICE_SIZE = 100
     const val MAX_SLICE_SIZE = 1500
 
+    // Untrusted QR frames must not be able to request unbounded allocations.
+    const val MAX_DEGREE = 1000
+    const val MAX_TOTAL_BLOCKS = 100_000
+    const val MAX_COMPRESSED_SIZE = 16 * 1024 * 1024
+    const val MAX_DECOMPRESSED_SIZE = 16 * 1024 * 1024
+
     fun calculateRequiredFrames(dataSize: Int, sliceSize: Int): Int {
         val k = (dataSize + sliceSize - 1) / sliceSize
         if (k == 0) return 1

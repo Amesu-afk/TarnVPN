@@ -4,6 +4,10 @@ import java.util.zip.CRC32
 import kotlin.random.Random
 
 class LubyCodec(private val sliceSize: Int = QRSConstants.DEFAULT_SLICE_SIZE) {
+    init {
+        require(sliceSize in QRSConstants.MIN_SLICE_SIZE..QRSConstants.MAX_SLICE_SIZE) { "Invalid slice size" }
+    }
+
     internal class IntArrayKey(val indices: IntArray) {
         private val hash = indices.contentHashCode()
 
@@ -24,6 +28,15 @@ class LubyCodec(private val sliceSize: Int = QRSConstants.DEFAULT_SLICE_SIZE) {
         val checksum: Long,
         val data: ByteArray,
     ) {
+        init {
+            validateMetadata(data.size, totalBlocks, compressedSize)
+            require(degree in 1..minOf(QRSConstants.MAX_DEGREE, totalBlocks)) { "Invalid degree" }
+            require(indices.size == degree) { "Degree does not match indices" }
+            require(indices.distinct().size == degree) { "Duplicate block index" }
+            require(indices.all { it in 0 until totalBlocks }) { "Block index out of range" }
+            require(checksum in 0..0xFFFFFFFFL) { "Invalid checksum" }
+        }
+
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (javaClass != other?.javaClass) return false
@@ -47,7 +60,12 @@ class LubyCodec(private val sliceSize: Int = QRSConstants.DEFAULT_SLICE_SIZE) {
         }
     }
 
-    class DecodingState(val totalBlocks: Int, val compressedSize: Int, val checksum: Long) {
+    class DecodingState(val sliceSize: Int, val totalBlocks: Int, val compressedSize: Int, val checksum: Long) {
+        init {
+            validateMetadata(sliceSize, totalBlocks, compressedSize)
+            require(checksum in 0..0xFFFFFFFFL) { "Invalid checksum" }
+        }
+
         val decodedBlocks: Array<ByteArray?> = arrayOfNulls(totalBlocks)
         var decodedCount: Int = 0
 
@@ -60,6 +78,8 @@ class LubyCodec(private val sliceSize: Int = QRSConstants.DEFAULT_SLICE_SIZE) {
     }
 
     fun encode(originalData: ByteArray, compressedData: ByteArray, compressedSize: Int): Sequence<EncodedBlock> = sequence {
+        require(compressedSize == compressedData.size) { "Compressed size mismatch" }
+        validateMetadata(sliceSize, compressedData.size, compressedSize)
         val k = (compressedData.size + sliceSize - 1) / sliceSize
         if (k == 0) return@sequence
 
@@ -78,7 +98,7 @@ class LubyCodec(private val sliceSize: Int = QRSConstants.DEFAULT_SLICE_SIZE) {
         var seed = 0L
         while (true) {
             val random = Random(seed++)
-            val degree = SolitonDistribution.sample(k, random)
+            val degree = SolitonDistribution.sample(k, random).coerceAtMost(QRSConstants.MAX_DEGREE)
             val indices = selectIndices(k, degree, random)
             val blockData = xorBlocks(blocks, indices)
 
@@ -96,12 +116,18 @@ class LubyCodec(private val sliceSize: Int = QRSConstants.DEFAULT_SLICE_SIZE) {
     }
 
     fun createDecodingState(firstBlock: EncodedBlock): DecodingState = DecodingState(
+        sliceSize = firstBlock.data.size,
         totalBlocks = firstBlock.totalBlocks,
         compressedSize = firstBlock.compressedSize,
         checksum = firstBlock.checksum,
     )
 
     fun processBlock(state: DecodingState, block: EncodedBlock): Boolean {
+        require(block.data.size == state.sliceSize) { "Slice size mismatch" }
+        require(block.totalBlocks == state.totalBlocks && block.compressedSize == state.compressedSize) {
+            "QRS frame metadata mismatch"
+        }
+        require(block.checksum == state.checksum) { "QRS frame checksum mismatch" }
         val queue = ArrayDeque<DecodingState.PendingBlock>()
         queue.add(DecodingState.PendingBlock(block.indices.sorted().toMutableList(), block.data.clone()))
 
@@ -244,9 +270,10 @@ class LubyCodec(private val sliceSize: Int = QRSConstants.DEFAULT_SLICE_SIZE) {
     }
 
     fun assembleData(state: DecodingState): ByteArray {
-        val result = ByteArray(state.totalBlocks * sliceSize)
+        check(state.decodedCount == state.totalBlocks) { "Incomplete QRS data" }
+        val result = ByteArray(state.totalBlocks * state.sliceSize)
         for (i in state.decodedBlocks.indices) {
-            state.decodedBlocks[i]?.copyInto(result, i * sliceSize)
+            state.decodedBlocks[i]?.copyInto(result, i * state.sliceSize)
         }
         return result
     }
@@ -318,4 +345,12 @@ class LubyCodec(private val sliceSize: Int = QRSConstants.DEFAULT_SLICE_SIZE) {
             i++
         }
     }
+}
+
+private fun validateMetadata(sliceSize: Int, totalBlocks: Int, compressedSize: Int) {
+    require(sliceSize in QRSConstants.MIN_SLICE_SIZE..QRSConstants.MAX_SLICE_SIZE) { "Invalid slice size" }
+    require(totalBlocks in 1..QRSConstants.MAX_TOTAL_BLOCKS) { "Invalid total block count" }
+    require(compressedSize in 1..QRSConstants.MAX_COMPRESSED_SIZE) { "Invalid compressed size" }
+    val expectedBlocks = (compressedSize.toLong() + sliceSize - 1) / sliceSize
+    require(totalBlocks.toLong() == expectedBlocks) { "Total block count does not match compressed size" }
 }
