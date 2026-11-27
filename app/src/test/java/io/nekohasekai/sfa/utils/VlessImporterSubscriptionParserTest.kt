@@ -45,6 +45,23 @@ class VlessImporterSubscriptionParserTest {
     }
 
     @Test
+    fun `imports every server of a multi-line link file that starts with vless`() {
+        // Issue #14 device report: a picked .txt file starting with `vless://` used to be
+        // treated as ONE share link, importing only its first server.
+        val body = """
+            vless://uuid-1@example.com:443?security=tls#one
+            vless://uuid-2@example.net:443?security=tls#two
+            ss://aes-256-gcm:secret@example.org:8388#three
+        """.trimIndent()
+
+        val preview = VlessImporter.inspectSubscriptionBody(body)
+
+        assertEquals(3, preview.totalEntries)
+        assertEquals(3, preview.parsedCount)
+        assertTrue(preview.issues.isEmpty())
+    }
+
+    @Test
     fun `recognises base64 subscriptions with mixed supported schemes`() {
         val raw = """
             vless://uuid@example.com:443?security=tls#one

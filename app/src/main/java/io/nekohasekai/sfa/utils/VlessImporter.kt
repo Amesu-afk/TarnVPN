@@ -210,7 +210,10 @@ object VlessImporter {
     ): ParsedServerBatch {
         val t = input.trim()
         return when {
-            isVlessUri(t) -> ParsedServerBatch(
+            // A single share link is one line; a multi-line blob that starts with
+            // `vless://` is a link list and must go through the subscription parser
+            // (issue #14 follow-up: such a file used to import its first server only).
+            isVlessUri(t) && !t.contains('\n') -> ParsedServerBatch(
                 servers = listOf(ProxyUriParser.parse(t, fragmentEnabled)),
                 totalEntries = 1,
                 issues = emptyList(),
@@ -229,10 +232,7 @@ object VlessImporter {
                 val body = fetch(t)
                 parseSubscriptionBody(body, fragmentEnabled)
             }
-            else -> throw IllegalArgumentException(
-                "Unsupported input: paste a vless/trojan/ss/vmess/hysteria2/tuic/anytls/olcrtc link, " +
-                    "a WireGuard/AmneziaWG .conf or vpn:// link, or an https:// subscription",
-            )
+            else -> parseSubscriptionBody(t, fragmentEnabled)
         }
     }
 
@@ -1384,7 +1384,7 @@ object VlessImporter {
      */
     internal fun hasSubscriptionEntries(body: String): Boolean = body.length <= MAX_SUBSCRIPTION_CHARS && expandSubscriptionBody(body).isNotEmpty()
 
-    private fun expandSubscriptionBody(body: String): List<String> {
+    internal fun expandSubscriptionBody(body: String): List<String> {
         val trimmed = body.trim().removePrefix("\uFEFF")
         fun linesOf(text: String) = text.split('\n', '\r')
             .map { it.trim().removePrefix("\uFEFF") }

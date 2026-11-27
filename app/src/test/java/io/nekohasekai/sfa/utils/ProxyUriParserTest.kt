@@ -134,6 +134,21 @@ class ProxyUriParserTest {
         assertEquals("secret", out.optString("password"))
     }
 
+    // ---- vmess: standard base64 alphabet (issue #14) -----------------------------------
+
+    @Test
+    fun `decodes vmess whose payload carries the standard plus sign`() {
+        // The real link from the issue-14 subscription: the URL-safe decoder silently
+        // corrupts a '+'-bearing standard base64 payload, and decodeBase64 used to try
+        // URL-safe first — the profile then died with "vmess payload is not JSON".
+        val uri = "vmess://eyJhZGQiOiI2Mi45My4xNjYuMTg0IiwiYWlkIjowLCJmcCI6IiIsImlkIjoiNWMwNDBmMWQtNDVkYi00M2JkLThkNDYtZTQ5NTBlNDMzNzM1IiwibmV0IjoidGNwIiwicG9ydCI6MTI3MCwicHMiOiLwn4e48J+HqiDQqNCy0LXRhtC40Y8gIzQgfCAxMDdtcyB8IDE5MyBNYnBzIiwic2N5IjoiYXV0byIsInNuaSI6InhtZmhscHkuY29tIiwidGxzIjoidGxzIiwidHlwZSI6Im5vbmUiLCJ2IjoiMiJ9"
+        val out = parse(uri)
+        assertEquals("vmess", out.optString("type"))
+        assertEquals("62.93.166.184", out.optString("server"))
+        assertEquals(1270, out.optInt("server_port"))
+        assertTrue(out.optString("tag").contains("#4"))
+    }
+
     @Test
     fun `keeps the plain password when it itself looks like base64 with padding`() {
         // A password that ends in '=' must not let the endpoint split lose it.

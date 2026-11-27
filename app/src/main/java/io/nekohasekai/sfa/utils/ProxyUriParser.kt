@@ -581,11 +581,14 @@ object ProxyUriParser {
 
     private fun decodeBase64(raw: String): String? {
         if (raw.isBlank()) return null
+        // Standard alphabet first: the URL-safe decoder silently corrupts payloads that
+        // carry '+'/'/' instead of rejecting them, so a URL-safe attempt must only run
+        // when the standard one refuses the input (real '-','_' characters).
         for (flags in intArrayOf(
-            Base64.URL_SAFE or Base64.NO_PADDING,
+            Base64.DEFAULT,
             Base64.DEFAULT or Base64.NO_PADDING,
             Base64.URL_SAFE,
-            Base64.DEFAULT,
+            Base64.URL_SAFE or Base64.NO_PADDING,
         )) {
             val decoded = runCatching {
                 String(Base64.decode(raw, flags or Base64.NO_WRAP))
