@@ -75,7 +75,7 @@ android {
         // has no bearing on app identity or detection.
         applicationId = "app.tarnvpn"
         minSdk = 21
-        targetSdk = 35
+        targetSdk = 36
         versionCode = getVersionProps("VERSION_CODE").toInt()
         versionName = getVersionProps("VERSION_NAME")
         base.archivesName.set("TarnVPN-${versionName}")

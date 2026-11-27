@@ -42,15 +42,21 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
-      - name: Resolve core tag
+      - name: Resolve core snapshot
         run: |
-          version="$(grep '^VERSION_NAME=' version.properties | cut -d= -f2)"
-          core_tag="$(grep '^CORE_TAG=' version.properties | cut -d= -f2- || true)"
-          if [ -z "$core_tag" ]; then
-            core_tag="tarnvpn-v${version}"
+          core_tag="$(grep '^CORE_TAG=' version.properties | cut -d= -f2-)"
+          go_version="$(grep '^GO_VERSION=' version.properties | cut -d= -f2-)"
+          test -n "$core_tag"
+          test -n "$go_version"
+          core_commit="$(git ls-remote https://github.com/Amesu-afk/sing-box-lx.git "refs/tags/${core_tag}^{}" | cut -f1)"
+          if [ -z "$core_commit" ]; then
+            core_commit="$(git ls-remote https://github.com/Amesu-afk/sing-box-lx.git "refs/tags/${core_tag}" | cut -f1)"
           fi
+          test -n "$core_commit"
           echo "CORE_TAG=${core_tag}" >> "$GITHUB_ENV"
-          echo "Using core tag: ${core_tag}"
+          echo "CORE_COMMIT=${core_commit}" >> "$GITHUB_ENV"
+          echo "GO_VERSION=${go_version}" >> "$GITHUB_ENV"
+          echo "Using core ${core_tag} (${core_commit}) with ${go_version}"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -58,18 +64,18 @@ jobs:
           cache: gradle
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.26.5'
+          go-version: ${{ env.GO_VERSION }}
           cache: false
 
       # The AARs are deliberately not stored in git (125 MB each). Build them
-      # once per core tag and reuse; the single arm64 target keeps a cold build
-      # inside the job budget without changing what the tests cover.
+      # once per core commit/toolchain and reuse; the single arm64 target keeps
+      # a cold build inside the job budget without changing what the tests cover.
       - name: Restore libbox AAR
         id: aar
         uses: actions/cache@v4
         with:
           path: app/libs
-          key: libbox-${{ env.CORE_TAG }}-arm64-v1
+          key: libbox-${{ env.CORE_COMMIT }}-${{ env.GO_VERSION }}-arm64-v2
       - name: Install NDK
         if: steps.aar.outputs.cache-hit != 'true'
         run: |
@@ -86,12 +92,21 @@ jobs:
         run: |
           git clone --depth 1 --branch "$CORE_TAG" https://github.com/Amesu-afk/sing-box-lx ../core
           cd ../core
+          test "$(git rev-parse HEAD)" = "$CORE_COMMIT"
           git submodule update --init --depth 1 --recursive
           go run ./cmd/internal/build_libbox -target android -platform android/arm64
           mkdir -p "$GITHUB_WORKSPACE/app/libs"
           cp libbox.aar "$GITHUB_WORKSPACE/app/libs/"
       - name: Verify AAR
-        run: test -s app/libs/libbox.aar
+        run: |
+          test -s app/libs/libbox.aar
+          unzip -l app/libs/libbox.aar | grep -q 'jni/arm64-v8a/libbox.so'
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          unzip -q app/libs/libbox.aar 'jni/arm64-v8a/libbox.so' -d "$tmp"
+          go version -m "$tmp/jni/arm64-v8a/libbox.so" > "$tmp/build-info.txt"
+          grep -q "go${GO_VERSION#go}" "$tmp/build-info.txt"
+          grep -a -q "${CORE_TAG#v}" "$tmp/jni/arm64-v8a/libbox.so"
 
       - name: Unit tests
         run: ./gradlew --no-daemon testOtherDebugUnitTest
