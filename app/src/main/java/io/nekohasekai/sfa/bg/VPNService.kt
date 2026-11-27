@@ -139,15 +139,18 @@ class VPNService :
 
             val includePackage = options.includePackage
             if (includePackage.hasNext()) {
+                var addedPackageCount = 0
                 while (includePackage.hasNext()) {
                     try {
                         val nextPackage = includePackage.next()
                         builder.addAllowedApplication(nextPackage)
+                        addedPackageCount++
                         Log.d("VPNService", "addAllowedApplication: $nextPackage")
                     } catch (e: NameNotFoundException) {
                         Log.e("VPNService", "addAllowedApplication failed", e)
                     }
                 }
+                VpnIncludeApplications.validate(hasRequestedPackages = true, addedPackageCount = addedPackageCount)
             }
 
             val excludePackage = options.excludePackage
@@ -188,4 +191,6 @@ class VPNService :
     }
 
     override fun sendNotification(notification: Notification) = service.sendNotification(notification)
+
+    override fun cancelNotification(identifier: String, typeID: Int) = service.cancelNotification(identifier, typeID)
 }

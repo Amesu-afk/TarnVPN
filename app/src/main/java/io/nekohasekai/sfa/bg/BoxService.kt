@@ -915,6 +915,14 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         }
     }
 
+    internal fun cancelNotification(identifier: String, typeID: Int) {
+        GlobalScope.launch(Dispatchers.Main) {
+            // sendNotification() posts without a tag, so cancelling by id is the
+            // matching call; identifier is only the channel name there.
+            Application.notification.cancel(typeID)
+        }
+    }
+
     override fun triggerNativeCrash() {
         Thread {
             Thread.sleep(200)
