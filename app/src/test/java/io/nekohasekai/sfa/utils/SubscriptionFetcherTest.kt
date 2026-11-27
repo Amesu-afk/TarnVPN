@@ -52,16 +52,25 @@ class SubscriptionFetcherTest {
             }
             assertTrue(error.message!!.contains("sing-box JSON"))
         }
-        assertEquals(config, SubscriptionFetcher.chooseResponse {
-            if (it == null) config else throw IOException("offline")
-        })
+        assertEquals(
+            config,
+            SubscriptionFetcher.chooseResponse {
+                if (it == null) config else throw IOException("offline")
+            },
+        )
     }
 
     @Test
     fun `unrelated JSON is not re-requested`() {
         var calls = 0
         val body = """{"message":"unavailable"}"""
-        assertEquals(body, SubscriptionFetcher.chooseResponse { calls++; body })
+        assertEquals(
+            body,
+            SubscriptionFetcher.chooseResponse {
+                calls++
+                body
+            },
+        )
         assertEquals(1, calls)
     }
 }

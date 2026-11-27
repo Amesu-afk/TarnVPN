@@ -1067,8 +1067,7 @@ object VlessImporter {
 
     private fun normalizeTunMtu(mtu: Int): Int = mtu.takeIf(Settings.TARN_TUN_MTU_VALUES::contains) ?: 0
 
-    private fun normalizeTunStack(stack: String): String =
-        stack.takeIf(Settings.TARN_TUN_STACK_VALUES::contains) ?: Settings.TUN_STACK_GVISOR
+    private fun normalizeTunStack(stack: String): String = stack.takeIf(Settings.TARN_TUN_STACK_VALUES::contains) ?: Settings.TUN_STACK_GVISOR
 
     private fun normalizeLogLevel(level: String): String = when (level) {
         Settings.LOG_LEVEL_INFO, Settings.LOG_LEVEL_DEBUG, Settings.LOG_LEVEL_TRACE -> level
@@ -1077,11 +1076,10 @@ object VlessImporter {
 
     private fun normalizeTestUrl(url: String): String = url.trim().takeIf(Settings::isValidTarnTestUrl) ?: Settings.DEFAULT_TARN_TEST_URL
 
-    private fun isQuicRejectRule(rule: JSONObject): Boolean =
-        rule.optString("action") == "reject" && (
-            rule.optString("protocol").equals("quic", ignoreCase = true) ||
-                (rule.optInt("port") == 443 && rule.optString("network") == "udp")
-            )
+    private fun isQuicRejectRule(rule: JSONObject): Boolean = rule.optString("action") == "reject" && (
+        rule.optString("protocol").equals("quic", ignoreCase = true) ||
+            (rule.optInt("port") == 443 && rule.optString("network") == "udp")
+        )
 
     /**
      * A sniff-independent half of the same policy: QUIC always rides on UDP/443, so this
@@ -1369,8 +1367,7 @@ object VlessImporter {
      * current app cannot parse yet, so a subscription refresh can report it and preserve the
      * previously working list instead of silently interpreting it as a removed server.
      */
-    internal fun hasSubscriptionEntries(body: String): Boolean =
-        body.length <= MAX_SUBSCRIPTION_CHARS && expandSubscriptionBody(body).isNotEmpty()
+    internal fun hasSubscriptionEntries(body: String): Boolean = body.length <= MAX_SUBSCRIPTION_CHARS && expandSubscriptionBody(body).isNotEmpty()
 
     private fun expandSubscriptionBody(body: String): List<String> {
         val trimmed = body.trim().removePrefix("\uFEFF")

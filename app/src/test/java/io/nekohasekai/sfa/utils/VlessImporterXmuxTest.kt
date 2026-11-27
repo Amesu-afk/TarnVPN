@@ -31,14 +31,12 @@ class VlessImporterXmuxTest {
             .first { it.optString("type") == "vless" }
     }
 
-    private fun xhttpUri(): String =
-        "vless://11111111-2222-3333-4444-555555555555@185.28.175.193:443" +
-            "?type=xhttp&security=reality&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
-            "&fp=chrome&sni=example.com&path=%2Fx#TestXhttp"
+    private fun xhttpUri(): String = "vless://11111111-2222-3333-4444-555555555555@185.28.175.193:443" +
+        "?type=xhttp&security=reality&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+        "&fp=chrome&sni=example.com&path=%2Fx#TestXhttp"
 
-    private fun tcpUri(): String =
-        "vless://11111111-2222-3333-4444-555555555555@185.28.175.193:443" +
-            "?security=tls&sni=example.com#TestTcp"
+    private fun tcpUri(): String = "vless://11111111-2222-3333-4444-555555555555@185.28.175.193:443" +
+        "?security=tls&sni=example.com#TestTcp"
 
     @Test
     fun `xmux lives inside the xhttp transport and not on the outbound`() {

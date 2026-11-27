@@ -26,6 +26,7 @@ class HTTPClient(private val agent: String = userAgent) : Closeable {
     }
 
     @Volatile private var active: HttpURLConnection? = null
+
     @Volatile private var activeSocket: java.net.Socket? = null
     private val lifecycle = Any()
     private var closed = false
@@ -72,9 +73,10 @@ class HTTPClient(private val agent: String = userAgent) : Closeable {
         }
         val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs)
         var target = URL(url)
+        require(target.protocol.equals("https", ignoreCase = true)) { "HTTPS required" }
         val original = target
         repeat(6) {
-            require(target.protocol == "https" || target.protocol == "http") { "Unsupported HTTP URL" }
+            require(target.protocol.equals("https", ignoreCase = true)) { "HTTPS required" }
             val remaining = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime())
             require(remaining > 0) { "HTTP request timed out" }
             val connection = target.openConnection() as HttpURLConnection
@@ -100,7 +102,7 @@ class HTTPClient(private val agent: String = userAgent) : Closeable {
                 val status = connection.responseCode
                 if (status in listOf(301, 302, 303, 307, 308)) {
                     val next = URL(target, connection.getHeaderField("Location") ?: error("Missing redirect location"))
-                    require(target.protocol != "https" || next.protocol == "https") { "Insecure HTTP redirect" }
+                    require(next.protocol.equals("https", ignoreCase = true)) { "Insecure HTTP redirect" }
                     target = next
                     return@repeat
                 }

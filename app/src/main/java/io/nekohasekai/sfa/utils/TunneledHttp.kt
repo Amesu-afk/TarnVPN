@@ -315,8 +315,7 @@ internal object TunneledHttp {
 
     private fun portOf(url: URL): Int = if (url.port == -1) 443 else url.port
 
-    private fun remainingMs(deadline: Long): Long =
-        (deadline - System.nanoTime()) / 1_000_000L
+    private fun remainingMs(deadline: Long): Long = (deadline - System.nanoTime()) / 1_000_000L
 
     private fun closeQuietly(target: java.io.Closeable) {
         runCatching { target.close() }

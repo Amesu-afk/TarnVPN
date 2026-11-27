@@ -163,10 +163,12 @@ object AwgConfParser {
         val address = key("client_ip")
         if (address.isNotBlank()) lines += "Address = $address"
         key("mtu").takeIf { it.isNotBlank() }?.let { lines += "MTU = $it" }
-        for (name in listOf("Jc", "Jmin", "Jmax", "S1", "S2", "S3", "S4", "H1", "H2", "H3", "H4",
+        for (name in listOf(
+            "Jc", "Jmin", "Jmax", "S1", "S2", "S3", "S4", "H1", "H2", "H3", "H4",
             "I1", "I2", "I3", "I4", "I5", "HeaderProtectionKey", "ContentPaddingAddition",
             "RekeyAfterTime", "RekeyTimeout", "RejectAfterTime", "KeepaliveTimeout",
-            "MaxHandshakeAttempts", "RandomTrailers", "DisableCookies")) {
+            "MaxHandshakeAttempts", "RandomTrailers", "DisableCookies",
+        )) {
             key(name).takeIf { it.isNotBlank() }?.let { lines += "$name = $it" }
         }
         lines += ""
@@ -418,8 +420,7 @@ object AwgConfParser {
         return IniValues(iface, peers, comments)
     }
 
-    private fun normalizeKey(raw: String): String =
-        raw.trim().lowercase().replace("-", "").replace("_", "").replace(" ", "")
+    private fun normalizeKey(raw: String): String = raw.trim().lowercase().replace("-", "").replace("_", "").replace(" ", "")
 
     private fun stripInlineComment(line: String): String {
         var cut = line.length
@@ -430,8 +431,7 @@ object AwgConfParser {
         return if (cut < line.length) line.substring(0, cut) else line
     }
 
-    private fun splitList(value: String?): List<String> =
-        value.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
+    private fun splitList(value: String?): List<String> = value.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
 
     private fun withPrefix(address: String): String {
         if (address.contains('/')) return address

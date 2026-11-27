@@ -5,20 +5,20 @@ import io.nekohasekai.sfa.R
 import kotlinx.coroutines.CancellationException
 import org.json.JSONObject
 
-internal class UnsupportedSubscriptionFormatException : IllegalArgumentException(
-    "Subscription returned a sing-box JSON configuration, but no compatible share-link list was available.",
-)
+internal class UnsupportedSubscriptionFormatException :
+    IllegalArgumentException(
+        "Subscription returned a sing-box JSON configuration, but no compatible share-link list was available.",
+    )
 
 /** Requests share links when a provider returns a complete sing-box config by default. */
 internal object SubscriptionFetcher {
     private const val SHARE_LINKS_USER_AGENT = "sing-box/1.12.0"
 
-    fun errorMessage(context: Context, error: Throwable): String? =
-        if (error is UnsupportedSubscriptionFormatException) {
-            context.getString(R.string.tarn_subscription_format_unsupported)
-        } else {
-            error.message
-        }
+    fun errorMessage(context: Context, error: Throwable): String? = if (error is UnsupportedSubscriptionFormatException) {
+        context.getString(R.string.tarn_subscription_format_unsupported)
+    } else {
+        error.message
+    }
 
     fun fetch(url: String): String = chooseResponse { agent ->
         if (agent == null) {

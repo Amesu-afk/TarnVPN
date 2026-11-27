@@ -28,10 +28,9 @@ class VlessImporterGeneratedConfigTest {
         return JSONObject(config)
     }
 
-    private fun sampleUri(): String =
-        "vless://11111111-2222-3333-4444-555555555555@185.28.175.193:443" +
-            "?type=xhttp&security=reality&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
-            "&fp=chrome&sni=example.com&path=%2Fx#TestMiami-Test"
+    private fun sampleUri(): String = "vless://11111111-2222-3333-4444-555555555555@185.28.175.193:443" +
+        "?type=xhttp&security=reality&pbk=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" +
+        "&fp=chrome&sni=example.com&path=%2Fx#TestMiami-Test"
 
     private fun sniffRules(config: JSONObject): List<JSONObject> {
         val rules = config.getJSONObject("route").getJSONArray("rules")
