@@ -374,7 +374,7 @@ dependencies {
     // Common Compose-related libraries
     implementation("sh.calvin.reorderable:reorderable:3.0.0")
     implementation("com.github.jeziellago:compose-markdown:0.5.8")
-    implementation("org.kodein.emoji:emoji-kt:2.3.0")
+    implementation("org.kodein.emoji:emoji-kt:2.5.0")
 
     // Terminal emulator
     implementation(project(":terminal-emulator"))
