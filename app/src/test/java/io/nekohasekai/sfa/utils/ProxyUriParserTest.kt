@@ -96,6 +96,52 @@ class ProxyUriParserTest {
         assertEquals("vmess", vmess.optString("type"))
     }
 
+    // ---- shadowsocks: legacy plain form (issue #14) -----------------------------------
+
+    @Test
+    fun `parses legacy plain ss with padded password`() {
+        val out = parse("ss://aes-256-gcm:ZRpgaBeGxtENIXgvhpkZBKz9GnWRS2dYcx9O+a2iwN4=@172.99.189.142:19999#DE")
+        assertEquals("shadowsocks", out.optString("type"))
+        assertEquals("aes-256-gcm", out.optString("method"))
+        assertEquals("ZRpgaBeGxtENIXgvhpkZBKz9GnWRS2dYcx9O+a2iwN4=", out.optString("password"))
+        assertEquals("172.99.189.142", out.optString("server"))
+        assertEquals(19999, out.optInt("server_port"))
+    }
+
+    @Test
+    fun `parses legacy plain ss whose unpadded credentials survive a lenient base64 decode`() {
+        // The exact link from issue #14: a lenient decoder turns the userinfo into binary
+        // noise, which used to land in `method` and made the core fail the whole profile
+        // with "unknown method" plus unreadable characters.
+        val out = parse("ss://chacha20-ietf-poly1305:NcAXc0UZI6yQJE1p8QmOv8@57.129.113.16:8388#DE")
+        assertEquals("shadowsocks", out.optString("type"))
+        assertEquals("chacha20-ietf-poly1305", out.optString("method"))
+        assertEquals("NcAXc0UZI6yQJE1p8QmOv8", out.optString("password"))
+        assertEquals("57.129.113.16", out.optString("server"))
+    }
+
+    @Test
+    fun `parses ss 2022 cipher in plain form`() {
+        val out = parse("ss://2022-blake3-chacha20-poly1305:8yO3ANWefuuGs1lRKXECQA1FEhxlWFV2ppQMcBaZo5Y=@8.211.38.49:443#DE")
+        assertEquals("2022-blake3-chacha20-poly1305", out.optString("method"))
+        assertEquals("8.211.38.49", out.optString("server"))
+    }
+
+    @Test
+    fun `still decodes sip002 base64 credentials`() {
+        val out = parse("ss://${b64("aes-256-gcm:secret")}@example.com:8388")
+        assertEquals("aes-256-gcm", out.optString("method"))
+        assertEquals("secret", out.optString("password"))
+    }
+
+    @Test
+    fun `keeps the plain password when it itself looks like base64 with padding`() {
+        // A password that ends in '=' must not let the endpoint split lose it.
+        val out = parse("ss://aes-256-gcm:plain==pass@example.com:8388")
+        assertEquals("aes-256-gcm", out.optString("method"))
+        assertEquals("plain==pass", out.optString("password"))
+    }
+
     // ---- vless ------------------------------------------------------------------------
 
     @Test

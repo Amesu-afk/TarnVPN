@@ -129,8 +129,9 @@ object ProxyUriParser {
     // ---- shadowsocks ------------------------------------------------------------------
 
     /**
-     * Accepts both SIP002 (`ss://base64(method:password)@host:port#tag`) and the older
-     * fully-encoded form (`ss://base64(method:password@host:port)#tag`).
+     * Accepts SIP002 (`ss://base64(method:password)@host:port#tag`), the older
+     * fully-encoded form (`ss://base64(method:password@host:port)#tag`) and the
+     * plain legacy form (`ss://method:password@host:port#tag`).
      */
     private fun parseShadowsocks(rawUri: String): ParsedOutbound {
         val fragment = rawUri.substringAfter('#', "").let(Uri::decode).orEmpty()
@@ -145,8 +146,16 @@ object ProxyUriParser {
         val port: Int
 
         if (withoutQuery.contains('@')) {
-            val credentials = decodeBase64(withoutQuery.substringBeforeLast('@'))
-                ?: withoutQuery.substringBeforeLast('@')
+            val rawCredentials = withoutQuery.substringBeforeLast('@')
+            // Legacy plain form (`ss://method:password@host`): base64 alphabets never carry
+            // ':', but a lenient decoder will happily chew through the raw string and hand
+            // the core an unreadable method ("unknown method" with binary noise). Anything
+            // with a colon before the endpoint is therefore plain, not encoded.
+            val credentials = if (rawCredentials.contains(':')) {
+                rawCredentials
+            } else {
+                decodeBase64(rawCredentials) ?: throw IllegalArgumentException("Malformed ss URL")
+            }
             method = credentials.substringBefore(':')
             password = credentials.substringAfter(':', "")
             val endpoint = withoutQuery.substringAfterLast('@')

@@ -41,8 +41,12 @@ object VlessImporter {
      *     transport (Cloudflare, direct WS, WireGuard peer) is not captured by
      *     the VPN route. On Android 13+ VpnService.excludeRoute is used; this
      *     is what keeps a large Cloudflare-WS stream out of the TUN.
+     * 14 — legacy plain `ss://method:password@host` links no longer run through a lenient
+     *     base64 decode (it produced an unreadable method and the core refused the profile
+     *     with "unknown method"); oversized subscriptions now import their first
+     *     [MAX_SUBSCRIPTION_SERVERS] entries instead of failing outright.
      */
-    const val CONFIG_GENERATION = 13
+    const val CONFIG_GENERATION = 14
 
     private data class ConnectionConfigSettings(
         val dnsOption: DnsOption,
@@ -232,8 +236,10 @@ object VlessImporter {
         }
     }
 
-    private const val MAX_SUBSCRIPTION_CHARS = 1_048_576
-    private const val MAX_SUBSCRIPTION_SERVERS = 128
+    private const val MAX_SUBSCRIPTION_CHARS = 8_388_608
+
+    /** Visible to tests and the import UI copy: subscriptions are truncated, not refused. */
+    internal const val MAX_SUBSCRIPTION_SERVERS = 128
 
     internal fun inspectSubscriptionBody(
         body: String,
@@ -247,12 +253,21 @@ object VlessImporter {
         require(body.length <= MAX_SUBSCRIPTION_CHARS) {
             "Subscription is too large (max $MAX_SUBSCRIPTION_CHARS characters)"
         }
-        val entries = expandSubscriptionBody(body)
-        require(entries.size <= MAX_SUBSCRIPTION_SERVERS) {
-            "Subscription contains too many servers (max $MAX_SUBSCRIPTION_SERVERS)"
-        }
+        val allEntries = expandSubscriptionBody(body)
+        // A real-world subscription can carry thousands of servers. Import the first
+        // MAX_SUBSCRIPTION_SERVERS of them instead of refusing the whole list: the user
+        // picks one server anyway, and a hard failure here reads as "the app is broken".
+        val truncated = allEntries.size > MAX_SUBSCRIPTION_SERVERS
+        val entries = if (truncated) allEntries.take(MAX_SUBSCRIPTION_SERVERS) else allEntries
         val servers = mutableListOf<ProxyUriParser.ParsedOutbound>()
         val issues = mutableListOf<ImportIssue>()
+        if (truncated) {
+            issues += ImportIssue(
+                source = "",
+                reason = "Skipped ${allEntries.size - entries.size} of ${allEntries.size} entries " +
+                    "(import limit is $MAX_SUBSCRIPTION_SERVERS servers)",
+            )
+        }
         entries.forEach { entry ->
             val awg = AwgConfParser.isAwgInput(entry)
             if (!ProxyUriParser.isSupportedUri(entry) && !awg) {
@@ -278,7 +293,7 @@ object VlessImporter {
         }
         return ParsedServerBatch(
             servers = servers,
-            totalEntries = entries.size,
+            totalEntries = allEntries.size,
             issues = issues,
             isSubscription = true,
         )

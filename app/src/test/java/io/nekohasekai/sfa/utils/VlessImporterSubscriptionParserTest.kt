@@ -30,6 +30,21 @@ class VlessImporterSubscriptionParserTest {
     }
 
     @Test
+    fun `imports the first 128 servers of an oversized subscription instead of refusing it`() {
+        // Issue #14: a real-world subscription with thousands of entries used to fail the
+        // whole import; now it is truncated to the import limit with a visible notice.
+        val body = (1..VlessImporter.MAX_SUBSCRIPTION_SERVERS + 10)
+            .joinToString("\n") { i -> "vless://uuid-$i@example.com:443?security=tls#server-$i" }
+
+        val preview = VlessImporter.inspectSubscriptionBody(body)
+
+        assertEquals(VlessImporter.MAX_SUBSCRIPTION_SERVERS + 10, preview.totalEntries)
+        assertEquals(VlessImporter.MAX_SUBSCRIPTION_SERVERS, preview.parsedCount)
+        assertEquals(1, preview.issues.size)
+        assertTrue(preview.issues.single().reason.contains("Skipped 10 of ${VlessImporter.MAX_SUBSCRIPTION_SERVERS + 10}"))
+    }
+
+    @Test
     fun `recognises base64 subscriptions with mixed supported schemes`() {
         val raw = """
             vless://uuid@example.com:443?security=tls#one
