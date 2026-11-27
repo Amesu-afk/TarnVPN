@@ -47,6 +47,7 @@ fun TarnShareDialog(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
+    val shareLabel = stringResource(R.string.tarn_export_share)
     // Deterministic black-on-white: the theme-aware QR helper draws white modules on a
     // transparent background in dark mode, which disappears on the white quiet-zone box.
     val bitmap = remember(link) {
@@ -110,7 +111,7 @@ fun TarnShareDialog(
                 )
                 Spacer(Modifier.width(12.dp))
                 TarnDialogTextButton(
-                    text = stringResource(R.string.tarn_export_share),
+                    text = shareLabel,
                     onClick = {
                         context.startActivity(
                             Intent.createChooser(
@@ -118,7 +119,7 @@ fun TarnShareDialog(
                                     type = "text/plain"
                                     putExtra(Intent.EXTRA_TEXT, link)
                                 },
-                                context.getString(R.string.tarn_export_share),
+                                shareLabel,
                             ),
                         )
                     },

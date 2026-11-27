@@ -49,12 +49,17 @@
     <string name="tarn_servers_delete_confirm_action">Удалить</string>
 
     <string name="tarn_servers_add_title">Добавить сервер</string>
-    <string name="tarn_servers_add_hint">Вставьте ссылку сервера, конфиг WireGuard/AmneziaWG (.conf или vpn://) или адрес подписки. Понимаем vless, trojan, ss, vmess, hysteria2, tuic, anytls, olcRTC и AmneziaWG. Каждый сервер из подписки станет отдельной записью.</string>
+    <string name="tarn_servers_add_hint">Вставьте ссылку сервера, конфиг WireGuard/AmneziaWG (.conf или vpn://), адрес подписки или откройте файл кнопкой папки. Понимаем vless, trojan, ss, vmess, hysteria2, tuic, anytls, olcRTC и AmneziaWG. Каждый сервер из подписки станет отдельной записью.</string>
     <string name="tarn_servers_add_placeholder">vless://… .conf vpn://… или https://…</string>
     <string name="tarn_servers_add_action">Добавить</string>
     <string name="tarn_servers_import_partial">Обработано серверов: %1$d. Пропущено неподдерживаемых или ошибочных ссылок: %2$d.</string>
+    <string name="tarn_servers_import_truncated">Обработано серверов: %1$d. Пропущено сверх лимита 128 серверов: %2$d; ошибочных ссылок: %3$d.</string>
     <string name="tarn_servers_qr_unsupported">В QR-коде нет ссылки сервера или адреса подписки.</string>
+    <string name="tarn_servers_pick_file">Открыть файл конфигурации (.conf или файл со ссылками/подпиской)</string>
+    <string name="tarn_servers_file_unreadable">Не удалось прочитать выбранный файл.</string>
+    <string name="tarn_subscriptions_file_group">Импортировано из файла на этом устройстве</string>
     <string name="tarn_subscriptions_refresh_partial">Подписка обновлена: серверов %1$d; пропущено неподдерживаемых или ошибочных ссылок: %2$d.</string>
+    <string name="tarn_subscriptions_refresh_truncated">Подписка обновлена: серверов %1$d; пропущено сверх лимита 128 серверов: %2$d; ошибочных ссылок: %3$d.</string>
 
     <string name="tarn_shield_section_general">Основные</string>
     <string name="tarn_shield_kill_switch">Запретить обход VPN</string>

@@ -56,11 +56,13 @@
     <string name="tarn_servers_add_placeholder">vless://… .conf vpn://… or https://…</string>
     <string name="tarn_servers_add_action">Add</string>
     <string name="tarn_servers_import_partial">Processed %1$d server(s); skipped %2$d unsupported or invalid link(s).</string>
+    <string name="tarn_servers_import_truncated">Processed %1$d server(s); skipped %2$d over the 128-server limit and %3$d invalid link(s).</string>
     <string name="tarn_servers_qr_unsupported">This QR code does not contain a server link or subscription URL.</string>
     <string name="tarn_servers_pick_file">Open a config file (a .conf or a links/subscription file)</string>
     <string name="tarn_servers_file_unreadable">Could not read the selected file.</string>
     <string name="tarn_subscriptions_file_group">Imported from a file on this device</string>
     <string name="tarn_subscriptions_refresh_partial">Subscription refreshed with %1$d server(s); skipped %2$d unsupported or invalid link(s).</string>
+    <string name="tarn_subscriptions_refresh_truncated">Subscription refreshed with %1$d server(s); skipped %2$d over the 128-server limit and %3$d invalid link(s).</string>
 
     <string name="tarn_shield_section_general">General</string>
     <string name="tarn_shield_kill_switch">Prevent VPN bypass</string>

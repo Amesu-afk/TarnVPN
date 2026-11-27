@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 data class TarnSubscriptionRefreshNotice(
     val serverCount: Int,
     val rejectedCount: Int,
+    val truncatedCount: Int = 0,
 )
 
 data class TarnSubscriptionsUiState(
@@ -102,9 +103,9 @@ class TarnSubscriptionsViewModel : ViewModel() {
     /** Manual trigger for the foreground auto-update path, e.g. after changing the interval. */
     fun refreshDueNow() = refreshDue()
 
-    fun refresh(id: String) {
+    fun refresh(id: String, onComplete: () -> Unit = {}) {
         if (_uiState.value.refreshing.contains(id)) return
-        _uiState.update { it.copy(refreshing = it.refreshing + id, error = null, notice = null) }
+        _uiState.update { it.copy(refreshing = it.refreshing + id) }
         viewModelScope.launch {
             val result = runCatching {
                 TarnServerRepository.refreshSubscription(id) { url ->
@@ -115,17 +116,20 @@ class TarnSubscriptionsViewModel : ViewModel() {
             _uiState.update {
                 it.copy(
                     refreshing = it.refreshing - id,
+                    // Several rows may refresh at once: a success must not erase another
+                    // row's error/notice, and a new refresh must not hide the old one.
                     error = result.exceptionOrNull()?.let { error ->
                         SubscriptionFetcher.errorMessage(Application.application, error)
-                    },
-                    notice = outcome?.takeIf { it.rejectedCount > 0 }?.let {
-                        TarnSubscriptionRefreshNotice(it.serverCount, it.rejectedCount)
-                    },
+                    } ?: it.error,
+                    notice = outcome?.takeIf { it.rejectedCount > 0 || it.truncatedCount > 0 }?.let {
+                        TarnSubscriptionRefreshNotice(it.serverCount, it.rejectedCount, it.truncatedCount)
+                    } ?: it.notice,
                 )
             }
             // The profiles callback reloads counts on add/remove, but a no-change refresh still
             // bumps lastUpdated with no profile mutation, so pull the new timestamp in directly.
             reload()
+            if (result.isSuccess) onComplete()
         }
     }
 

@@ -162,11 +162,20 @@ fun TarnSubscriptionsScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = stringResource(
-                        R.string.tarn_subscriptions_refresh_partial,
-                        notice.serverCount,
-                        notice.rejectedCount,
-                    ),
+                    text = if (notice.truncatedCount > 0) {
+                        stringResource(
+                            R.string.tarn_subscriptions_refresh_truncated,
+                            notice.serverCount,
+                            notice.truncatedCount,
+                            notice.rejectedCount,
+                        )
+                    } else {
+                        stringResource(
+                            R.string.tarn_subscriptions_refresh_partial,
+                            notice.serverCount,
+                            notice.rejectedCount,
+                        )
+                    },
                     style = TarnMetaStyle,
                     color = TarnColors.TextSecondary,
                     modifier = Modifier.weight(1f),
@@ -233,7 +242,7 @@ private fun SubscriptionRow(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = if (view.subscription.url.startsWith("http")) {
+                    text = if (view.subscription.url.startsWith("http", ignoreCase = true)) {
                         view.subscription.url
                     } else {
                         stringResource(R.string.tarn_subscriptions_file_group)
@@ -277,16 +286,18 @@ private fun SubscriptionRow(
                 color = TarnColors.TextSecondary,
                 modifier = Modifier.weight(1f),
             )
-            Text(
-                text = stringResource(R.string.tarn_subscriptions_auto_update),
-                style = TarnMetaStyle,
-                color = TarnColors.TextDim,
-            )
-            Spacer(Modifier.width(10.dp))
-            TarnSwitch(
-                checked = view.subscription.autoUpdate,
-                onCheckedChange = onToggleAutoUpdate,
-            )
+            if (view.subscription.url.startsWith("http", ignoreCase = true)) {
+                Text(
+                    text = stringResource(R.string.tarn_subscriptions_auto_update),
+                    style = TarnMetaStyle,
+                    color = TarnColors.TextDim,
+                )
+                Spacer(Modifier.width(10.dp))
+                TarnSwitch(
+                    checked = view.subscription.autoUpdate,
+                    onCheckedChange = onToggleAutoUpdate,
+                )
+            }
         }
         Spacer(Modifier.height(6.dp))
         TarnDialogTextButton(

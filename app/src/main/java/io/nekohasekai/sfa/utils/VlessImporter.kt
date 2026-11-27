@@ -95,7 +95,7 @@ object VlessImporter {
     fun isVlessUri(input: String): Boolean = ProxyUriParser.isSupportedUri(input)
 
     fun isHttpsUrl(input: String): Boolean {
-        val uri = runCatching { Uri.parse(input.trim()) }.getOrNull() ?: return false
+        val uri = runCatching { Uri.parse(input.trim().removePrefix("\uFEFF").trim()) }.getOrNull() ?: return false
         return uri.scheme?.equals("https", ignoreCase = true) == true && !uri.host.isNullOrBlank()
     }
 
@@ -144,6 +144,7 @@ object VlessImporter {
         val totalEntries: Int,
         val issues: List<ImportIssue>,
         val isSubscription: Boolean,
+        val truncatedCount: Int = 0,
     ) {
         val rejectedCount: Int get() = issues.size
     }
@@ -153,6 +154,7 @@ object VlessImporter {
         val totalEntries: Int,
         val issues: List<ImportIssue>,
         val isSubscription: Boolean,
+        val truncatedCount: Int = 0,
     )
 
     /** Lightweight parser report for tests and future import UI; it does not touch Settings. */
@@ -160,6 +162,7 @@ object VlessImporter {
         val parsedCount: Int,
         val totalEntries: Int,
         val issues: List<ImportIssue>,
+        val truncatedCount: Int = 0,
     )
 
     /**
@@ -183,6 +186,7 @@ object VlessImporter {
             totalEntries = parsed.totalEntries,
             issues = parsed.issues,
             isSubscription = parsed.isSubscription,
+            truncatedCount = parsed.truncatedCount,
         )
     }
 
@@ -213,19 +217,21 @@ object VlessImporter {
             // A single share link is one line; a multi-line blob that starts with
             // `vless://` is a link list and must go through the subscription parser
             // (issue #14 follow-up: such a file used to import its first server only).
-            isVlessUri(t) && !t.contains('\n') -> ParsedServerBatch(
+            isVlessUri(t) && !t.contains('\n') && !t.contains('\r') -> ParsedServerBatch(
                 servers = listOf(ProxyUriParser.parse(t, fragmentEnabled)),
                 totalEntries = 1,
                 issues = emptyList(),
                 isSubscription = false,
             )
             AwgConfParser.isAwgInput(t) -> {
-                val servers = AwgConfParser.parse(t)
+                val allServers = AwgConfParser.parse(t)
+                val servers = allServers.take(MAX_SUBSCRIPTION_SERVERS)
                 ParsedServerBatch(
                     servers = servers,
-                    totalEntries = servers.size,
+                    totalEntries = allServers.size,
                     issues = emptyList(),
                     isSubscription = servers.size > 1,
+                    truncatedCount = maxOf(0, allServers.size - servers.size),
                 )
             }
             isHttpsUrl(t) -> {
@@ -246,7 +252,7 @@ object VlessImporter {
         fragmentEnabled: Boolean = false,
     ): SubscriptionParsePreview {
         val parsed = parseSubscriptionBody(body, fragmentEnabled)
-        return SubscriptionParsePreview(parsed.servers.size, parsed.totalEntries, parsed.issues)
+        return SubscriptionParsePreview(parsed.servers.size, parsed.totalEntries, parsed.issues, parsed.truncatedCount)
     }
 
     private fun parseSubscriptionBody(body: String, fragmentEnabled: Boolean): ParsedServerBatch {
@@ -254,21 +260,13 @@ object VlessImporter {
             "Subscription is too large (max $MAX_SUBSCRIPTION_CHARS characters)"
         }
         val allEntries = expandSubscriptionBody(body)
-        // A real-world subscription can carry thousands of servers. Import the first
-        // MAX_SUBSCRIPTION_SERVERS of them instead of refusing the whole list: the user
-        // picks one server anyway, and a hard failure here reads as "the app is broken".
-        val truncated = allEntries.size > MAX_SUBSCRIPTION_SERVERS
-        val entries = if (truncated) allEntries.take(MAX_SUBSCRIPTION_SERVERS) else allEntries
-        val servers = mutableListOf<ProxyUriParser.ParsedOutbound>()
+        // Parse first, then cap the successfully parsed unique servers. Capping raw entries
+        // let 128 duplicates (or 128 broken lines) crowd out real servers further down the
+        // list. Truncation is a notice, not a parse issue: it must not make a later refresh
+        // refuse to remove a genuinely missing server.
+        val parsedByKey = LinkedHashMap<String, ProxyUriParser.ParsedOutbound>()
         val issues = mutableListOf<ImportIssue>()
-        if (truncated) {
-            issues += ImportIssue(
-                source = "",
-                reason = "Skipped ${allEntries.size - entries.size} of ${allEntries.size} entries " +
-                    "(import limit is $MAX_SUBSCRIPTION_SERVERS servers)",
-            )
-        }
-        entries.forEach { entry ->
+        allEntries.forEach { entry ->
             val awg = AwgConfParser.isAwgInput(entry)
             if (!ProxyUriParser.isSupportedUri(entry) && !awg) {
                 issues += ImportIssue(entry, "Unsupported share-link scheme")
@@ -276,19 +274,28 @@ object VlessImporter {
                 runCatching {
                     if (awg) AwgConfParser.parse(entry) else listOf(ProxyUriParser.parse(entry, fragmentEnabled))
                 }
-                    .onSuccess(servers::addAll)
+                    .onSuccess { parsed ->
+                        parsed.forEach { server ->
+                            // A vpn:// bundle can expand one entry into several peers; keep
+                            // them distinct while still deduplicating repeated identical links.
+                            parsedByKey["${server.sourceUri}\u0000${server.tag}"] = server
+                        }
+                    }
                     .onFailure { error ->
                         issues += ImportIssue(entry, importIssueReason(error))
                     }
             }
         }
+        val parsedServers = parsedByKey.values.toList()
+        val truncatedCount = maxOf(0, parsedServers.size - MAX_SUBSCRIPTION_SERVERS)
+        val servers = parsedServers.take(MAX_SUBSCRIPTION_SERVERS)
         if (servers.isEmpty() && SubscriptionFetcher.isSingBoxConfig(body)) {
             throw UnsupportedSubscriptionFormatException()
         }
         if (servers.isEmpty()) {
             throw IllegalArgumentException(
                 "Subscription contained no server links we could read. " +
-                    "Response was ${body.length} chars; rejected ${issues.size}/${entries.size} entries.",
+                    "Response was ${body.length} chars; rejected ${issues.size}/${allEntries.size} entries.",
             )
         }
         return ParsedServerBatch(
@@ -296,6 +303,7 @@ object VlessImporter {
             totalEntries = allEntries.size,
             issues = issues,
             isSubscription = true,
+            truncatedCount = truncatedCount,
         )
     }
 
@@ -1382,7 +1390,16 @@ object VlessImporter {
      * current app cannot parse yet, so a subscription refresh can report it and preserve the
      * previously working list instead of silently interpreting it as a removed server.
      */
-    internal fun hasSubscriptionEntries(body: String): Boolean = body.length <= MAX_SUBSCRIPTION_CHARS && expandSubscriptionBody(body).isNotEmpty()
+
+    /**
+     * True when the fallback body actually contains a link type this build can use (or an
+     * AWG/WG config). An unsupported URI such as `socks5://...` is not a usable alternative:
+     * choosing it over the original subscription would only turn a working response into an
+     * import error. Unsupported entries inside an otherwise usable list are still kept by
+     * [expandSubscriptionBody] and reported by the normal per-entry issue path.
+     */
+    internal fun hasSubscriptionEntries(body: String): Boolean = body.length <= MAX_SUBSCRIPTION_CHARS &&
+        (expandSubscriptionBody(body).any(ProxyUriParser::isSupportedUri) || AwgConfParser.isAwgInput(body))
 
     internal fun expandSubscriptionBody(body: String): List<String> {
         val trimmed = body.trim().removePrefix("\uFEFF")

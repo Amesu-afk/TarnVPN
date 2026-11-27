@@ -6,6 +6,7 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -180,6 +181,49 @@ class ProxyUriParserTest {
 
         val withXudp = parse("vless://uuid@example.com:443?security=tls&packet_encoding=xudp")
         assertEquals("xudp", withXudp.optString("packet_encoding"))
+    }
+
+    @Test
+    fun `decodes percent-encoded plain ss credentials and a trailing plugin slash`() {
+        val out = parse("ss://2022-blake3-aes-256-gcm:YctPZ6U7xPPcU%2Bgp3u%2B0tx%2FtRizJN9K8y%2BuKlW2qjlI%3D@192.168.100.1:8888/?plugin=obfs-local%3Bobfs%3Dhttp")
+        assertEquals("2022-blake3-aes-256-gcm", out.optString("method"))
+        assertEquals("YctPZ6U7xPPcU+gp3u+0tx/tRizJN9K8y+uKlW2qjlI=", out.optString("password"))
+        assertEquals("192.168.100.1", out.optString("server"))
+        assertEquals(8888, out.optInt("server_port"))
+        assertEquals("obfs-local", out.optString("plugin"))
+        assertEquals("obfs=http", out.optString("plugin_opts"))
+    }
+
+    @Test
+    fun `rejects invalid ports and packet encodings per entry`() {
+        for (uri in listOf(
+            "vless://uuid@example.com:0",
+            "vless://uuid@example.com:65536",
+            "vless://uuid@example.com:abc",
+            "ss://aes-256-gcm:secret@example.com:65536",
+        )) {
+            val error = runCatching { parse(uri) }.exceptionOrNull()
+            assertTrue("$uri -> $error", error is IllegalArgumentException)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            parse("vless://uuid@example.com:443?packetEncoding=foo")
+        }
+        val upper = parse("vless://uuid@example.com:443?packetEncoding=XUDP")
+        assertEquals("xudp", upper.optString("packet_encoding"))
+    }
+
+    @Test
+    fun `unknown TLS security is rejected instead of silently downgrading`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            parse("vless://uuid@example.com:443?security=bogus")
+        }
+        assertFalse(parse("vless://uuid@example.com:443?security=none").has("tls"))
+    }
+
+    @Test
+    fun `reserved outbound tags are renamed`() {
+        val out = parse("vless://uuid@example.com:443#direct")
+        assertEquals("server-direct", out.optString("tag"))
     }
 
     // ---- vless ------------------------------------------------------------------------

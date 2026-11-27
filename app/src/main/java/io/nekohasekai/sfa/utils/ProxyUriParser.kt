@@ -22,6 +22,7 @@ object ProxyUriParser {
     data class ParsedOutbound(val tag: String, val json: JSONObject, val sourceUri: String)
 
     private val SCHEMES = setOf("vless", "trojan", "ss", "vmess", "hysteria2", "hy2", "tuic", "anytls", "olcrtc")
+    private val RESERVED_TAGS = setOf("direct", "proxy", "block", "dns")
 
     fun isSupportedUri(input: String): Boolean {
         val scheme = normalizedInput(input).substringBefore("://", "").lowercase()
@@ -33,7 +34,7 @@ object ProxyUriParser {
 
     fun parse(rawUri: String, fragmentEnabled: Boolean): ParsedOutbound {
         val trimmed = normalizedInput(rawUri)
-        return when (trimmed.substringBefore("://", "").lowercase()) {
+        val parsed = when (trimmed.substringBefore("://", "").lowercase()) {
             "vless" -> parseVless(trimmed, fragmentEnabled)
             "trojan" -> parseTrojan(trimmed, fragmentEnabled)
             "ss" -> parseShadowsocks(trimmed)
@@ -44,6 +45,15 @@ object ProxyUriParser {
             "olcrtc" -> OlcRtcUri.parse(trimmed).outbound()
             else -> throw IllegalArgumentException("Unsupported scheme in: ${trimmed.take(24)}…")
         }
+        // The generated config owns these tags for direct/block/DNS and the proxy urltest
+        // group. A share link named "#direct" used to create a duplicate and the core then
+        // rejected the whole profile with "duplicate outbound tag".
+        if (parsed.tag.lowercase() in RESERVED_TAGS) {
+            val safeTag = "server-${parsed.tag}"
+            parsed.json.put("tag", safeTag)
+            return parsed.copy(tag = safeTag)
+        }
+        return parsed
     }
 
     /**
@@ -66,7 +76,7 @@ object ProxyUriParser {
         val uri = Uri.parse(rawUri)
         val userInfo = uri.userInfo ?: throw IllegalArgumentException("Missing UUID in vless URL")
         val host = uri.host ?: throw IllegalArgumentException("Missing host in vless URL")
-        val port = if (uri.port > 0) uri.port else 443
+        val port = portFromUri(rawUri, defaultPort = 443)
         val tag = displayTag(uri, host, port)
         val q = parseQuery(uri.query.orEmpty())
 
@@ -94,10 +104,10 @@ object ProxyUriParser {
             // after the transport has connected.
             encryption?.let { put("encryption", it) }
             queryValue(q, "packet_encoding", "packetEncoding")
-                // `none` means "no override" and is what the core spells as the field's
-                // absence: it only accepts "", "xudp" and "packetaddr", so a literal
-                // "none" from a share link would fail the whole profile.
-                ?.takeIf { it.isNotBlank() && !it.equals("none", ignoreCase = true) }
+                ?.trim()
+                ?.lowercase()
+                ?.takeIf { it.isNotEmpty() && it != "none" }
+                ?.also { require(it == "xudp" || it == "packetaddr") { "Unsupported packet encoding: $it" } }
                 ?.let { put("packet_encoding", it) }
         }
         streamTls(q, host, queryValue(q, "security") ?: "none", fragmentEnabled)?.let { outbound.put("tls", it) }
@@ -112,7 +122,7 @@ object ProxyUriParser {
         val password = uri.userInfo?.let(Uri::decode)
             ?: throw IllegalArgumentException("Missing password in trojan URL")
         val host = uri.host ?: throw IllegalArgumentException("Missing host in trojan URL")
-        val port = if (uri.port > 0) uri.port else 443
+        val port = portFromUri(rawUri, defaultPort = 443)
         val tag = displayTag(uri, host, port)
         val q = parseQuery(uri.query.orEmpty())
 
@@ -155,13 +165,13 @@ object ProxyUriParser {
             // the core an unreadable method ("unknown method" with binary noise). Anything
             // with a colon before the endpoint is therefore plain, not encoded.
             val credentials = if (rawCredentials.contains(':')) {
-                rawCredentials
+                Uri.decode(rawCredentials)
             } else {
                 decodeBase64(rawCredentials) ?: throw IllegalArgumentException("Malformed ss URL")
             }
             method = credentials.substringBefore(':')
             password = credentials.substringAfter(':', "")
-            val endpoint = withoutQuery.substringAfterLast('@')
+            val endpoint = withoutQuery.substringAfterLast('@').removeSuffix("/")
             val (parsedHost, parsedPort) = parseHostPort(endpoint)
             host = parsedHost
             port = parsedPort
@@ -171,7 +181,7 @@ object ProxyUriParser {
             method = decoded.substringBefore(':')
             val rest = decoded.substringAfter(':', "")
             password = rest.substringBeforeLast('@')
-            val endpoint = rest.substringAfterLast('@')
+            val endpoint = rest.substringAfterLast('@').removeSuffix("/")
             val (parsedHost, parsedPort) = parseHostPort(endpoint)
             host = parsedHost
             port = parsedPort
@@ -207,7 +217,14 @@ object ProxyUriParser {
             ?: throw IllegalArgumentException("vmess payload is not JSON")
 
         val host = json.optString("add").ifBlank { throw IllegalArgumentException("Missing host in vmess URL") }
-        val port = json.optString("port").toIntOrNull() ?: json.optInt("port", 443)
+        val rawPort = json.opt("port")
+        val port = when (rawPort) {
+            null, "" -> 443
+            is Number -> rawPort.toInt()
+            is String -> rawPort.trim().toIntOrNull() ?: throw IllegalArgumentException("Invalid port in vmess URL")
+            else -> throw IllegalArgumentException("Invalid port in vmess URL")
+        }
+        require(port in 1..65535) { "Port out of range in vmess URL" }
         val tag = json.optString("ps").ifBlank { "$host:$port" }
 
         val outbound = JSONObject().apply {
@@ -215,7 +232,7 @@ object ProxyUriParser {
             put("tag", tag)
             put("server", host)
             put("server_port", port)
-            put("uuid", json.optString("id"))
+            put("uuid", json.optString("id").also { require(it.isNotBlank()) { "Missing UUID in vmess URL" } })
             put("security", json.optString("scy").ifBlank { "auto" })
             json.optString("aid").toIntOrNull()?.takeIf { it > 0 }?.let { put("alter_id", it) }
         }
@@ -241,7 +258,7 @@ object ProxyUriParser {
     private fun parseHysteria2(rawUri: String): ParsedOutbound {
         val uri = Uri.parse(rawUri)
         val host = uri.host ?: throw IllegalArgumentException("Missing host in hysteria2 URL")
-        val port = if (uri.port > 0) uri.port else 443
+        val port = portFromUri(rawUri, defaultPort = 443)
         val tag = displayTag(uri, host, port)
         val q = parseQuery(uri.query.orEmpty())
         // Userinfo may carry `password` or the legacy `user:password`; the core wants one field.
@@ -275,7 +292,7 @@ object ProxyUriParser {
     private fun parseTuic(rawUri: String): ParsedOutbound {
         val uri = Uri.parse(rawUri)
         val host = uri.host ?: throw IllegalArgumentException("Missing host in tuic URL")
-        val port = if (uri.port > 0) uri.port else 443
+        val port = portFromUri(rawUri, defaultPort = 443)
         val tag = displayTag(uri, host, port)
         val q = parseQuery(uri.query.orEmpty())
         val userInfo = uri.userInfo.orEmpty()
@@ -306,7 +323,7 @@ object ProxyUriParser {
     private fun parseAnyTLS(rawUri: String): ParsedOutbound {
         val uri = Uri.parse(rawUri)
         val host = uri.host ?: throw IllegalArgumentException("Missing host in anytls URL")
-        val port = if (uri.port > 0) uri.port else 443
+        val port = portFromUri(rawUri, defaultPort = 443)
         val tag = displayTag(uri, host, port)
         val q = parseQuery(uri.query.orEmpty())
 
@@ -356,8 +373,11 @@ object ProxyUriParser {
         security: String,
         fragmentEnabled: Boolean,
     ): JSONObject? {
-        val normalized = security.lowercase()
-        if (normalized != "tls" && normalized != "reality" && normalized != "xtls") return null
+        val normalized = security.trim().lowercase()
+        if (normalized in setOf("", "none")) return null
+        if (normalized != "tls" && normalized != "reality" && normalized != "xtls") {
+            throw IllegalArgumentException("Unsupported TLS security: $security")
+        }
         val tls = JSONObject().apply {
             put("enabled", true)
             put("server_name", queryValue(q, "sni", "host") ?: host)
@@ -517,6 +537,25 @@ object ProxyUriParser {
         return rawUri.substring(separator + 3)
     }
 
+    private fun portFromUri(rawUri: String, defaultPort: Int): Int {
+        val separator = rawUri.indexOf("://")
+        if (separator < 0) return defaultPort
+        val authority = rawUri.substring(separator + 3)
+            .substringBefore('/')
+            .substringBefore('?')
+            .substringBefore('#')
+        val hostPort = authority.substringAfterLast('@')
+        val portText = if (hostPort.startsWith("[")) {
+            hostPort.substringAfter(']', "").removePrefix(":")
+        } else {
+            hostPort.substringAfterLast(':', "")
+        }
+        if (portText.isEmpty()) return defaultPort
+        val port = portText.toIntOrNull() ?: throw IllegalArgumentException("Invalid port in share URL")
+        require(port in 1..65535) { "Port out of range in share URL" }
+        return port
+    }
+
     private fun parseHostPort(rawEndpoint: String): Pair<String, Int> {
         val endpoint = Uri.decode(rawEndpoint).trim()
         val (host, portText) = if (endpoint.startsWith("[")) {
@@ -529,7 +568,8 @@ object ProxyUriParser {
             endpoint.substring(0, separator) to endpoint.substring(separator + 1)
         }
         require(host.isNotBlank()) { "Missing host in ss URL" }
-        val port = portText.toIntOrNull() ?: throw IllegalArgumentException("Missing port in ss URL")
+        val port = portText.toIntOrNull() ?: throw IllegalArgumentException("Invalid port in ss URL")
+        require(port in 1..65535) { "Port out of range in ss URL" }
         return host to port
     }
 

@@ -36,7 +36,7 @@ object AwgConfParser {
     private val CONFIG_SCHEMES = listOf("awg://", "amneziawg://", "wireguard://", "wg://")
 
     fun isAwgInput(input: String): Boolean {
-        val text = input.trim()
+        val text = input.trim().removePrefix("\uFEFF").trim()
         if (text.isEmpty()) return false
         if (text.startsWith("vpn://", ignoreCase = true)) return true
         if (looksLikeConfigLink(text)) return true
@@ -50,7 +50,7 @@ object AwgConfParser {
      * rebuild it without re-downloading anything.
      */
     fun parse(input: String): List<ProxyUriParser.ParsedOutbound> {
-        val text = input.trim()
+        val text = input.trim().removePrefix("\uFEFF").trim()
         return when {
             text.startsWith("vpn://", ignoreCase = true) -> parseVpnLink(text)
             looksLikeConfigLink(text) -> parseConfigLink(text)

@@ -7,6 +7,7 @@ import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.bg.BoxService
+import io.nekohasekai.sfa.compose.screen.configuration.readProfileBytes
 import io.nekohasekai.sfa.database.Profile
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
@@ -25,6 +26,7 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Turns stored profiles into server rows and measures how far away they are.
@@ -40,6 +42,7 @@ object TarnServerRepository {
     data class ImportOutcome(
         val serverCount: Int,
         val rejectedCount: Int,
+        val truncatedCount: Int = 0,
     )
 
     /** Outbound types that are plumbing rather than an actual remote server. */
@@ -59,6 +62,19 @@ object TarnServerRepository {
     // the same config file or on the predicted-next file id. Network fetches happen *before*
     // the lock is taken so a slow subscription server never blocks a settings toggle.
     private val mutex = Mutex()
+
+    // Refresh reads/fetches happen outside [mutex]. A generation per source URL makes a slow
+    // older response unable to overwrite a newer one that finished first (manual refresh,
+    // auto-update and re-import can otherwise race across ViewModels).
+    private val refreshGenerations = ConcurrentHashMap<String, Long>()
+
+    private fun beginRefresh(url: String): Long = synchronized(refreshGenerations) {
+        val next = (refreshGenerations[url] ?: 0L) + 1L
+        refreshGenerations[url] = next
+        next
+    }
+
+    private fun isLatestRefresh(url: String, generation: Long): Boolean = refreshGenerations[url] == generation
 
     suspend fun load(): List<ServerEntry> = withContext(Dispatchers.IO) {
         ProfileManager.list().map { profile -> toEntry(profile) }
@@ -83,7 +99,7 @@ object TarnServerRepository {
         } else {
             val batch = VlessImporter.toSingBoxImportBatch(trimmed, fetch)
             mutex.withLock { writeServerProfiles(batch.servers, subscriptionId = null) }
-            ImportOutcome(batch.servers.size, batch.rejectedCount)
+            ImportOutcome(batch.servers.size, batch.rejectedCount, batch.truncatedCount)
         }
     }
 
@@ -92,10 +108,11 @@ object TarnServerRepository {
      * initial import is just a refresh against an empty existing set — every server is an add.
      */
     private suspend fun importSubscription(url: String, fetch: (String) -> String): ImportOutcome {
-        TarnSubscriptionStore.findByUrl(url)?.let { return refreshSubscriptionOutcome(it.id, fetch) }
+        val generation = beginRefresh(url)
+        val existing = TarnSubscriptionStore.findByUrl(url)
         // Do not leave an empty, unrefreshable subscription behind when the first request or
         // parse fails. It becomes durable only after every profile has been written safely.
-        val subscription = Subscription(
+        val subscription = existing ?: Subscription(
             id = Subscription.newId(),
             name = subscriptionName(url),
             url = url,
@@ -104,9 +121,10 @@ object TarnServerRepository {
         )
         val fetched = VlessImporter.toSingBoxImportBatch(url, fetch)
         val serverCount = mutex.withLock {
+            if (!isLatestRefresh(url, generation)) return@withLock 0
             applyRefresh(TarnSubscriptionStore.findByUrl(url) ?: subscription, fetched)
         }
-        return ImportOutcome(serverCount, fetched.rejectedCount)
+        return ImportOutcome(serverCount, fetched.rejectedCount, fetched.truncatedCount)
     }
 
     /**
@@ -119,26 +137,32 @@ object TarnServerRepository {
      *
      * [content] is read lazily — at most once per call, outside the repository lock.
      */
-    suspend fun importFile(uri: Uri, name: String?, content: () -> String): ImportOutcome = withContext(Dispatchers.IO) {
+    suspend fun importFile(
+        uri: Uri,
+        name: String?,
+        fetch: (String) -> String,
+        content: () -> String,
+    ): ImportOutcome = withContext(Dispatchers.IO) {
         val url = uri.toString()
-        TarnSubscriptionStore.findByUrl(url)?.let {
-            return@withContext refreshSubscriptionOutcome(it.id) { content() }
-        }
-        // Same safety rule as importSubscription: an unparseable file must not leave
-        // an empty group behind — the subscription becomes durable only through
-        // applyRefresh, after every profile has been written safely.
-        val subscription = Subscription(
+        val generation = beginRefresh(url)
+        val existing = TarnSubscriptionStore.findByUrl(url)
+        // Same safety rule as importSubscription: an unparseable file must not leave an empty
+        // group behind. Parse the already-read text once — including on re-import — then apply
+        // it to the current group under the lock.
+        val subscription = existing ?: Subscription(
             id = Subscription.newId(),
             name = name?.takeIf { it.isNotBlank() } ?: subscriptionName(url),
             url = url,
             lastUpdated = 0L,
             autoUpdate = false,
         )
-        val fetched = VlessImporter.toSingBoxImportBatch(content()) { content() }
+        val body = content()
+        val fetched = VlessImporter.toSingBoxImportBatch(body, fetch)
         val serverCount = mutex.withLock {
+            if (!isLatestRefresh(url, generation)) return@withLock 0
             applyRefresh(TarnSubscriptionStore.findByUrl(url) ?: subscription, fetched)
         }
-        ImportOutcome(serverCount, fetched.rejectedCount)
+        ImportOutcome(serverCount, fetched.rejectedCount, fetched.truncatedCount)
     }
 
     /** Best-effort display name for a picked document ("sub.txt"), null when anonymous. */
@@ -158,11 +182,7 @@ object TarnServerRepository {
      * characters and the parser rejects it as unsupported input.
      */
     internal fun readDocumentText(resolver: android.content.ContentResolver, uri: Uri): String = resolver.openInputStream(uri)?.use { input ->
-        val bytes = input.readBytes()
-        require(bytes.size <= MAX_IMPORT_FILE_BYTES) {
-            "Document is too large (max $MAX_IMPORT_FILE_BYTES bytes)"
-        }
-        String(bytes, Charsets.UTF_8)
+        String(readProfileBytes(input, MAX_IMPORT_FILE_BYTES), Charsets.UTF_8)
     } ?: throw IllegalArgumentException("Could not open the selected document")
 
     /** Every stored subscription, each with a live count of the profiles still tagged to it. */
@@ -197,6 +217,7 @@ object TarnServerRepository {
     ): ImportOutcome = withContext(Dispatchers.IO) {
         val subscription = TarnSubscriptionStore.get(subscriptionId)
             ?: return@withContext ImportOutcome(serverCount = 0, rejectedCount = 0)
+        val generation = beginRefresh(subscription.url)
         // Network first, outside the lock. A file-backed group (a picked document, not an
         // https subscription) re-reads its document instead of fetching over the network.
         val read: () -> String = if (VlessImporter.isHttpsUrl(subscription.url)) {
@@ -206,11 +227,12 @@ object TarnServerRepository {
         }
         val fetched = VlessImporter.toSingBoxImportBatch(read(), fetch)
         val serverCount = mutex.withLock {
+            if (!isLatestRefresh(subscription.url, generation)) return@withLock 0
             val current = TarnSubscriptionStore.get(subscriptionId)
                 ?: return@withLock 0
             applyRefresh(current, fetched)
         }
-        ImportOutcome(serverCount, fetched.rejectedCount)
+        ImportOutcome(serverCount, fetched.rejectedCount, fetched.truncatedCount)
     }
 
     private suspend fun applyRefresh(
@@ -258,6 +280,16 @@ object TarnServerRepository {
         // subscription that has no other server to switch to.
         var replacedInPlace: Pair<Profile, VlessImporter.ImportedServer>? = null
         if (shouldReplaceInPlace(existingByKey.keys, newByKey.keys)) {
+            // In-place rotation clears the removal list, so the normal partial-response
+            // guard below would see missingProfileCount == 0 and allow A -> B even when a
+            // second entry C could not be read. Refuse that destructive rewrite until the
+            // provider sends a clean response.
+            if (fetched.rejectedCount > 0) {
+                throw IllegalArgumentException(
+                    "Subscription refresh kept the existing single server: " +
+                        "${fetched.rejectedCount} link(s) could not be imported.",
+                )
+            }
             replacedInPlace = existingByKey.values.single() to newByKey.values.single()
             toAdd = emptyList()
             toRemove = emptyList()
@@ -377,11 +409,15 @@ object TarnServerRepository {
         val server: VlessImporter.ImportedServer,
     )
 
-    /** Flips a subscription's auto-update flag. Actual refreshing is driven by the caller. */
+    /** Flips a network subscription's auto-update flag. File groups are manual-only. */
     suspend fun setSubscriptionAutoUpdate(id: String, enabled: Boolean): Unit = withContext(Dispatchers.IO) {
         mutex.withLock {
             TarnSubscriptionStore.get(id)?.let {
-                TarnSubscriptionStore.upsert(it.copy(autoUpdate = enabled))
+                // A document may not be re-readable after its SAF grant lapses; it must never
+                // be fetched on a schedule. Also keep legacy file groups that were accidentally
+                // switched on from entering the due list.
+                if (enabled && !VlessImporter.isHttpsUrl(it.url)) return@let
+                TarnSubscriptionStore.upsert(it.copy(autoUpdate = enabled && VlessImporter.isHttpsUrl(it.url)))
             }
         }
     }
@@ -398,7 +434,7 @@ object TarnServerRepository {
     suspend fun refreshDueSubscriptions(fetch: (String) -> String): Int = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
         val due = TarnSubscriptionStore.load().filter {
-            it.autoUpdate && now - it.lastUpdated >= autoUpdateIntervalMs
+            it.autoUpdate && VlessImporter.isHttpsUrl(it.url) && now - it.lastUpdated >= autoUpdateIntervalMs
         }
         var refreshed = 0
         due.forEach { subscription ->
@@ -421,8 +457,17 @@ object TarnServerRepository {
             // screen is closed while its profiles are being removed.
             withContext(NonCancellable) {
                 val owned = profilesOwnedBySubscription(ProfileManager.list(), id)
+                val subscription = TarnSubscriptionStore.get(id)
                 if (owned.isNotEmpty()) deleteProfilesLocked(owned)
                 TarnSubscriptionStore.remove(id)
+                if (subscription != null && !VlessImporter.isHttpsUrl(subscription.url)) {
+                    runCatching {
+                        Application.application.contentResolver.releasePersistableUriPermission(
+                            Uri.parse(subscription.url),
+                            android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                        )
+                    }
+                }
             }
         }
     }

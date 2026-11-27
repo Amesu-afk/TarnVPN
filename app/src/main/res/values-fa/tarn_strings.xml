@@ -51,11 +51,13 @@
     <string name="tarn_servers_add_placeholder">vless://… trojan://… ss://… یا https://…</string>
     <string name="tarn_servers_add_action">افزودن</string>
     <string name="tarn_servers_import_partial">%1$d سرور پردازش شد؛ %2$d پیوند پشتیبانی‌نشده یا نامعتبر رد شد.</string>
+    <string name="tarn_servers_import_truncated">%1$d سرور پردازش شد؛ %2$d مورد فراتر از حد 128 سرور و %3$d پیوند نامعتبر رد شد.</string>
     <string name="tarn_servers_qr_unsupported">این کد QR حاوی پیوند سرور یا نشانی اشتراک نیست.</string>
     <string name="tarn_servers_pick_file">گشودن پروندهٔ پیکربندی (پروندهٔ .conf یا پیوندها/اشتراک)</string>
     <string name="tarn_servers_file_unreadable">خواندن پروندهٔ انتخاب‌شده ممکن نشد.</string>
     <string name="tarn_subscriptions_file_group">وارد‌شده از پرونده‌ای روی همین دستگاه</string>
     <string name="tarn_subscriptions_refresh_partial">اشتراک با %1$d سرور به‌روزرسانی شد؛ %2$d پیوند پشتیبانی‌نشده یا نامعتبر رد شد.</string>
+    <string name="tarn_subscriptions_refresh_truncated">اشتراک با %1$d سرور به‌روزرسانی شد؛ %2$d مورد فراتر از حد 128 سرور و %3$d پیوند نامعتبر رد شد.</string>
 
     <string name="tarn_shield_section_general">عمومی</string>
     <string name="tarn_shield_kill_switch">جلوگیری از دور زدن VPN</string>

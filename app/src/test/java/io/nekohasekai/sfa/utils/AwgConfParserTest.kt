@@ -57,6 +57,13 @@ class AwgConfParserTest {
     private fun parse(text: String): JSONObject = AwgConfParser.parse(text).single().json
 
     @Test
+    fun `accepts a utf8 BOM and CRLF conf`() {
+        assertTrue(AwgConfParser.isAwgInput("\uFEFF${conf.replace("\n", "\r\n")}"))
+        val endpoint = parse("\uFEFF${conf.replace("\n", "\r\n")}")
+        assertEquals("wireguard", endpoint.getString("type"))
+    }
+
+    @Test
     fun `parses an AmneziaWG 3_1 conf into a wireguard endpoint`() {
         val endpoint = parse(conf)
 

@@ -143,6 +143,7 @@ fun TarnShell(
     var showLockdownPrompt by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+    val noLinkMessage = stringResource(R.string.tarn_export_no_link)
     // One implementation for the Shield row and the onboarding dialog: ACTION_VPN_SETTINGS is
     // not guaranteed on every OEM build, so fall back to the app's own settings page rather
     // than crash on ActivityNotFoundException.
@@ -480,8 +481,8 @@ fun TarnShell(
                     onQueryChange = serversViewModel::setQuery,
                     onRecommendedOnlyChange = serversViewModel::setRecommendedOnly,
                     onCountryFilterChange = serversViewModel::setCountryFilter,
-                    onImport = serversViewModel::importServers,
-                    onImportFile = serversViewModel::importFile,
+                    onImport = { input -> serversViewModel.importServers(input) { applyToRunningService() } },
+                    onImportFile = { uri -> serversViewModel.importFile(uri) { applyToRunningService() } },
                     onDismissImportError = serversViewModel::dismissImportError,
                     onDelete = serversViewModel::deleteServer,
                     onExport = { server ->
@@ -490,7 +491,7 @@ fun TarnShell(
                             if (link == null) {
                                 Toast.makeText(
                                     context,
-                                    context.getString(R.string.tarn_export_no_link),
+                                    noLinkMessage,
                                     Toast.LENGTH_SHORT,
                                 ).show()
                             } else {
@@ -520,7 +521,7 @@ fun TarnShell(
                 TarnSubscriptionsScreen(
                     state = subscriptionsState,
                     onBack = { navController.navigateUp() },
-                    onRefresh = subscriptionsViewModel::refresh,
+                    onRefresh = { id -> subscriptionsViewModel.refresh(id) { applyToRunningService() } },
                     onDelete = subscriptionsViewModel::delete,
                     onToggleAutoUpdate = subscriptionsViewModel::setAutoUpdate,
                     onIntervalChange = subscriptionsViewModel::setIntervalHours,

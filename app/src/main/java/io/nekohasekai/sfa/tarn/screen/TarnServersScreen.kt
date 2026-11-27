@@ -50,6 +50,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -101,17 +102,21 @@ fun TarnServersScreen(
     onClearFullTest: () -> Unit = {},
     onSuggestedFailover: (Long) -> Unit = onSelect,
 ) {
-    var searching by remember { mutableStateOf(false) }
-    var showImportDialog by remember { mutableStateOf(false) }
-    var showQrScanner by remember { mutableStateOf(false) }
-    var importInput by remember { mutableStateOf("") }
-    var qrImportError by remember { mutableStateOf<String?>(null) }
+    var searching by rememberSaveable { mutableStateOf(false) }
+    var showImportDialog by rememberSaveable { mutableStateOf(false) }
+    var showQrScanner by rememberSaveable { mutableStateOf(false) }
+    var importInput by rememberSaveable { mutableStateOf("") }
+    var qrImportError by rememberSaveable { mutableStateOf<String?>(null) }
+    var fileImportActive by rememberSaveable { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<ServerEntry?>(null) }
     val currentCancelFullTest by rememberUpdatedState(onCancelFullTest)
     val filePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         // The dialog stays open underneath: the import state drives its spinner and the
         // same effect closes it once the import finishes without errors.
-        if (uri != null) onImportFile(uri)
+        if (uri != null) {
+            fileImportActive = true
+            onImportFile(uri)
+        }
     }
 
     // A URL-test is tied to the running core instance. Stop it when the service goes down
@@ -128,11 +133,20 @@ fun TarnServersScreen(
     // itself only once a run finishes with no error to show.
     if (showImportDialog) {
         val importNotice = state.importNotice?.let { notice ->
-            stringResource(
-                R.string.tarn_servers_import_partial,
-                notice.serverCount,
-                notice.rejectedCount,
-            )
+            if (notice.truncatedCount > 0) {
+                stringResource(
+                    R.string.tarn_servers_import_truncated,
+                    notice.serverCount,
+                    notice.truncatedCount,
+                    notice.rejectedCount,
+                )
+            } else {
+                stringResource(
+                    R.string.tarn_servers_import_partial,
+                    notice.serverCount,
+                    notice.rejectedCount,
+                )
+            }
         }
         TarnImportDialog(
             value = importInput,
@@ -145,6 +159,7 @@ fun TarnServersScreen(
                 showImportDialog = false
                 showQrScanner = true
                 qrImportError = null
+                onDismissImportError()
             },
             onPickFile = {
                 qrImportError = null
@@ -154,6 +169,7 @@ fun TarnServersScreen(
                 showImportDialog = false
                 importInput = ""
                 qrImportError = null
+                fileImportActive = false
                 onDismissImportError()
             },
             importing = state.importing,
@@ -194,13 +210,15 @@ fun TarnServersScreen(
             },
         )
     }
-    LaunchedEffect(state.importing, state.importError, state.importNotice) {
+    LaunchedEffect(state.importing, state.importError, state.importNotice, fileImportActive) {
         if (
             showImportDialog && !state.importing && state.importError == null &&
-            state.importNotice == null && importInput.isNotBlank()
+            state.importNotice == null && (importInput.isNotBlank() || fileImportActive)
         ) {
             showImportDialog = false
             importInput = ""
+            fileImportActive = false
+            qrImportError = null
         }
     }
 

@@ -40,25 +40,48 @@ class VlessImporterSubscriptionParserTest {
 
         assertEquals(VlessImporter.MAX_SUBSCRIPTION_SERVERS + 10, preview.totalEntries)
         assertEquals(VlessImporter.MAX_SUBSCRIPTION_SERVERS, preview.parsedCount)
-        assertEquals(1, preview.issues.size)
-        assertTrue(preview.issues.single().reason.contains("Skipped 10 of ${VlessImporter.MAX_SUBSCRIPTION_SERVERS + 10}"))
+        assertEquals(0, preview.issues.size)
+        assertEquals(10, preview.truncatedCount)
     }
 
     @Test
     fun `imports every server of a multi-line link file that starts with vless`() {
         // Issue #14 device report: a picked .txt file starting with `vless://` used to be
-        // treated as ONE share link, importing only its first server.
+        // treated as ONE share link, importing only its first server. Use the full import
+        // path here — inspectSubscriptionBody() bypasses the dispatch this test protects.
         val body = """
             vless://uuid-1@example.com:443?security=tls#one
             vless://uuid-2@example.net:443?security=tls#two
             ss://aes-256-gcm:secret@example.org:8388#three
         """.trimIndent()
 
+        val batch = VlessImporter.toSingBoxImportBatch(body) { error("unexpected fetch") }
+
+        assertEquals(3, batch.totalEntries)
+        assertEquals(3, batch.servers.size)
+        assertTrue(batch.issues.isEmpty())
+    }
+
+    @Test
+    fun `bare CR separates link-list entries`() {
+        val body = "vless://uuid-1@example.com:443#one\rvless://uuid-2@example.net:443#two"
+        val batch = VlessImporter.toSingBoxImportBatch(body) { error("unexpected fetch") }
+        assertEquals(2, batch.servers.size)
+    }
+
+    @Test
+    fun `duplicates and invalid entries do not crowd out unique servers at the cap`() {
+        val duplicate = "vless://same@example.com:443#same"
+        val invalid = "unsupported://example.com#bad"
+        val unique = (1..VlessImporter.MAX_SUBSCRIPTION_SERVERS + 1)
+            .map { "vless://uuid-$it@example.com:443#server-$it" }
+        val body = (List(200) { duplicate } + List(200) { invalid } + unique).joinToString("\n")
+
         val preview = VlessImporter.inspectSubscriptionBody(body)
 
-        assertEquals(3, preview.totalEntries)
-        assertEquals(3, preview.parsedCount)
-        assertTrue(preview.issues.isEmpty())
+        assertEquals(VlessImporter.MAX_SUBSCRIPTION_SERVERS, preview.parsedCount)
+        assertEquals(2, preview.truncatedCount)
+        assertEquals(200, preview.issues.size)
     }
 
     @Test

@@ -34,7 +34,7 @@ import kotlinx.coroutines.withContext
 data class TarnCountryOption(val code: String, val flag: String, val count: Int)
 
 /** Successful-but-partial subscription imports stay visible instead of looking like a clean run. */
-data class TarnImportNotice(val serverCount: Int, val rejectedCount: Int)
+data class TarnImportNotice(val serverCount: Int, val rejectedCount: Int, val truncatedCount: Int = 0)
 
 data class TarnServersUiState(
     val servers: List<ServerEntry> = emptyList(),
@@ -143,11 +143,12 @@ class TarnServersViewModel : ViewModel() {
                 state.copy(
                     servers = servers,
                     loading = false,
-                    // Drop readings for profiles that no longer exist.
+                    // Drop readings for profiles that no longer exist. A refresh may also
+                    // rewrite a profile in place (same id, new endpoint), so old full-test
+                    // results and failover suggestions must never survive it.
                     latencies = state.latencies.filterKeys { id -> servers.any { it.profileId == id } },
-                    fullTests = state.fullTests.filterKeys { id -> servers.any { it.profileId == id } },
-                    suggestedTcpFailoverProfileId = state.suggestedTcpFailoverProfileId
-                        ?.takeIf { id -> servers.any { it.profileId == id } },
+                    fullTests = emptyMap(),
+                    suggestedTcpFailoverProfileId = null,
                     // Clear a country filter whose last server just went away, or it would show
                     // an empty list with no obvious way back.
                     countryFilter = state.countryFilter
@@ -217,7 +218,7 @@ class TarnServersViewModel : ViewModel() {
      * own profile (see [TarnServerRepository.import]), and [refresh] via the
      * [ProfileManager] callback picks the new rows up and probes them the moment they land.
      */
-    fun importServers(input: String) {
+    fun importServers(input: String, onComplete: () -> Unit = {}) {
         _uiState.update { it.copy(importing = true, importError = null, importNotice = null) }
         viewModelScope.launch {
             val result = runCatching {
@@ -225,7 +226,7 @@ class TarnServersViewModel : ViewModel() {
                     SubscriptionFetcher.fetch(url)
                 }
             }
-            applyImportOutcome(result)
+            applyImportOutcome(result, onComplete)
         }
     }
 
@@ -242,12 +243,12 @@ class TarnServersViewModel : ViewModel() {
      * .importFile]): the servers screen then offers "delete" for the whole group on the
      * subscriptions screen, and re-picking the same document refreshes it in place.
      */
-    fun importFile(uri: Uri) {
+    fun importFile(uri: Uri, onComplete: () -> Unit = {}) {
         _uiState.update { it.copy(importing = true, importError = null, importNotice = null) }
         viewModelScope.launch {
             val read = runCatching {
                 withContext(Dispatchers.IO) {
-                    // Keep the read grant for later refreshes of the same document.
+                    // Keep the read grant for later manual refreshes of the same document.
                     runCatching {
                         Application.application.contentResolver.takePersistableUriPermission(
                             uri,
@@ -258,6 +259,7 @@ class TarnServersViewModel : ViewModel() {
                 }
             }
             if (read.isFailure) {
+                releaseDocumentPermission(uri)
                 _uiState.update {
                     it.copy(
                         importing = false,
@@ -271,13 +273,23 @@ class TarnServersViewModel : ViewModel() {
                 val name = withContext(Dispatchers.IO) {
                     TarnServerRepository.documentName(Application.application.contentResolver, uri)
                 }
-                TarnServerRepository.importFile(uri, name) { text }
+                TarnServerRepository.importFile(uri, name, { url -> SubscriptionFetcher.fetch(url) }) { text }
             }
-            applyImportOutcome(result)
+            if (result.isFailure) releaseDocumentPermission(uri)
+            applyImportOutcome(result, onComplete)
         }
     }
 
-    private fun applyImportOutcome(result: Result<TarnServerRepository.ImportOutcome>) {
+    private fun releaseDocumentPermission(uri: Uri) {
+        runCatching {
+            Application.application.contentResolver.releasePersistableUriPermission(
+                uri,
+                android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+            )
+        }
+    }
+
+    private fun applyImportOutcome(result: Result<TarnServerRepository.ImportOutcome>, onComplete: () -> Unit = {}) {
         val outcome = result.getOrNull()
         _uiState.update {
             it.copy(
@@ -285,11 +297,12 @@ class TarnServersViewModel : ViewModel() {
                 importError = result.exceptionOrNull()?.let { error ->
                     SubscriptionFetcher.errorMessage(Application.application, error)
                 },
-                importNotice = outcome?.takeIf { it.rejectedCount > 0 }?.let {
-                    TarnImportNotice(it.serverCount, it.rejectedCount)
+                importNotice = outcome?.takeIf { it.rejectedCount > 0 || it.truncatedCount > 0 }?.let {
+                    TarnImportNotice(it.serverCount, it.rejectedCount, it.truncatedCount)
                 },
             )
         }
+        if (result.isSuccess) onComplete()
     }
 
     fun dismissImportError() = _uiState.update { it.copy(importError = null, importNotice = null) }
