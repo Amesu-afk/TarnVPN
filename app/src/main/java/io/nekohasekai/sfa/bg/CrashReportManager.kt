@@ -126,8 +126,9 @@ object CrashReportManager {
         if (configFile.exists()) {
             val configContent = runCatching { configFile.readText() }.getOrNull()?.trim()
             if (!configContent.isNullOrEmpty()) {
-                configFile.copyTo(File(reportDir, CONFIG_FILE_NAME), overwrite = true)
-                ConfigRedaction.redactReport(reportDir)
+                runCatching {
+                    ConfigRedaction.writeRedactedConfig(reportDir, configContent)
+                }
             }
             configFile.delete()
         }

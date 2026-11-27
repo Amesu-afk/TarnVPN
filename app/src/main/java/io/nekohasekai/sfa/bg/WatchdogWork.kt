@@ -62,8 +62,7 @@ class WatchdogWork {
         }
     }
 
-    class WatchdogTask(appContext: Context, params: WorkerParameters) :
-        CoroutineWorker(appContext, params) {
+    class WatchdogTask(appContext: Context, params: WorkerParameters) : CoroutineWorker(appContext, params) {
         override suspend fun doWork(): Result {
             if (!Settings.tarnWatchdog || !Settings.startedByUser) return Result.success()
             // A non-null mirror means a live service instance in this process — started,

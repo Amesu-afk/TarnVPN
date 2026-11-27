@@ -32,18 +32,37 @@ object ConfigRedaction {
         "psk",
         "pre_shared_key",
         "private_key",
+        "private_key_passphrase",
         "short_id",
         "obfs_password",
         "auth",
         "auth_str",
+        "auth_key",
+        "encryption",
         "token",
         "secret",
         "api_key",
+        "x_api_key",
+        "x_auth_token",
         "authorization",
+        "proxy_authorization",
+        "authentication",
         "cookie",
-        "proxy-authorization",
         "username",
     )
+
+    fun redactConfig(json: String): String {
+        val root = JSONObject(json)
+        redactObject(root)
+        return root.toString(2)
+    }
+
+    /** Writes only the redacted JSON; callers must never copy the raw config first. */
+    fun writeRedactedConfig(reportDir: File, json: String) {
+        val redacted = redactConfig(json)
+        File(reportDir, "configuration.json").writeText(redacted)
+        File(reportDir, MARKER_FILE_NAME).createNewFile()
+    }
 
     fun redactReport(reportDir: File) {
         val config = File(reportDir, "configuration.json")
@@ -51,10 +70,10 @@ object ConfigRedaction {
         val marker = File(reportDir, MARKER_FILE_NAME)
         if (marker.exists()) return
         runCatching {
-            val root = JSONObject(config.readText())
-            redactObject(root)
-            config.writeText(root.toString(2))
-            marker.createNewFile()
+            writeRedactedConfig(reportDir, config.readText())
+        }.onFailure {
+            // A malformed snapshot must not survive merely because it could not be parsed.
+            config.delete()
         }
     }
 
@@ -64,24 +83,31 @@ object ConfigRedaction {
         directories.forEach(::redactReport)
     }
 
-    private fun redactObject(obj: JSONObject) {
-        for (key in obj.keys()) {
+    private fun redactObject(obj: JSONObject, redactAllValues: Boolean = false) {
+        val keys = obj.keys().asSequence().toList()
+        for (key in keys) {
+            val normalizedKey = normalizeKey(key)
             when (val value = obj.opt(key)) {
-                is JSONObject -> redactObject(value)
-                is JSONArray -> redactArray(value)
-                is String -> if (value.isNotEmpty() && key.lowercase(Locale.US) in SECRET_KEYS) {
+                is JSONObject -> redactObject(
+                    value,
+                    redactAllValues || normalizedKey == "header" || normalizedKey == "headers" || normalizedKey.endsWith("_headers"),
+                )
+                is JSONArray -> redactArray(value, redactAllValues)
+                is String -> if (value.isNotEmpty() && (redactAllValues || normalizedKey in SECRET_KEYS)) {
                     obj.put(key, REDACTED)
                 }
             }
         }
     }
 
-    private fun redactArray(array: JSONArray) {
+    private fun redactArray(array: JSONArray, redactAllValues: Boolean = false) {
         for (index in 0 until array.length()) {
             when (val value = array.opt(index)) {
-                is JSONObject -> redactObject(value)
-                is JSONArray -> redactArray(value)
+                is JSONObject -> redactObject(value, redactAllValues)
+                is JSONArray -> redactArray(value, redactAllValues)
             }
         }
     }
+
+    private fun normalizeKey(key: String): String = key.lowercase(Locale.US).replace('-', '_')
 }

@@ -178,11 +178,6 @@
         </receiver>
 
         <provider
-            android:name="io.github.libxposed.service.XposedProvider"
-            android:authorities="${applicationId}.XposedService"
-            android:exported="true" />
-
-        <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.cache"
             android:exported="false"

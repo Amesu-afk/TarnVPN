@@ -175,6 +175,7 @@ class MainActivity :
     private var newProfileArgs by mutableStateOf(NewProfileArgs())
     private var parseImportLocalProfileJob: Job? = null
     private var pendingIntentErrorMessage by mutableStateOf<String?>(null)
+    private var pendingOpenUrl by mutableStateOf<String?>(null)
 
     /** True while the original sing-box interface is showing instead of the Tarn shell. */
     private var advancedMode by mutableStateOf(false)
@@ -329,6 +330,27 @@ class MainActivity :
             }
         }
 
+        pendingOpenUrl?.let { url ->
+            AlertDialog(
+                onDismissRequest = { pendingOpenUrl = null },
+                title = { Text(stringResource(android.R.string.dialog_alert_title)) },
+                text = { Text(url) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        pendingOpenUrl = null
+                        launchCustomTab(url)
+                    }) {
+                        Text(stringResource(android.R.string.ok))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingOpenUrl = null }) {
+                        Text(stringResource(android.R.string.cancel))
+                    }
+                },
+            )
+        }
+
         if (advancedMode) {
             BackHandler { advancedMode = false }
             // The upstream interface keeps its own Material You theme.
@@ -360,7 +382,11 @@ class MainActivity :
         }
         val uri = intent.data ?: return
         if (intent.action == Action.OPEN_URL) {
-            launchCustomTab(uri.toString())
+            if (uri.scheme.equals("https", ignoreCase = true) && !uri.host.isNullOrEmpty()) {
+                pendingOpenUrl = uri.toString()
+            } else {
+                pendingIntentErrorMessage = getString(R.string.profile_url_https_required)
+            }
             return
         }
         if (uri.scheme == "sing-box" && uri.host == "import-remote-profile") {
