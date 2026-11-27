@@ -94,7 +94,10 @@ object ProxyUriParser {
             // after the transport has connected.
             encryption?.let { put("encryption", it) }
             queryValue(q, "packet_encoding", "packetEncoding")
-                ?.takeIf { it.isNotBlank() }
+                // `none` means "no override" and is what the core spells as the field's
+                // absence: it only accepts "", "xudp" and "packetaddr", so a literal
+                // "none" from a share link would fail the whole profile.
+                ?.takeIf { it.isNotBlank() && !it.equals("none", ignoreCase = true) }
                 ?.let { put("packet_encoding", it) }
         }
         streamTls(q, host, queryValue(q, "security") ?: "none", fragmentEnabled)?.let { outbound.put("tls", it) }

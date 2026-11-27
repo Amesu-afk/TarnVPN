@@ -157,6 +157,18 @@ class ProxyUriParserTest {
         assertEquals("plain==pass", out.optString("password"))
     }
 
+    @Test
+    fun `drops packet_encoding none from vless links`() {
+        // Issue #14: subscription links carry `packetEncoding=none`; the core only accepts
+        // "", "xudp" and "packetaddr" and failed the whole profile with "unknown packet
+        // encoding: none". Absence is what "no override" means to it.
+        val withNone = parse("vless://uuid@example.com:443?security=tls&packetEncoding=none")
+        assertFalse(withNone.has("packet_encoding"))
+
+        val withXudp = parse("vless://uuid@example.com:443?security=tls&packet_encoding=xudp")
+        assertEquals("xudp", withXudp.optString("packet_encoding"))
+    }
+
     // ---- vless ------------------------------------------------------------------------
 
     @Test
