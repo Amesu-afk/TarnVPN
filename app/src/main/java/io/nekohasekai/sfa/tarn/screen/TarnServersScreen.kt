@@ -1,5 +1,8 @@
 package io.nekohasekai.sfa.tarn.screen
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -85,6 +88,7 @@ fun TarnServersScreen(
     onQueryChange: (String) -> Unit,
     onRecommendedOnlyChange: (Boolean) -> Unit,
     onImport: (String) -> Unit,
+    onImportFile: (Uri) -> Unit = {},
     onDismissImportError: () -> Unit,
     onDelete: (Long) -> Unit = {},
     onExport: (ServerEntry) -> Unit = {},
@@ -104,6 +108,11 @@ fun TarnServersScreen(
     var qrImportError by remember { mutableStateOf<String?>(null) }
     var pendingDelete by remember { mutableStateOf<ServerEntry?>(null) }
     val currentCancelFullTest by rememberUpdatedState(onCancelFullTest)
+    val filePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        // The dialog stays open underneath: the import state drives its spinner and the
+        // same effect closes it once the import finishes without errors.
+        if (uri != null) onImportFile(uri)
+    }
 
     // A URL-test is tied to the running core instance. Stop it when the service goes down
     // or this screen leaves composition; cancelling only the Compose coroutine would not
@@ -136,6 +145,10 @@ fun TarnServersScreen(
                 showImportDialog = false
                 showQrScanner = true
                 qrImportError = null
+            },
+            onPickFile = {
+                qrImportError = null
+                filePickerLauncher.launch(arrayOf("*/*"))
             },
             onDismiss = {
                 showImportDialog = false

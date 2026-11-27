@@ -1,9 +1,13 @@
 package io.nekohasekai.sfa.tarn.screen
 
+import android.content.ContentResolver
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.nekohasekai.mobile.Mobile
 import io.nekohasekai.sfa.Application
+import io.nekohasekai.sfa.R
+import io.nekohasekai.sfa.compose.screen.configuration.readProfileBytes
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.tarn.data.Latency
@@ -223,18 +227,55 @@ class TarnServersViewModel : ViewModel() {
                     SubscriptionFetcher.fetch(url)
                 }
             }
-            val outcome = result.getOrNull()
-            _uiState.update {
-                it.copy(
-                    importing = false,
-                    importError = result.exceptionOrNull()?.let { error ->
-                        SubscriptionFetcher.errorMessage(Application.application, error)
-                    },
-                    importNotice = outcome?.takeIf { it.rejectedCount > 0 }?.let {
-                        TarnImportNotice(it.serverCount, it.rejectedCount)
-                    },
-                )
+            applyImportOutcome(result)
+        }
+    }
+
+    /**
+     * Imports a config file picked through the system file picker: a share-link list
+     * (plain or base64), a WireGuard/AmneziaWG .conf, or a subscription dump saved from
+     * somewhere else. The content is read once here and handed to the same import
+     * pipeline as [importServers]; the size cap matches [VlessImporter] so an absurdly
+     * large file fails with a clear message instead of an OOM.
+     */
+    fun importFile(uri: Uri) {
+        _uiState.update { it.copy(importing = true, importError = null, importNotice = null) }
+        viewModelScope.launch {
+            val read = runCatching {
+                withContext(Dispatchers.IO) {
+                    readConfigText(Application.application.contentResolver, uri)
+                }
             }
+            if (read.isFailure) {
+                _uiState.update {
+                    it.copy(
+                        importing = false,
+                        importError = Application.application.getString(R.string.tarn_servers_file_unreadable),
+                    )
+                }
+                return@launch
+            }
+            val result = runCatching {
+                TarnServerRepository.import(read.getOrThrow()) { url ->
+                    SubscriptionFetcher.fetch(url)
+                }
+            }
+            applyImportOutcome(result)
+        }
+    }
+
+    private fun applyImportOutcome(result: Result<TarnServerRepository.ImportOutcome>) {
+        val outcome = result.getOrNull()
+        _uiState.update {
+            it.copy(
+                importing = false,
+                importError = result.exceptionOrNull()?.let { error ->
+                    SubscriptionFetcher.errorMessage(Application.application, error)
+                },
+                importNotice = outcome?.takeIf { it.rejectedCount > 0 }?.let {
+                    TarnImportNotice(it.serverCount, it.rejectedCount)
+                },
+            )
         }
     }
 
@@ -421,3 +462,16 @@ class TarnServersViewModel : ViewModel() {
         .minByOrNull { (_, millis) -> millis }
         ?.first
 }
+
+/** Keeps a picked config file inside the same budget the subscription parser enforces. */
+private const val MAX_IMPORT_FILE_BYTES = 8L * 1024 * 1024
+
+/**
+ * Reads a picked config file as text. Caps the read at [MAX_IMPORT_FILE_BYTES] and requires
+ * the stream to exist, so a revoked or non-existent document fails with a message instead
+ * of a crash; decoding is UTF-8, where binary junk becomes replacement characters and the
+ * parser rejects it as unsupported input.
+ */
+internal fun readConfigText(resolver: ContentResolver, uri: Uri): String = resolver.openInputStream(uri)?.use { input ->
+    String(readProfileBytes(input, MAX_IMPORT_FILE_BYTES), Charsets.UTF_8)
+} ?: throw IllegalArgumentException("Could not open the selected file")

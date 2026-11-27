@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -38,8 +39,9 @@ import io.nekohasekai.sfa.tarn.theme.TarnMetaStyle
 /**
  * Paste-a-link dialog used to add servers from the servers screen. Deliberately narrow: it
  * accepts share links handled by [io.nekohasekai.sfa.utils.ProxyUriParser], WireGuard/
- * AmneziaWG .conf or vpn:// configs, and HTTPS subscriptions. QR uses the same import
- * callback; file import and raw JSON stay behind "Advanced".
+ * AmneziaWG .conf or vpn:// configs, and HTTPS subscriptions. QR and a system file picker
+ * (a .conf or a links/subscription file) use the same import callback; raw JSON stays
+ * behind "Advanced".
  */
 @Composable
 fun TarnImportDialog(
@@ -47,6 +49,7 @@ fun TarnImportDialog(
     onValueChange: (String) -> Unit,
     onImport: () -> Unit,
     onScanQr: () -> Unit,
+    onPickFile: () -> Unit,
     onDismiss: () -> Unit,
     importing: Boolean,
     errorMessage: String?,
@@ -123,6 +126,19 @@ fun TarnImportDialog(
                 horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                IconButton(
+                    onClick = onPickFile,
+                    enabled = !importing,
+                    modifier = Modifier.size(36.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FolderOpen,
+                        contentDescription = stringResource(R.string.tarn_servers_pick_file),
+                        tint = if (importing) TarnColors.TextDim else TarnColors.Accent,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
                 IconButton(
                     onClick = onScanQr,
                     enabled = !importing,

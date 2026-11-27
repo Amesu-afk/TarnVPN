@@ -52,6 +52,8 @@
     <string name="tarn_servers_add_action">新增</string>
     <string name="tarn_servers_import_partial">已處理 %1$d 部伺服器；已略過 %2$d 個不支援或無效的連結。</string>
     <string name="tarn_servers_qr_unsupported">此 QR 碼不包含伺服器連結或訂閱 URL。</string>
+    <string name="tarn_servers_pick_file">開啟設定檔（.conf 或連結/訂閱檔案）</string>
+    <string name="tarn_servers_file_unreadable">無法讀取所選檔案。</string>
     <string name="tarn_subscriptions_refresh_partial">訂閱已更新，包含 %1$d 部伺服器；已略過 %2$d 個不支援或無效的連結。</string>
 
     <string name="tarn_shield_section_general">一般</string>

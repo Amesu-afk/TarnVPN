@@ -481,6 +481,7 @@ fun TarnShell(
                     onRecommendedOnlyChange = serversViewModel::setRecommendedOnly,
                     onCountryFilterChange = serversViewModel::setCountryFilter,
                     onImport = serversViewModel::importServers,
+                    onImportFile = serversViewModel::importFile,
                     onDismissImportError = serversViewModel::dismissImportError,
                     onDelete = serversViewModel::deleteServer,
                     onExport = { server ->
