@@ -96,6 +96,19 @@ class ProxyUriParserTest {
         assertEquals("vmess", vmess.optString("type"))
     }
 
+    @Test
+    fun `drops an unknown utls fingerprint instead of failing the profile`() {
+        // Issue #14: Xray spells "do not disguise the hello" as fp=unsafe; the core has no
+        // such fingerprint and used to refuse the profile outright. Plain TLS (no utls
+        // block) is the closest valid meaning; known fingerprints still pass through.
+        val unsafe = parse("vless://uuid@example.com:443?security=tls&fp=unsafe")
+        assertTrue(unsafe.optJSONObject("tls")!!.optBoolean("enabled"))
+        assertFalse(unsafe.optJSONObject("tls")!!.has("utls"))
+
+        val firefox = parse("vless://uuid@example.com:443?security=tls&fp=firefox")
+        assertEquals("firefox", firefox.optJSONObject("tls")!!.optJSONObject("utls")!!.optString("fingerprint"))
+    }
+
     // ---- shadowsocks: legacy plain form (issue #14) -----------------------------------
 
     @Test

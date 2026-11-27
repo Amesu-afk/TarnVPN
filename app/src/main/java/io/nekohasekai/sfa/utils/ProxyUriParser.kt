@@ -343,6 +343,13 @@ object ProxyUriParser {
         alpnArray(queryValue(q, "alpn"))?.let { put("alpn", it) }
     }
 
+    /** The uTLS fingerprints the core's ClientHello switch knows (common/tls/utls_client.go). */
+    private val UTLS_FINGERPRINTS = setOf(
+        "chrome", "chrome_155", "chrome_psk", "chrome_psk_shuffle", "chrome_padding_psk_shuffle",
+        "chrome_pq", "chrome_pq_psk", "firefox", "edge", "safari", "360", "qq", "ios", "android",
+        "random", "randomized",
+    )
+
     private fun streamTls(
         q: Map<String, String>,
         host: String,
@@ -356,10 +363,16 @@ object ProxyUriParser {
             put("server_name", queryValue(q, "sni", "host") ?: host)
             if (isTruthy(queryValue(q, "allowInsecure", "allow_insecure", "insecure"))) put("insecure", true)
             alpnArray(queryValue(q, "alpn"))?.let { put("alpn", it) }
-            put(
-                "utls",
-                JSONObject().put("enabled", true).put("fingerprint", queryValue(q, "fp") ?: "chrome"),
-            )
+            // uTLS fingerprints the ClientHello; a fingerprint the core does not know (Xray's
+            // "unsafe", a provider typo) must not fail the whole profile with "unknown uTLS
+            // fingerprint". The nearest valid meaning is no uTLS block — a plain hello.
+            val fpValue = queryValue(q, "fp")
+            val fingerprint = when {
+                fpValue.isNullOrBlank() -> "chrome" // the app's default, unchanged
+                fpValue.lowercase() in UTLS_FINGERPRINTS -> fpValue.lowercase()
+                else -> null // unknown fingerprint: plain hello instead of a dead profile
+            }
+            fingerprint?.let { put("utls", JSONObject().put("enabled", true).put("fingerprint", it)) }
         }
         if (normalized == "reality") {
             val publicKey = queryValue(q, "pbk") ?: throw IllegalArgumentException("reality requires 'pbk'")
