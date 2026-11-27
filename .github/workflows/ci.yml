@@ -60,7 +60,7 @@ jobs:
           # for build-info checks.
           echo "GO_VERSION_SPEC=${go_version#go}" >> "$GITHUB_ENV"
           echo "Using core ${core_tag} (${core_commit}) with ${go_version}"
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
